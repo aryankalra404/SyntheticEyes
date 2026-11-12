@@ -12,7 +12,7 @@ what the next session needs to know.
 | M2 Texture pipeline | sections 1–4 built and tuned, eyebrow bake fixed (13 Nov); the 8 sets (section 5) can start; using the scan's relief is an open decision |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
-| M5 Compliance and packaging | not started |
+| M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
 ## Open questions
@@ -20,6 +20,64 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — M5 README, Dockerfile, validator (Opus)
+**README.md** rewritten for evaluators: contents, setup (Blender 4.5.1 LTS, no add-ons, no pip
+inside Blender), every wrapper command and flag, Python API, checks, Docker, conventions
+(image-space directions, 35 cm plane, ±5 cm, cameras, clockwise order, every metadata key,
+pixel origin, GNM → Blender axes), UV layout (UDIM tiles and legacy names, file list per set,
+colour spaces, OpenGL normals), how to put a set on a bare GNM head, how it works, licences
+and credits from TECH_NOTES. The bare-head section has the M2 wrap-test eye settings
+(roughness 0.6, Specular IOR Level 0.1, cornea alpha 0) and an `apply_set(obj, folder)`
+snippet that assigns one material per UDIM tile. Tested: stripped the materials from
+`gnm_head` in `scene.blend`, ran the snippet on a scratch set (eurasian skin, detail seed 0,
+brown irises), rendered `cam_face` and `cam_eyes` in Cycles and looked at both: skin, brows,
+both irises and the clear cornea land correctly, no visible seam from the front.
+
+**Dockerfile** + `.dockerignore`: Ubuntu 24.04, Blender 4.5.1 linux-x64 from
+download.blender.org with its sha256 checked, Xvfb + Mesa for EEVEE, entrypoint starts the
+display and runs any command; default renders `--move 0 0 --quality draft` to
+`outputs/docker/draft.png`. Built and run on the M4 under amd64 emulation (Blender ships no
+arm64 Linux build): **40 s, 30 s of it the render**; looked at the frame (grey debug head,
+eyes centred, 512²). Not tested on a native x86_64 machine.
+- Lessons: the first `.dockerignore` was a deny-list and pulled `.venv-gnm` (1.7 GB) into the
+  context; with the build cache that filled the Mac's disk, Docker's VM went read-only and the
+  Blender layer was left truncated (bus error on start). Now an allow-list (`scene.blend`,
+  `wrapper`, `textures`, `tests`, `tools/validate.py`, `README.md`); rebuilt with `--no-cache`.
+  `xvfb-run` hangs as PID 1 (waits for a signal that never comes), so the entrypoint starts
+  Xvfb itself.
+
+**tools/validate.py**, only what section D lacked:
+- `wrapper`: `move`, `reset`, `render` defined, `move(h, v)` signature, flags `--input`
+  (left/right/generate), `--texture`, `--clockwise`, `--seed`, `--quality` (AST + source, no bpy).
+- `docs`: README covers setup, run commands, direction and UV conventions, licences, and has
+  **no TODO left** (fails until the TODOs below are closed, on purpose); Dockerfile pins an exact
+  Blender version and checks the hash.
+- `scene` (with `--blender` or `$BLENDER`): opens `scene.blend` headless; Blender 4.5, bones
+  `eye.L`/`eye.R`, `UDIM` and `legacy` UV maps, head materials, Timeline frame range, animated
+  F-curves on the armature (16) and shape keys (13), no absolute file paths. All pass.
+- `--root DIR` and `--zip FILE` (unzips to a temp folder, root = folder holding `scene.blend`)
+  for the clean-unzip test. Tried on a test zip of the current files: same results as the repo.
+- Current run: everything passes except textures (0 sets at the time), stills (0) and the
+  README TODOs.
+
+**TODO (depends on unfinished work)**
+- Texture sets: `textures/tex_01…08` are being built by another session right now (untracked,
+  not touched here). Then: README table of the 8 sets (skin source, tone, iris colour), check
+  their file names and sizes with `validate.py`, one still per set in `outputs/stills/`.
+- Final videos: `outputs/videos/*.mp4` are drafts on stand-in lids (EEVEE, 512²). Re-render
+  after the lid solve (M1), the M3 look and the M4 framing; same for `renders/` and
+  `metadata.json`, which are still uncommitted.
+- Team and college name: README header, zip name `team_name.zip`, deck
+  `CollegeName_TeamName.pdf`.
+- Demo video link (≤ 3 min) in the README.
+- Code licence for the repo (README says TODO; MIT suggested).
+- CC BY credit line for the Lee Perry-Smith scan, only if its relief is adopted.
+- README's `--texture` describes the M1 hookup (legacy UVs, albedo, normal, roughness);
+  update if M3 changes the shading or the flag.
+- M5 plan items not done: clean-clone test and zip test of the real bundle (run
+  `validate.py --zip team_name.zip --blender …` on it), final renders overnight.
+- Docker on native x86_64 is untested.
 
 ### Fri 13 Nov 2026, night — M2 eyebrow bake fix (Fable)
 The strand eyebrows baked as hard, broken strokes because each hair is a tube about 0.08 mm

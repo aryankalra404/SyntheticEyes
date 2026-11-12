@@ -1,7 +1,13 @@
-"""Check the bundle without Blender: layout, metadata.json, direction signs, videos, textures.
+"""Check the bundle: layout, metadata.json, direction signs, videos, textures, wrapper API,
+README and Dockerfile. Standard library only; the scene check also needs Blender.
 
     python tools/validate.py            # everything; exit code 1 if anything fails
     python tools/validate.py --skip videos textures
+    python tools/validate.py --root /path/to/unzipped/bundle
+    python tools/validate.py --zip team_name.zip        # unzip to a temp folder and check that
+    python tools/validate.py --blender /path/to/blender # also open scene.blend headless
+
+The scene section runs when --blender is given or $BLENDER is set, and is skipped otherwise.
 
 Direction signs come from outputs/direction_check.json, written by
     blender -b scene.blend -P wrapper/eyes.py -- --check-directions
@@ -9,10 +15,16 @@ Image space: x right, y down, so left = -x, right = +x, up = -y, down = +y.
 """
 
 import argparse
+import ast
 import json
 import math
+import os
+import re
 import struct
+import subprocess
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -170,20 +182,150 @@ def check_textures(r):
     r.check(len(stills) >= len(sets) and stills, "stills: one per texture set", f"found {len(stills)}")
 
 
+WRAPPER_FUNCS = ("move", "reset", "render")
+WRAPPER_FLAGS = ("--input", "--texture", "--clockwise", "--seed", "--quality")
+README_TOPICS = {  # section D: setup, run, conventions, licences
+    "setup": r"blender\s+4\.\d",
+    "run commands": r"wrapper/eyes\.py\s+--\s+--input",
+    "direction convention": r"image[- ]right",
+    "UV convention": r"\b1001\b.*\b1002\b",
+    "licences": r"licen[cs]e",
+}
+
+
+def check_wrapper(r):
+    path = REPO / "wrapper" / "eyes.py"
+    if not r.check(path.exists(), "wrapper: wrapper/eyes.py exists"):
+        return
+    src = path.read_text()
+    funcs = {n.name: n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef)}
+    for name in WRAPPER_FUNCS:
+        r.check(name in funcs, f"wrapper: eyes.{name}() defined")
+    if "move" in funcs:
+        args = [a.arg for a in funcs["move"].args.args]
+        r.check(args[:2] == ["h", "v"], "wrapper: move(h, v) signature", ", ".join(args))
+    for flag in WRAPPER_FLAGS:
+        r.check(f'"{flag}"' in src, f"wrapper: CLI flag {flag}")
+    m = re.search(r'"--input",\s*choices=\(([^)]*)\)', src)
+    choices = set(re.findall(r'"(\w+)"', m.group(1))) if m else set()
+    r.check(choices >= {"left", "right", "generate"}, "wrapper: --input left|right|generate",
+            ", ".join(sorted(choices)))
+
+
+def check_docs(r):
+    readme = REPO / "README.md"
+    if r.check(readme.exists(), "README.md exists"):
+        text = readme.read_text()
+        for topic, pat in README_TOPICS.items():
+            r.check(re.search(pat, text, re.I | re.S) is not None, f"README: {topic}")
+        todos = [ln.strip() for ln in text.splitlines() if "TODO" in ln]
+        r.check(not todos, "README: no TODO left", f"{len(todos)} line(s)")
+    docker = REPO / "Dockerfile"
+    if r.check(docker.exists(), "Dockerfile exists"):
+        text = docker.read_text()
+        ver = re.search(r"BLENDER_VERSION=(\d+\.\d+\.\d+)", text)
+        r.check(ver is not None, "Dockerfile: pins an exact Blender version",
+                ver.group(1) if ver else "")
+        r.check(re.search(r"sha256", text, re.I) is not None, "Dockerfile: checks the download hash")
+
+
+SCENE_PROBE = r"""
+import bpy, json, os
+rig = bpy.data.objects.get("gnm_rig")
+head = bpy.data.objects.get("gnm_head")
+out = {"version": bpy.app.version_string,
+       "bones": sorted(b.name for b in rig.data.bones) if rig else [],
+       "uv_layers": sorted(u.name for u in head.data.uv_layers) if head else [],
+       "materials": sorted(m.name for m in head.data.materials if m) if head else [],
+       "frame_range": [bpy.context.scene.frame_start, bpy.context.scene.frame_end],
+       "fcurves": {}, "absolute_paths": []}
+for name, owner in (("armature", rig), ("shape_keys", head.data.shape_keys if head else None)):
+    ad = owner.animation_data if owner else None
+    act = ad.action if ad else None
+    out["fcurves"][name] = sum(1 for fc in act.fcurves if len(fc.keyframe_points) > 1) if act else 0
+for coll in (bpy.data.images, bpy.data.libraries, bpy.data.sounds, bpy.data.movieclips):
+    for d in coll:
+        fp = getattr(d, "filepath", "")
+        packed = getattr(d, "packed_file", None) is not None
+        if fp and not fp.startswith("//") and not packed and os.path.isabs(fp):
+            out["absolute_paths"].append(fp)
+print("VALIDATE_SCENE " + json.dumps(out))
+"""
+
+
+def check_scene(r, blender):
+    blend = REPO / "scene.blend"
+    if not r.check(blend.exists(), "scene: scene.blend exists"):
+        return
+    try:
+        proc = subprocess.run([blender, "-b", str(blend), "--python-expr", SCENE_PROBE],
+                              capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        r.check(False, "scene: Blender runs", str(e))
+        return
+    line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("VALIDATE_SCENE ")), None)
+    if not r.check(line is not None, "scene: Blender opened scene.blend", proc.stderr.strip()[-200:]):
+        return
+    s = json.loads(line.split(" ", 1)[1])
+    r.check(s["version"].startswith("4.5"), "scene: Blender 4.5 (pinned)", s["version"])
+    r.check({"eye.L", "eye.R"} <= set(s["bones"]), "scene: eye bones eye.L and eye.R",
+            ", ".join(s["bones"]))
+    r.check({"UDIM", "legacy"} <= set(s["uv_layers"]), "scene: UDIM and legacy UV maps",
+            ", ".join(s["uv_layers"]))
+    r.check(len(s["materials"]) > 0, "scene: head has materials", f"{len(s['materials'])}")
+    f0, f1 = s["frame_range"]
+    r.check(f1 > f0, "scene: Timeline has a frame range", f"{f0}..{f1}")
+    r.check(s["fcurves"]["armature"] > 0, "scene: eye/head bones keyframed on the Timeline",
+            f"{s['fcurves']['armature']} animated F-curves")
+    r.check(s["fcurves"]["shape_keys"] > 0, "scene: lid/brow shape keys keyframed",
+            f"{s['fcurves']['shape_keys']} animated F-curves")
+    r.check(not s["absolute_paths"], "scene: no absolute file paths", ", ".join(s["absolute_paths"]))
+
+
 SECTIONS = {"layout": check_layout, "metadata": check_metadata, "directions": check_directions,
-            "videos": check_videos, "textures": check_textures}
+            "videos": check_videos, "textures": check_textures, "wrapper": check_wrapper,
+            "docs": check_docs, "scene": check_scene}
+
+
+def unzip(path, into):
+    """Extract a bundle zip; the root is the folder holding scene.blend."""
+    with zipfile.ZipFile(path) as z:
+        z.extractall(into)
+    hits = sorted(Path(into).rglob("scene.blend"), key=lambda p: len(p.parts))
+    return hits[0].parent if hits else Path(into)
 
 
 def main():
+    global REPO
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip", nargs="*", default=[], choices=tuple(SECTIONS))
+    where = ap.add_mutually_exclusive_group()
+    where.add_argument("--root", type=Path, help="check this folder instead of the repo")
+    where.add_argument("--zip", type=Path, help="unzip to a temp folder and check that")
+    ap.add_argument("--blender", default=os.environ.get("BLENDER"),
+                    help="Blender executable for the scene check (default $BLENDER)")
     args = ap.parse_args()
+    tmp = None
+    if args.zip:
+        tmp = tempfile.TemporaryDirectory()
+        REPO = unzip(args.zip, tmp.name)
+        print(f"checking {args.zip.name}, unzipped to {REPO}")
+    elif args.root:
+        REPO = args.root.resolve()
     r = Report()
     for name, fn in SECTIONS.items():
         if name in args.skip:
             print(f"SKIP  {name}")
             continue
+        if name == "scene":
+            if not args.blender:
+                print("SKIP  scene  (no --blender and no $BLENDER)")
+                continue
+            fn(r, args.blender)
+            continue
         fn(r)
+    if tmp:
+        tmp.cleanup()
     print(f"\n{'OK' if not r.fails else f'{r.fails} check(s) failed'}")
     sys.exit(1 if r.fails else 0)
 

@@ -1,0 +1,10 @@
+# allow-list: only what the wrapper needs to render
+*
+!scene.blend
+!wrapper
+!textures
+!tests
+!tools/validate.py
+!README.md
+**/__pycache__
+**/*.pyc

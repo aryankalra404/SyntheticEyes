@@ -17,8 +17,6 @@ what the next session needs to know.
 
 ## Open questions
 
-- Does the DRM-locked `Evaluation_for_SyntheticEyes.pptx` differ from `_1.pptx`?
-- What does the second reference video (youtu.be/TAZIvyAJfeM) show?
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log

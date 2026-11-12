@@ -180,9 +180,33 @@ Implementation consequences:
 
 ## Reference bar
 
-Chris Jones, "Flexpressions" (https://youtu.be/gh6WbaYzwFc): hand-made in Blender and
-Krita, rendered in Cycles. Things to match at the eye: lid thickness and wet rim, lash
-shadow, cornea bulge moving the lid, skin stretch around the orbit, catchlight.
+Both videos the organisers link are by Chris Jones. Frames from each were looked at on
+12 Nov 2026 (ten from "Eye Piece", five from "Flexpressions").
+
+**"Eye Piece"** (https://youtu.be/TAZIvyAJfeM, 47 s, 2014; Lightwave, Sculptris, Krita). An
+extreme close-up of one eye on a patch of face, fully textured, then the same shot as
+wireframe. This is the bar for the eye itself:
+- wet lid margins with bright specular glints, and a tear line along the lower lid
+- lashes as real strands on both lids; the brow as strands too
+- cornea bulge with a sharp catchlight, iris fibres with depth, a dark limbal ring
+- sclera that is not white: veins, pink toward the corners, a red caruncle
+- lid skin that is thin and translucent, with fine creases and pore-scale highlights
+- shot with a hard key light against black, so every wet surface reads
+
+**"Flexpressions"** (https://youtu.be/gh6WbaYzwFc, 31 s, 2021; Blender, Krita, Cycles). A whole
+head in **untextured grey**, pulling strong expressions. There is no colour map at all; the
+realism is geometry and fine surface relief:
+- brows, lids, cheeks and nose move together; nothing moves alone
+- wrinkles form with the motion: forehead lines, crow's feet, nasolabial folds, nose scrunch
+- pores and lip creases are visible as relief, so they survive without colour
+
+What this means for us:
+- The videos want **close-ups of the eye**. Shoot the three videos with `cam_eyes`.
+- Wetness, lashes and the tear line count for more than the iris pattern.
+- Relief carries the high frequency. The pore and lip-crease normal maps matter as much as
+  the albedo, and should be visible on a grey head.
+- Brows and squint should travel with the gaze. Expression-driven wrinkle normal maps
+  (forehead with brow raise, crow's feet with squint) are the cheap way to echo Flexpressions.
 
 ## Assets and licences
 

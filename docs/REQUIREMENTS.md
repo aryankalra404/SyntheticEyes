@@ -8,7 +8,7 @@ Three sources, in priority order. Where they disagree, satisfy all of them.
 3. `XR_Hackathon_2026_Consolidated_Slides_for_sharing_v1.pdf`, Track 1 slides 3–7 and
    general rules slides 23–26 (the "PDF spec").
 
-A second file, `Evaluation_for_SyntheticEyes.pptx`, is DRM-locked and has not been read.
+`Evaluation_for_SyntheticEyes (3).pptx`, read on 12 Nov 2026, has the same two slides as `_1`.
 The evaluation PPT still says "Submission Due: Oct 28, 2026"; the PDF timeline (18 Nov) is current.
 
 ## A. Evaluation PPT, slide 2 (the rubric that counts)
@@ -54,9 +54,10 @@ separate high-resolution iris maps for left and right eyes → photorealism audi
 and artifacts.
 
 ### Reference videos named by the organisers
-- https://youtu.be/gh6WbaYzwFc — Chris Jones, "Flexpressions": hand-made in Blender and
-  Krita, rendered in Cycles. This is the realism bar.
-- https://youtu.be/TAZIvyAJfeM — not yet reviewed (page would not load).
+Introduced as "watch the below two videos to understand how natural eye expressions are
+simulated. For ex:". Both are by Chris Jones; what each shows is in TECH_NOTES, "Reference bar".
+- https://youtu.be/TAZIvyAJfeM — "Eye Piece": textured extreme close-up of one eye.
+- https://youtu.be/gh6WbaYzwFc — "Flexpressions": untextured grey head pulling expressions.
 
 ## B. PDF spec, Track 1
 

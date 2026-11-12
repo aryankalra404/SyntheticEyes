@@ -7,7 +7,8 @@ Writes (all non-colour data except where noted):
 
     skin_normal.1001.png   4096²  tangent-space normal map, OpenGL convention (+G = +v),
                                   MikkTSpace tangent along +u. Pores, skin micro-furrows,
-                                  vertical lip creases.
+                                  vertical lip creases, fine lines under the lower lid and
+                                  at the outer eye corner.
     skin_rough.1001.png    2048²  roughness 0..1, 8-bit grey. Shinier nose, forehead, lips.
     skin_detail.1001.png   4096²  albedo multiply map, linear light, 128 = x1.0 (value/128).
                                   Mottling, freckles, moles, redness, small veins, pore tint.
@@ -69,6 +70,16 @@ PROFILE = {
 }
 FIELDS = ["density", "sigma", "depth", "micro", "rough", "red", "freckle"]
 
+# Relief and colour scales at strength 1.0. Raised 2x (redness 1.6x) on 13 Nov: at the first values (pores
+# 0.024 mm, micro 0.014 mm, mottling 3.5 %, redness 10 %) the grey head read as smooth plastic
+# at face size and the colour detail could not be seen in a face render.
+PORE_DEPTH_MM = 0.048
+PORE_NORM_MM = PORE_DEPTH_MM * 1.17          # typical pore height, for tint and roughness
+MICRO_DEPTH_MM = 0.028
+LID_LINE_DEPTH_MM = 0.022
+MOTTLE = 0.07
+REDNESS = (0.016, 0.16, 0.136)              # 1.6x: at 2x the cheeks read as a blush patch
+
 
 # --------------------------------------------------------------------------- fields
 
@@ -94,7 +105,49 @@ def region_fields(d, T: tc.Texels) -> dict[str, np.ndarray]:
     res = {f: T.attr(out[f] / total) for f in FIELDS}
     res["lips"] = T.attr(W["lips"] / total)
     res["veins"] = T.attr(np.clip(W["temple"] * 1.5 + W["lids"], 0, 1) / total)
+    res["lid_s"], res["lid_w"] = lid_coords(d, T)
     return res
+
+
+def lid_coords(d, T):
+    """Per texel: distance below the lower-lid margin in mm (s) and a weight for the fine lines.
+
+    The lower margin is the front rim of `eye_sockets` below the line between the corners.
+    Past the outer corner the margin is continued as a line rising gently, so the lines there
+    run along the lid direction and fan out toward the temple. Lines of constant s follow the lid.
+    """
+    V = d["template_vertices"] * 1000.0
+    sock, ext = tc.group(d, "eye_sockets"), tc.group(d, "skin_exterior")
+    q = d["quads"]
+    mixed = sock[q].any(1) & (ext & ~sock)[q].any(1)
+    rim = np.unique(q[mixed][sock[q][mixed]])
+    P = T.pos
+    s_all = np.zeros(len(P), dtype=np.float32)
+    w_all = np.zeros(len(P), dtype=np.float32)
+    for sign in (1.0, -1.0):
+        r = rim[np.sign(V[rim, 0]) == sign]
+        ox, oy = V[r, 0] * sign, V[r, 1]
+        i_in, i_out = np.argmin(ox), np.argmax(ox)
+        x_in, y_in, x_out, y_out = ox[i_in], oy[i_in], ox[i_out], oy[i_out]
+        chord = y_in + (ox - x_in) / (x_out - x_in) * (y_out - y_in)
+        low = np.where(oy <= chord + 1e-6)[0]
+        order = np.argsort(ox[low])
+        lx, ly = ox[low][order], oy[low][order]
+        tx, ty = P[:, 0] * sign, P[:, 1]
+        y_lid = np.interp(tx, lx, ly)
+        past = tx > x_out
+        y_lid[past] = y_out + 0.2 * (tx[past] - x_out)
+        s = y_lid - ty
+        near = ((np.sign(P[:, 0]) == sign) & (P[:, 2] > V[r, 2].mean() - 22)
+                & (tx > x_in - 2) & (tx < x_out + 17) & (s > -8) & (s < 11))
+        corner = smoothstep(x_out - 1, x_out + 4, tx)
+        s_lo = 1.0 + (-5.0 - 1.0) * corner                   # under the lid from 1 mm; above the
+        w = (smoothstep(s_lo, s_lo + 1.2, s) * (1 - smoothstep(5.5, 9.5, s))  # corner line too
+             * smoothstep(x_in + 1, x_in + 6, tx) * (1 - smoothstep(x_out + 8, x_out + 16, tx)))
+        w *= 1 - 0.45 * smoothstep(1.5, 8, np.abs(s))      # strongest close to the lid
+        s_all[near] = s[near]
+        w_all[near] = w[near]
+    return s_all, w_all
 
 
 class Noise3:
@@ -163,7 +216,7 @@ def height_map(rng, T, F, size, args, lo, hi):
     # pores
     idx = scatter(rng, T, F["density"] * args.pore_density)
     sig = F["sigma"][idx] * rng.uniform(0.7, 1.35, len(idx)) * args.pore_size
-    depth = 0.024 * F["depth"][idx] * rng.uniform(0.6, 1.4, len(idx)) * args.pore_strength
+    depth = PORE_DEPTH_MM * F["depth"][idx] * rng.uniform(0.6, 1.4, len(idx)) * args.pore_strength
     pores = splat(T, idx, sig, depth, size)
     print(f"[detail] {len(idx):,} pores in {time.time() - t0:.1f} s")
 
@@ -180,7 +233,7 @@ def height_map(rng, T, F, size, args, lo, hi):
         micro += w * ridged
         w_sum += w
     micro /= np.maximum(w_sum, 1e-6)
-    micro_amp = T.image(F["micro"] * 0.014 * args.micro_strength)
+    micro_amp = T.image(F["micro"] * MICRO_DEPTH_MM * args.micro_strength)
     mod = T.image(0.75 + 0.25 * fbm3(rng, T.pos, lo, hi, [6.0], [1.0]))
     h = -pores + micro * micro_amp * mod
 
@@ -205,6 +258,26 @@ def height_map(rng, T, F, size, args, lo, hi):
     crease = np.zeros(len(T.pos), dtype=np.float32)
     crease[on] = (0.045 * valley * broken + 0.012 * valley2) * args.lip_strength
     h -= T.image(crease * smoothstep(0.03, 0.35, lips))
+
+    # fine lines under the lower lid and at the outer corner: valleys of constant s
+    # (distance below the lid margin), wavy and broken, a coarse and a fine set
+    on = F["lid_w"] > 1e-3
+    if on.any() and args.lid_lines > 0:
+        pos = T.pos[on]
+        s = F["lid_s"][on] + 0.18 * fbm3(rng, pos, lo, hi, [1.5], [1.0])
+        sgrid = np.arange(-12, 14, 0.01)
+        n1 = gaussian_filter(rng.standard_normal(len(sgrid)), 32)    # ~0.3 mm correlation
+        n1 /= n1.std()
+        n2 = gaussian_filter(rng.standard_normal(len(sgrid)), 12)
+        n2 /= n2.std()
+        coarse = np.exp(-(np.interp(s, sgrid, n1) / 0.28) ** 2)
+        fine = np.exp(-(np.interp(s, sgrid, n2) / 0.22) ** 2)
+        broken = np.clip(0.3 + 0.75 * fbm3(rng, pos, lo, hi, [1.2, 3.5], [0.7, 1.0]), 0, 1)
+        broken2 = np.clip(0.2 + 0.8 * fbm3(rng, pos, lo, hi, [0.8, 2.0], [0.7, 1.0]), 0, 1)
+        line = np.zeros(len(T.pos), dtype=np.float32)
+        line[on] = (LID_LINE_DEPTH_MM * coarse * broken + 0.35 * LID_LINE_DEPTH_MM * fine * broken2) \
+            * F["lid_w"][on] * args.lid_lines
+        h -= T.image(line)
     return h, pores
 
 
@@ -236,13 +309,13 @@ def albedo_detail(rng, T, F, pores, size, args, lo, hi):
     lum = fbm3(rng, T.pos, lo, hi, [2.5, 7.0, 16.0], [0.5, 0.8, 1.0])
     blood = fbm3(rng, T.pos, lo, hi, [3.0, 10.0], [0.7, 1.0])
     s = args.mottle_strength
-    f *= (1 + 0.035 * s * lum)[:, None]
-    f *= np.stack([1 + 0.010 * s * blood, 1 - 0.035 * s * blood, 1 - 0.03 * s * blood], 1)
+    f *= (1 + MOTTLE * s * lum)[:, None]
+    f *= np.stack([1 + 0.29 * MOTTLE * s * blood, 1 - MOTTLE * s * blood, 1 - 0.86 * MOTTLE * s * blood], 1)
     # redness on nose and cheeks, patchy
     red = np.clip(F["red"] * (0.75 + 0.35 * fbm3(rng, T.pos, lo, hi, [4.0, 9.0], [0.6, 1.0])), 0, 1.4)
-    f *= np.stack([1 - 0.01 * red, 1 - 0.10 * red, 1 - 0.085 * red], 1) ** args.redness
+    f *= np.stack([1 - REDNESS[0] * red, 1 - REDNESS[1] * red, 1 - REDNESS[2] * red], 1) ** args.redness
     # pores slightly darker and browner
-    pt = pores[T.ys, T.xs] / 0.028
+    pt = pores[T.ys, T.xs] / PORE_NORM_MM
     pt = np.clip(pt, 0, 1.5) * args.pore_tint
     f *= np.stack([1 - 0.10 * pt, 1 - 0.13 * pt, 1 - 0.14 * pt], 1)
 
@@ -328,6 +401,7 @@ def main():
     ap.add_argument("--pore-size", type=float, default=1.0)
     ap.add_argument("--micro-strength", type=float, default=1.0)
     ap.add_argument("--lip-strength", type=float, default=1.0)
+    ap.add_argument("--lid-lines", type=float, default=1.0, help="fine lines under the lower lid")
     ap.add_argument("--mottle-strength", type=float, default=1.0)
     ap.add_argument("--redness", type=float, default=1.0)
     ap.add_argument("--freckles", type=float, default=1.0)
@@ -343,7 +417,7 @@ def main():
     # small per-set variation of the strengths, from the seed
     vr = np.random.default_rng([args.seed, 99])
     for k in ("pore_strength", "pore_density", "pore_size", "micro_strength", "lip_strength",
-              "mottle_strength", "redness", "freckles"):
+              "mottle_strength", "redness", "freckles", "lid_lines"):
         setattr(args, k, getattr(args, k) * (1 + args.variation * vr.uniform(-1, 1)))
 
     t0 = time.time()
@@ -364,7 +438,7 @@ def main():
 
     # roughness at 2048: region values, a little rougher in pores, low-frequency variation
     rough = F["rough"] + 0.035 * fbm3(rng, T.pos, lo, hi, [3.0, 10.0], [0.6, 1.0])
-    rough = rough + 0.10 * np.clip(pores[T.ys, T.xs] / 0.028, 0, 1)
+    rough = rough + 0.10 * np.clip(pores[T.ys, T.xs] / PORE_NORM_MM, 0, 1)
     r_img = tc.fill_nearest(T.image(rough, 0.5), T.mask)
     f = size // args.rough_size
     r_img = r_img.reshape(args.rough_size, f, args.rough_size, f).mean((1, 3)) if f > 1 else r_img

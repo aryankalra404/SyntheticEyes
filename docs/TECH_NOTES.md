@@ -190,7 +190,25 @@ shadow, cornea bulge moving the lid, skin stretch around the orbit, catchlight.
 |---|---|---|
 | Google GNM Head v3 | head mesh, rig, UVs | Apache-2.0 |
 | MakeHuman Skins 01/02, Eyebrows 01, Eyelashes 01 | skin source, brows, lashes | CC0 |
-| Poly Haven HDRI (name the file once chosen) | lighting | CC0 |
+| MakeHuman system assets, base mesh | registration target, default eyebrows/lashes | CC0 |
+| Poly Haven `brown_photostudio_02` 2K HDR | lighting | CC0 |
+
+Downloaded in M0 (12 Nov 2026) into `assets/third_party/` (git-ignored). Each licence was
+checked on its download page: every asset row on the MakeHuman pack pages says CC0, and
+Poly Haven's licence page says all its assets are CC0.
+
+| File | Source URL | Licence | Contents |
+|---|---|---|---|
+| `makehuman/skins01_cc0.zip` (104 MB) | https://files.makehumancommunity.org/asset_packs/skins01/skins01_cc0.zip (page: https://static.makehumancommunity.org/assets/assetpacks/skins01.html) | CC0, 23/23 assets | 23 skins (female) |
+| `makehuman/skins02_cc0.zip` (76 MB) | https://files.makehumancommunity.org/asset_packs/skins02/skins02_cc0.zip (page: …/assetpacks/skins02.html) | CC0, 13/13 | 13 skins (male) |
+| `makehuman/eyebrows01_cc0.zip` (11 MB) | https://files.makehumancommunity.org/asset_packs/eyebrows01/eyebrows01_cc0.zip (page: …/assetpacks/eyebrows01.html) | CC0, 14/14 | 14 eyebrow proxies (Mindfront) |
+| `makehuman/eyelashes01_cc0.zip` (3.5 MB) | https://files.makehumancommunity.org/asset_packs/eyelashes01/eyelashes01_cc0.zip (page: …/assetpacks/eyelashes01.html) | CC0, 5/5 | 5 eyelash proxies (Mindfront) |
+| `makehuman/makehuman_system_assets_cc0.zip` (281 MB) | https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip (page: …/assetpacks/makehuman_system_assets.html) | CC0, 94/94 | default skins, eyes, eyebrows, eyelashes, teeth, tongue, hair, clothes, proxies |
+| `makehuman/base_mesh/base.obj` (1.7 MB) | https://raw.githubusercontent.com/makehumancommunity/makehuman/master/makehuman/data/3dobjs/base.obj | CC0 (file header and repo `LICENSE.md` section C) | 19,158 v, 21,334 vt, 18,486 f. Includes helper geometry (joints, clothing helpers); keep only the body group when registering |
+| `hdri/brown_photostudio_02_2k.hdr` (6.5 MB) | https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/brown_photostudio_02_2k.hdr (page: https://polyhaven.com/a/brown_photostudio_02) | CC0 (https://polyhaven.com/license) | soft studio with window light, medium contrast |
+
+The `files2.makehumancommunity.org` mirror stalled twice mid-download; the
+`files.makehumancommunity.org` mirror worked.
 | Blender | renderer | GPL (tool only, not redistributed) |
 | blender-mcp (ahujasid) | dev iteration only | MIT |
 

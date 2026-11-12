@@ -28,7 +28,7 @@ Written and tested in a cloud session with no Blender, so nothing here has been 
 - `wrapper/gaze/`: pure numpy, Python 3.11 syntax, no bpy. `generate(mode, seed)` returns a
   `Track` with 15 channels (listed in the `engine.py` docstring) on a 1 kHz clock;
   `track.frames(fps)` gives one dict per frame.
-- Model: saccades on the main sequence (5° 31 ms, 10° 42 ms, 30° peaks about 550°/s),
+- Model: saccades on the main sequence (5° 30 ms, 10° 41 ms, 30° 99 ms peaking at 546°/s),
   10 % undershoot plus a corrective saccade on shifts over 12°, small glissade, fixational
   drift and microsaccades, ≥ 150 ms between saccades. Head takes 10–40 % of the shift, starts
   40 ms after the eyes and follows smoothly; eye-in-head = gaze − head, so gaze holds while

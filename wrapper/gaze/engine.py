@@ -35,8 +35,8 @@ CHANNELS = (
 class GazeParams:
     dt: float = 0.001                      # internal clock, s
     # Saccade main sequence: peak velocity saturates with amplitude.
-    sacc_vmax: float = 560.0               # deg/s
-    sacc_c: float = 7.5                    # deg
+    sacc_vmax: float = 550.0               # deg/s
+    sacc_c: float = 6.0                    # deg
     sacc_min_dur: float = 0.018            # s
     min_isi: float = 0.15                  # s between saccades
     undershoot_from: float = 12.0          # deg; larger shifts land short

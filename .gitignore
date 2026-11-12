@@ -1,0 +1,30 @@
+# python
+__pycache__/
+*.pyc
+.venv*/
+.uv/
+
+# macOS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# blender
+*.blend1
+*.blend2
+*.blend@
+
+# third-party inputs and model weights
+assets/third_party/
+assets/gnm/*.npz
+assets/gnm/*.npy
+*.h5
+
+# scratch output
+outputs/spike/
+outputs/frames/
+outputs/tmp/
+*.exr
+
+# packaging
+*.zip

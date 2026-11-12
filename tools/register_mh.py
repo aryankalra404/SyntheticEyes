@@ -124,15 +124,22 @@ def grow(mask, quads, rings):
     return mask
 
 
-def main():
+def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=16)
     ap.add_argument("--prior", type=float, default=2e-7, help="weight on |identity|^2")
     ap.add_argument("--landmark-weight", type=float, default=60.0)
     ap.add_argument("--snap-landmark-weight", type=float, default=40.0)
     ap.add_argument("--stiffness", type=float, nargs="+", default=[3000, 1000, 300, 100, 30, 10, 3, 1])
-    args = ap.parse_args()
+    return ap.parse_args()
 
+
+def register(args, mh_V, mh_T, mh_lm, ids, out, prefix="mh", lid_rings=0):
+    """Wraps GNM's skin onto a source head (vertices, triangles, landmark points for GNM ids).
+
+    lid_rings: rings of skin around the eye pockets that are not pulled to the source, for a
+    source whose eyes are closed. Output keys are <prefix>_scale / _rotation / _translation.
+    """
     # numpy on Apple silicon raises spurious matmul warnings; results are checked for finiteness
     np.seterr(divide="ignore", over="ignore", invalid="ignore")
     model = gnm_core.load_model()
@@ -146,15 +153,12 @@ def main():
     skin_tris = tris[skin[tris].all(1)]
     pockets = groups.mask("eye_sockets", "mouth_sock")
     protected = grow(pockets, skin_quads, 1) | ~exterior
+    if lid_rings:
+        protected |= grow(groups.mask("eye_sockets"), skin_quads, lid_rings)
     ears = groups.mask("ears")
     face = groups.mask("hockey_mask") & exterior & ~protected
 
     lm_idx, lm_w = gnm_core.load_landmarks()
-    picks = json.loads(mh_core.LANDMARKS_JSON.read_text())["landmarks"]
-    ids = np.array([p["gnm"] for p in picks])
-    mh_V, _, mh_F, _ = mh_core.load_head()
-    mh_T = mh_core.triangulate(mh_F)
-    mh_lm = np.array([(mh_V[p["verts"]] * np.array(p["weights"])[:, None]).sum(0) for p in picks])
     lm_idx, lm_w = lm_idx[ids], lm_w[ids].astype(np.float64)
 
     def gnm_landmarks(X):
@@ -259,15 +263,24 @@ def main():
     print(f"[register] landmarks: mean {lm_err.mean():.2f} mm, max {lm_err.max():.2f} mm; "
           f"snap moved skin by mean {move.mean():.2f} mm, max {move.max():.2f} mm")
 
-    gnm_core.save_npz_deterministic(OUT, {
+    gnm_core.save_npz_deterministic(out, {
         "vertices": X.astype(np.float32),
         "fit_vertices": fit.astype(np.float32),
         "identity": c.astype(np.float32),
-        "mh_scale": np.array(s), "mh_rotation": R, "mh_translation": t,
+        f"{prefix}_scale": np.array(s), f"{prefix}_rotation": R, f"{prefix}_translation": t,
         "face_distance_mm": np.array([dd.mean() * 1000, np.percentile(dd, 95) * 1000]),
         "pulled": np.isin(np.arange(len(template)), sidx[ok]),
     })
-    print(f"[register] wrote {OUT.relative_to(REPO)}")
+    print(f"[register] wrote {out.relative_to(REPO)}")
+
+
+def main():
+    args = parse_args()
+    picks = json.loads(mh_core.LANDMARKS_JSON.read_text())["landmarks"]
+    ids = np.array([p["gnm"] for p in picks])
+    mh_V, _, mh_F, _ = mh_core.load_head()
+    mh_lm = np.array([(mh_V[p["verts"]] * np.array(p["weights"])[:, None]).sum(0) for p in picks])
+    register(args, mh_V, mh_core.triangulate(mh_F), mh_lm, ids, OUT)
 
 
 if __name__ == "__main__":

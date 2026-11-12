@@ -10,7 +10,8 @@ Per set, from the recipe table below:
      -> outputs/tmp/m2/sets/tex_NN/skin.1001.png (raw bake, not shipped)
   2. tools/detail_maps.py --seed S -> normal, roughness, albedo-detail maps
   3. tools/make_iris.py --color C --seed S -> eye.1002.png (left), eye.1004.png (right)
-  4. albedo x detail in linear light (detail_maps.apply_albedo_detail) -> skin.1001.png
+  4. optional tone adjustment of the bake (saturation, hue shift, gain, in linear light),
+     then albedo x detail in linear light (detail_maps.apply_albedo_detail) -> skin.1001.png
   5. legacy/ copies under per-region names, set.json
   6. tools/check_detail.py --wrap on the shipped files (the judges' view): front,
      three-quarter, profile, back -> outputs/tmp/m2/sets/tex_NN/wrap_*.png; the front
@@ -44,6 +45,9 @@ WORK = REPO / "outputs/tmp/m2/sets"
 TEX = REPO / "textures"
 
 # Brow colours are linear RGB. Detail flags are multipliers on detail_maps.py's defaults.
+# tone (optional): saturation about each texel's luminance (1 = unchanged), hue rotation in
+# degrees about the grey axis (+ turns red toward yellow), gain; applied to the bake in linear
+# light before the detail layer, so brows and lips shift with the skin.
 # identity: the GNM IdentitySampler settings these textures are paired with for stills
 # (ethnicity is the sampler's class name; South Asian has no class of its own, closest is
 # MIDDLE_EASTERN).
@@ -57,12 +61,14 @@ SETS = {
         detail={},
         identity=dict(gender="female", ethnicity="white", seed=1)),
     "02": dict(
-        label="young woman, South Asian, dark brown eyes",
+        label="young woman, South Asian, medium brown skin, dark brown eyes",
         skin="skins01/skins/cutoff3d_indian_female_skin",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_05",
         brow=dict(color=[0.022, 0.015, 0.011], opacity=0.8, width=0.11, density=1.3, shadow=0.35),
         iris="dark_brown", seed=2,
         detail={"redness": 0.8},
+        # the source bakes light-medium (cheek Y 0.34); taken to medium brown, Y 0.15
+        tone=dict(saturation=1.3, hue=0.0, gain=0.44),
         identity=dict(gender="female", ethnicity="middle_eastern", seed=2)),
     "03": dict(
         label="middle-aged man, Black, dark brown eyes",
@@ -84,17 +90,19 @@ SETS = {
         label="young man, East Asian, brown eyes",
         skin=f"makehuman_system_assets/skins/young_asian_male",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_08",
-        brow=dict(color=[0.014, 0.011, 0.009], opacity=0.9, width=0.13, density=1.5, shadow=0.45),
+        brow=dict(color=[0.014, 0.011, 0.009], opacity=0.75, width=0.12, density=1.2, shadow=0.35),
         iris="brown", seed=5,
         detail={"pore_strength": 1.1, "freckles": 0.5},
         identity=dict(gender="male", ethnicity="asian", seed=5)),
     "06": dict(
-        label="old woman, Black, brown eyes",
+        label="old woman, Black, deep brown skin, brown eyes",
         skin="makehuman_system_assets/skins/old_african_female",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
         brow=dict(color=[0.010, 0.007, 0.006], opacity=0.9, width=0.13, density=1.5, shadow=0.45),
         iris="brown", seed=6,
         detail={"redness": 0.5, "lid_lines": 1.6, "micro_strength": 1.3},
+        # the source is a saturated red-brown (cheek sRGB 96/39/20); to deep brown, about 86/53/37
+        tone=dict(saturation=0.6, hue=6.0, gain=1.1),
         identity=dict(gender="female", ethnicity="black", seed=6)),
     "07": dict(
         label="young man, light freckled skin, auburn brows, green eyes",
@@ -138,10 +146,33 @@ def details(nn, r):
          "--out", WORK / f"tex_{nn}/iris"])
 
 
+LUMA = np.array([0.2126, 0.7152, 0.0722])
+
+
+def tone_matrix(saturation=1.0, hue=0.0, gain=1.0):
+    """3x3 matrix on linear RGB: saturation about luminance, hue rotation about grey, gain."""
+    k = np.ones(3) / np.sqrt(3.0)
+    K = np.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
+    t = np.radians(hue)
+    rot = np.eye(3) + np.sin(t) * K + (1 - np.cos(t)) * K @ K
+    sat = np.outer(np.ones(3), LUMA) * (1 - saturation) + saturation * np.eye(3)
+    return gain * rot @ sat
+
+
+def apply_tone(albedo_srgb_u8, tone):
+    lin = tc.srgb_to_linear(albedo_srgb_u8[..., :3] / 255.0)
+    m = tone_matrix(**tone)
+    # per-channel sums, not matmul: numpy's matmul on Apple silicon raises spurious warnings here
+    lin = np.clip(sum(lin[..., j:j + 1] * m[:, j] for j in range(3)), 0.0, 1.0)
+    return tc.to_u8(tc.linear_to_srgb(lin))
+
+
 def assemble(nn, r):
     w, out = WORK / f"tex_{nn}", TEX / f"tex_{nn}"
     out.mkdir(parents=True, exist_ok=True)
     alb = tc.read_png(w / "skin.1001.png")
+    if r.get("tone"):
+        alb = apply_tone(alb, r["tone"])
     det = tc.read_png(w / "detail/skin_detail.1001.png")
     skin = detail_maps.apply_albedo_detail(alb, det)
     tc.write_png(out / "skin.1001.png", skin)
@@ -163,6 +194,7 @@ def assemble(nn, r):
                      "width_mm": r["brow"]["width"], "density": r["brow"]["density"],
                      "shadow": r["brow"]["shadow"], "seed": r["seed"]},
         "iris": {"color": r["iris"], "seed": r["seed"], "params": iris},
+        "tone": r.get("tone"),
         "detail_maps": {"seed": r["seed"], "flags": r["detail"]},
         "gnm_identity": {"sampler": "IdentitySampler", **r["identity"]},
         "files": {

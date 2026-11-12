@@ -1,6 +1,6 @@
 {
  "set": "tex_02",
- "label": "young woman, South Asian, dark brown eyes",
+ "label": "young woman, South Asian, medium brown skin, dark brown eyes",
  "skin": {
   "source": "assets/third_party/makehuman/skins01/skins/cutoff3d_indian_female_skin",
   "licence": "CC0 (MakeHuman)"
@@ -41,6 +41,11 @@
     "collarette_gaps": 0.2814866029751185
    }
   }
+ },
+ "tone": {
+  "saturation": 1.3,
+  "hue": 0.0,
+  "gain": 0.44
  },
  "detail_maps": {
   "seed": 2,

@@ -13,10 +13,10 @@
    0.011,
    0.009
   ],
-  "opacity": 0.9,
-  "width_mm": 0.13,
-  "density": 1.5,
-  "shadow": 0.45,
+  "opacity": 0.75,
+  "width_mm": 0.12,
+  "density": 1.2,
+  "shadow": 0.35,
   "seed": 5
  },
  "iris": {
@@ -42,6 +42,7 @@
    }
   }
  },
+ "tone": null,
  "detail_maps": {
   "seed": 5,
   "flags": {

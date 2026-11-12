@@ -1,6 +1,6 @@
 {
  "set": "tex_06",
- "label": "old woman, Black, brown eyes",
+ "label": "old woman, Black, deep brown skin, brown eyes",
  "skin": {
   "source": "assets/third_party/makehuman/makehuman_system_assets/skins/old_african_female",
   "licence": "CC0 (MakeHuman)"
@@ -41,6 +41,11 @@
     "collarette_gaps": 0.174594474977438
    }
   }
+ },
+ "tone": {
+  "saturation": 0.6,
+  "hue": 6.0,
+  "gain": 1.1
  },
  "detail_maps": {
   "seed": 6,

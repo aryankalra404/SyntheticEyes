@@ -92,7 +92,7 @@ SCAN_HIGHPASS_PX = 14                       # about 1.6 mm on the face: keeps po
 
 # --------------------------------------------------------------------------- fields
 
-def region_fields(d, T: tc.Texels) -> dict[str, np.ndarray]:
+def region_fields(d, T: tc.Texels, scan_brows: bool = False) -> dict[str, np.ndarray]:
     """Per-texel value of each PROFILE column, blended by smoothed region weights."""
     W = {}
     for name, groups in REGIONS.items():
@@ -120,6 +120,8 @@ def region_fields(d, T: tc.Texels) -> dict[str, np.ndarray]:
     sockets = tc.group(d, "eye_sockets", True).astype(np.float64)
     near_eye = np.clip(4 * tc.smooth_vertex_values(d, sockets, 10), 0, 1)
     near_brow = np.clip(3 * tc.smooth_vertex_values(d, W["brow"], 6), 0, 1)     # brow tails reach the temple
+    if scan_brows:                      # the albedo is the scan's own: its brow relief belongs
+        near_brow = 0.0
     block = np.clip(near_eye + W["lids"] + near_brow + W["ears"] + W["lips"], 0, 1)
     res["scan_ok"] = T.attr(1 - block)
     return res
@@ -471,6 +473,8 @@ def main():
     ap.add_argument("--pore-tint", type=float, default=1.0)
     ap.add_argument("--scan-relief", type=float, default=1.0,
                     help="strength of the scanned micro-relief (0 = generated pores only)")
+    ap.add_argument("--scan-brows", action="store_true",
+                    help="keep the scan's relief under the brows (for the set that uses its colour)")
     ap.add_argument("--variation", type=float, default=0.1,
                     help="per-seed jitter of the strengths (0.1 = up to ±10 %%)")
     args = ap.parse_args()
@@ -490,7 +494,7 @@ def main():
     rng = np.random.default_rng([args.seed, 1])
     T.jitter = rng.uniform(-0.5, 0.5, (len(T.pos), 2))
     lo, hi = T.pos.min(0), T.pos.max(0)
-    F = region_fields(d, T)
+    F = region_fields(d, T, args.scan_brows)
     print(f"[detail] {len(T.pos):,} texels, setup {time.time() - t0:.1f} s")
 
     h, pores = height_map(rng, T, F, size, args, lo, hi)

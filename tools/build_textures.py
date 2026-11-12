@@ -1,4 +1,4 @@
-"""Assembles the 8 shipped texture sets, textures/tex_01 ... tex_08 (M2 section 5).
+"""Assembles the shipped texture sets, textures/tex_01 ... tex_09 (M2 section 5).
 
     python3 tools/build_textures.py                 # all sets
     python3 tools/build_textures.py --sets 03 07    # some
@@ -7,7 +7,9 @@
 
 Per set, from the recipe table below:
   1. tools/transfer_skin.py (Blender) bakes the MakeHuman skin + strand eyebrows into tile 1001
-     -> outputs/tmp/m2/sets/tex_NN/skin.1001.png (raw bake, not shipped)
+     -> outputs/tmp/m2/sets/tex_NN/skin.1001.png (raw bake, not shipped). A set with scan=True
+     takes its colour from the Infinite head scan instead (tools/bake_scan.py --albedo; needs
+     tools/register_scan.py to have run) and keeps the scan's own eyebrows.
   2. tools/detail_maps.py --seed S -> normal, roughness, albedo-detail maps
   3. tools/make_iris.py --color C --seed S -> eye.1002.png (left), eye.1004.png (right)
   4. optional tone adjustment of the bake (saturation, hue shift, gain, in linear light),
@@ -121,7 +123,17 @@ SETS = {
         iris="grey", seed=8,
         detail={"lid_lines": 1.3, "micro_strength": 1.15},
         identity=dict(gender="female", ethnicity="white", seed=8)),
+    "09": dict(
+        label="man, light skin with stubble, photographed skin, hazel eyes",
+        # colour from the scan's photographs, so no generated colour detail on top of it, and
+        # the scan's relief stays under its own brows
+        scan=True,
+        iris="hazel", seed=9,
+        detail={"mottle_strength": 0, "redness": 0, "freckles": 0, "moles": 0, "veins": 0,
+                "pore_tint": 0, "variation": 0, "scan_brows": True},
+        identity=dict(gender="male", ethnicity="white", seed=9)),
 }
+SCAN_CREDIT = "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com"
 
 
 def run(cmd):
@@ -130,6 +142,10 @@ def run(cmd):
 
 
 def bake(nn, r):
+    if r.get("scan"):
+        run([BLENDER, "-b", "--factory-startup", "-P", "tools/bake_scan.py", "--",
+             "--albedo", WORK / f"tex_{nn}/skin.1001.png"])
+        return
     b = r["brow"]
     run([BLENDER, "-b", "--factory-startup", "-P", "tools/transfer_skin.py", "--",
          "--skin", r["skin"], "--eyebrows", r["eyebrows"], "--name", f"tex_{nn}", "--out", WORK,
@@ -140,7 +156,7 @@ def bake(nn, r):
 def details(nn, r):
     flags = []
     for k, v in r["detail"].items():
-        flags += [f"--{k.replace('_', '-')}", v]
+        flags += [f"--{k.replace('_', '-')}"] + ([] if v is True else [v])
     run([sys.executable, "tools/detail_maps.py", "--seed", r["seed"], "--out", WORK / f"tex_{nn}/detail", *flags])
     run([sys.executable, "tools/make_iris.py", "--color", r["iris"], "--seed", r["seed"],
          "--out", WORK / f"tex_{nn}/iris"])
@@ -188,11 +204,15 @@ def assemble(nn, r):
     meta = {
         "set": f"tex_{nn}",
         "label": r["label"],
-        "skin": {"source": f"{MH}/{r['skin']}", "licence": "CC0 (MakeHuman)"},
-        "eyebrows": {"source": f"{MH}/{r['eyebrows']}", "licence": "CC0 (MakeHuman)",
-                     "color_linear": r["brow"]["color"], "opacity": r["brow"]["opacity"],
-                     "width_mm": r["brow"]["width"], "density": r["brow"]["density"],
-                     "shadow": r["brow"]["shadow"], "seed": r["seed"]},
+        "skin": ({"source": f"{SCAN_CREDIT} (colour map)", "licence": "CC BY 3.0"} if r.get("scan") else
+                 {"source": f"{MH}/{r['skin']}", "licence": "CC0 (MakeHuman)"}),
+        "eyebrows": ({"source": "in the scan's colour map"} if r.get("scan") else
+                     {"source": f"{MH}/{r['eyebrows']}", "licence": "CC0 (MakeHuman)",
+                      "color_linear": r["brow"]["color"], "opacity": r["brow"]["opacity"],
+                      "width_mm": r["brow"]["width"], "density": r["brow"]["density"],
+                      "shadow": r["brow"]["shadow"], "seed": r["seed"]}),
+        "micro_relief": {"source": f"{SCAN_CREDIT} (displacement map, filtered to pore scale)",
+                         "licence": "CC BY 3.0", "in": "skin_normal.1001.png and the pore tint in skin.1001.png"},
         "iris": {"color": r["iris"], "seed": r["seed"], "params": iris},
         "tone": r.get("tone"),
         "detail_maps": {"seed": r["seed"], "flags": r["detail"]},

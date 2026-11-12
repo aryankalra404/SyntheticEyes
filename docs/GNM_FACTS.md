@@ -125,6 +125,37 @@ rows are the lid margins, which is what `gnm_core.lid_margins` uses.
   1006 teeth and gums 2,828 · 1007 tongue 912. No quad is unassigned or claimed twice.
 - Tiles 1002–1007 sit on the first row, so the UDIM u range is 0–7 and v stays in 0–1.
 
+## Eye-interior UV (tiles 1002 and 1004)
+
+Measured 13 Nov 2026 by `tools/make_iris.py --measure` on the template; the numbers are in
+`assets/gnm/eye_uv.json` (committed). Both eyes are identical in UV.
+
+- The tile is a disc of concentric vertex rings centred on **(0.5, 0.5)**: one centre vertex,
+  two 12-vertex rings, then fifteen 24-vertex rings. Legacy eye UVs equal the UDIM ones minus
+  the tile offset.
+- **+u points to the subject's left (+X) and +v up, for both eyes.** So the nasal corner is at
+  −u in tile 1002 (left eye) and +u in tile 1004 (right eye).
+
+| Edge | UV radius | 3D radius from the eye axis | Group membership |
+|---|---|---|---|
+| Pupil edge | **0.0499** | 2.60 mm | last ring in `pupils` |
+| Iris outer ring | 0.1849 | 5.23 mm | last ring in `irises` only |
+| Sclera inner ring | 0.1912 | 5.44 mm | first ring in `scleras` |
+| Limbus (midpoint, used for texturing) | **0.1881** | 5.34 mm | |
+| Sclera extent | **0.4608** | 13.3 mm, 5.7 mm behind the equator | last ring in `scleras` |
+
+- `pupils` rings are also in `irises` (weight 1 in both); the pupil edge is the outermost ring
+  with non-zero `pupils` weight. At 2048² the pupil edge is 102 px from the centre and the
+  limbus 385 px.
+- Across the iris, UV radius is close to linear in 3D radius (about 19.5 mm per UV unit);
+  across the sclera it is not (the rings follow the globe round to the back).
+- `pupils_000` moves the pupil-edge ring 0.86 mm per unit, the next ring 0.55 mm and fades to
+  zero at the limbus. The texture follows the mesh, so the dark disc stays on the pupil edge
+  whatever the dilation.
+- Rest-pose lid opening seen from the front, as UV radius from the centre: upper lid about
+  0.055 (it covers the top of the iris), lower lid about 0.19, corners 0.27–0.38. Stored per
+  5° in `eye_uv.json` (`lid_opening`); `make_iris.py` darkens the sclera beyond it.
+
 ## Landmarks
 
 `gnm/shape/data/landmarks/head_sparse_68.txt`: 68 rows of three (vertex index, barycentric

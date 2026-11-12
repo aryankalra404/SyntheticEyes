@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | not started |
-| M2 Texture pipeline | registration and skin transfer working (sections 1–2); detail maps, eyes and the 8 sets pending |
+| M2 Texture pipeline | sections 1–4 done (registration, skin transfer, detail maps, eyes); the 8 sets (section 5) pending |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter, bake and videos pending |
 | M5 Compliance and packaging | not started |
@@ -20,6 +20,71 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026 — M2 sections 4 and 3: eyes and detail maps
+**Eye UV radii** (`tools/make_iris.py --measure` → `assets/gnm/eye_uv.json`, also in GNM_FACTS).
+Tiles 1002 and 1004 are the same concentric disc centred on (0.5, 0.5); +u = subject's left,
++v = up for both eyes, so nasal is −u on the left eye and +u on the right.
+- **Pupil edge 0.0499** (2.60 mm), iris outer ring 0.1849, sclera inner ring 0.1912,
+  **limbus 0.1881** (5.34 mm), **sclera extent 0.4608**. At 2048²: pupil 102 px, limbus 385 px.
+- Rest lid opening in UV (z-buffered skin against the globe from the front): upper lid ≈ 0.055,
+  lower ≈ 0.19, corners 0.27–0.38. Stored per 5°.
+
+**Irises and sclera** (`tools/make_iris.py`, numpy + scipy, ~7 s per pair at 2048²).
+- `--color {dark_brown,brown,hazel,green,blue,grey} --seed N --out DIR` writes `eye.1002.png`,
+  `eye.1004.png`, `iris.json`. `--all --seed 0` writes all six plus `sheet.png` to
+  `outputs/tmp/m2/iris/`. Structure parameters come from the seed and are shared; each eye has
+  its own noise stream. Byte-identical on rerun.
+- Iris, in polar coordinates between the measured pupil edge and limbus: wavy radial fibres
+  (two scales), jagged collarette with its own pupillary-zone colour (amber in hazel and green),
+  crypts with light rims, broken contraction furrows, a few iris freckles, limbal ring, crenellated
+  pupil ruff. Pupil disc near-black up to 0.0499.
+- Sclera: warm off-white (sRGB ≈ 206/195/183), yellower away from the cornea, pink toward the
+  corners (nasal strongest, starting inside the visible almond), deep blurred episcleral vessels
+  plus sharp branching conjunctival vessels (curvature with momentum) that reach close to the
+  limbus, darker greyer rim beyond the rest lid line ramped over ~0.11 UV so gaze shifts show a
+  gradient, faint grey band outside the limbus.
+- Looked at: every colour at full resolution and in Blender on the template, close-up and in a
+  1024² face shot. At face size the iris reads as its colour; close up the collarette, fibres
+  and veins are visible.
+
+**Detail maps** (`tools/detail_maps.py`, numpy + scipy, 26 s per set). `--seed N --out DIR` writes:
+- `skin_normal.1001.png` 4096², tangent space, OpenGL (+G = +v), from a height field in mm:
+  ~390 k pores stamped through each texel's surface Jacobian (round on the surface; densest and
+  largest on the nose, fine on the forehead, sparse on the lids, none on the lips), ridged
+  micro-furrows scale-matched to local texel size, 0.5–2 mm undulation from 3D noise, and
+  vertical lip creases (valleys of constant x, wavy, broken) across both lips.
+- `skin_rough.1001.png` 2048²: nose 0.34, forehead 0.40, lips 0.30, cheeks 0.55, default 0.52,
+  rougher in pores, ±0.035 low-frequency variation.
+- `skin_detail.1001.png` 4096²: albedo multiply in linear light, **128 = ×1** (factor = value/128).
+  Mottling (luminance and a blood component, 2.5–16 mm), patchy redness on nose and cheeks,
+  darker pores, freckles mostly on nose and cheeks, 2–6 moles, faint blue-grey veins at temples
+  and lids, neutral on the lips. Section 5 applies it with
+  `detail_maps.apply_albedo_detail(albedo, detail, strength)`.
+- Strength flags for every component; `--variation 0.1` jitters them ±10 % from the seed so
+  sets differ slightly. Low-frequency fields are 3D noise at the surface point, so nothing breaks
+  at UV seams. Region weights are GNM vertex groups smoothed over the mesh.
+- Byte-identical on rerun. Shared helpers in `tools/tex_core.py` (UV rasteriser with z-buffer,
+  per-texel surface position and Jacobian, nearest fill, deterministic PNG writer).
+
+**Grey check** (`tools/check_detail.py`, Blender, bpy + numpy). Grey Principled with only the
+normal and roughness maps, one area key, no denoiser; front, three-quarter, profile, back, close
+on the left eye and on the lips (`outputs/tmp/m2/check_detail/grey_*.png`, `grey_sheet.png`).
+`--skin PNG` renders the same textured (albedo × detail). Pores and fine furrows read as relief on
+the eye close-up and as grain on the three-quarter; lip creases are clear; no seam at the back
+or behind the ears.
+
+**For M3 and section 5**
+- Under the cornea the eye interior wants near-diffuse shading (specular ≈ 0.1, roughness ≈ 0.6),
+  or a frontal key lays a sheen over iris and sclera. The cornea needs Is Shadow Ray → Transparent
+  (as TECH_NOTES says), or its glossy term shadows the nasal sclera and the limbus.
+- GNM's rest pupil is 5.2 mm across, which looks dilated under a bright key; consider a negative
+  `pupils_000` for stills.
+- The pale-white look of the sclera in renders is AgX at that exposure; the texture itself is
+  ≈ 206/195/183 with veins and pink in the visible band.
+- Per set: `make_iris.py --color C --seed S --out textures/tex_NN` and
+  `detail_maps.py --seed S --out textures/tex_NN`, then multiply the detail into the bake.
+  Normal map PNG is 16.6 MB, detail 8 MB, roughness 1.4 MB, each eye ~1.8 MB.
 
 ### Thu 12 Nov 2026 — M2 sections 1 and 2: registration and skin transfer
 **Registration** (`tools/register_mh.py`, numpy + scipy, 9 s). MakeHuman base head → GNM.

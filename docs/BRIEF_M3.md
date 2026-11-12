@@ -17,6 +17,12 @@ the target for the eye; "Flexpressions" at 0:16 and 0:22 is the target for surfa
 The whole face is judged (60 points for texture), and the eye is where the judges will look
 longest. Work in this order and stop to look after each step.
 
+**Hero set: `tex_09`** (added 13 Nov). Its skin colour is photographed (the Infinite head scan)
+and its relief comes from the same skin, so it is the most real of the sets. Tune the look on
+it first, use it for the three videos and the main still, then check the other sets under the
+same settings. Its eyebrows are in the colour map; hair-curve brows for it should follow that
+shape, or be left off if they fight it.
+
 ## 1. Two test shots, fixed for the whole milestone
 
 - `face`: whole face, forehead to chin, 1024².

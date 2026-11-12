@@ -92,6 +92,10 @@ $BLENDER -b scene.blend -P tools/rig_strips.py   # lid follow, blink, brow strip
   (keep each file under 50 MB; do not pack 4K textures into the `.blend`).
 - **Licences.** Only CC0, Apache-2.0, MIT or our own work goes in the bundle. Record every
   third-party asset in `docs/TECH_NOTES.md` under Assets. No NC-licensed textures shipped.
+  One exception, approved by the owner on 13 Nov: the Infinite head scan (CC BY 3.0). Its
+  displacement map gives the skin micro-relief in every set, and its colour map is the skin of
+  `tex_09` only. It is credited in the README and in each `set.json`, and must be credited in
+  the deck.
 - **Verify, don't assume.** GNM was released in July 2026. Read the code in the installed
   package rather than relying on memory for its API.
 - If a requirement is ambiguous, pick the reading that satisfies both spec documents,

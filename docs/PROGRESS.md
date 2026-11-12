@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
-| M2 Texture pipeline | sections 1–5 done (13 Nov): 8 sets in `textures/`, contact sheet in `outputs/stills/texture_sheet.png`; using the scan's relief is an open decision |
+| M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
@@ -20,6 +20,69 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — M2 scanned skin relief in every set (Fable)
+The owner approved using the Infinite head scan's relief (CC BY 3.0, credit required). Its
+displacement map now supplies the skin micro-relief; its colour map and mesh are not used.
+The licence rule in `CLAUDE.md` has the exception, the README has the credit, TECH_NOTES has
+the asset row. **The deck needs the credit line too.**
+
+**Pipeline** (the three inputs are git-ignored; run in this order to rebuild)
+1. `python3 tools/register_scan.py` → `assets/gnm/wrapped_to_scan.npz`. `tools/register_mh.py`
+   was split into `register(...)` plus a MakeHuman `main()`; its output is byte-identical to
+   before. 21 landmarks picked on a gridded front render of the scan (nose, lips, chin, the
+   ends of the closed lash lines, brow hair) plus the nose tip. Four rings of skin round the
+   eye pockets are not pulled, because the scan's eyes are closed. Identity fit: landmarks
+   0.98 mm mean, surface 1.93 mm. After the snap: **face 0.035 mm mean, 0.096 mm p95**,
+   0.52 mm max over 4,016 vertices. Scale 0.958 m per scan unit.
+2. `$BLENDER -b --factory-startup -P tools/bake_scan.py [-- --colour]` →
+   `assets/gnm/scan_height.npz` (4096², 16 samples, 85.9 % of the tile hit). `--colour` bakes
+   the scan's colour as a check only: brows, lips, nostrils, ears and stubble all land where
+   they should on the GNM template (`outputs/tmp/scan/check/check_sheet.png`).
+   `tools/transfer_skin.py` now has a `__main__` guard so its helpers can be imported.
+3. `tools/detail_maps.py` (new `--scan-relief`, default 1.0, 0 = generated only; without the
+   npz it falls back to generated and says so): high-pass at 14 px (about 1.6 mm), soft clamp
+   at 3.5 sd, drop patches whose local detail is under 0.35× or over 2.2–3.5× the median
+   (smoothed sculpt layer, seams), even out local contrast (the jaw stubble is rougher than
+   the cheeks), scale so the mean slope on nose, cheeks and forehead is 4.5°. Used on 90 % of
+   the skin, 39 µm rms. Lids, a band round the brows, ears and lips stay generated. A third
+   of the generated grain stays on top of the scan, since the bake holds nothing finer than
+   a texel. The same valleys drive the pore tint in the colour detail and the pore roughness,
+   reduced where the scan has stubble so no beard shadow appears.
+
+**Looked at** (`outputs/tmp/m2/detail_scan/`): grey three-quarter and grey eye, generated vs
+scan (`grey_three_quarter_pair.png`, `grey_eye_pair.png`, then `grey_v2.png` after the
+fixes); the judges' wrap view old vs new (`wrap_front_pair.png`) and wrap plus textured eye
+close-up after the stubble fix (`final_look.png`). On the grey head the difference is large:
+forehead lines, crossing furrows on the cheeks, neck lines. In the wrap view the colour gains
+fine real marks; the first pass put a stubble shadow on the chin of the young-woman skin,
+gone after the fix.
+
+**Known**
+- The side of the nose next to the inner eye corner is rougher than its surroundings under
+  raking light (the scan's own relief there).
+- One person's micro-relief is on all 8 sets. Age and sex differences come from the per-set
+  multipliers and the generated lid lines, as before.
+- Sets 01–08 were rebuilt with `python3 tools/build_textures.py --skip-bake`.
+
+**Set 09: the scan's own colour** (owner's go-ahead after seeing the colour check bake)
+- `tools/bake_scan.py --albedo OUT.png` writes the scan's colour as a skin map: lid pockets and
+  mouth get no source and are filled as in `transfer_skin.py`, the mouth sock gets a darkened
+  lip colour, and luminance is capped at 8 % above its 1 mm neighbourhood to remove the small
+  highlights baked into the photographs (1.65 % of texels). 85.4 % of texels come from the scan.
+- `tools/build_textures.py` recipe `09` (`scan=True`): no drawn eyebrows (the scan's are in the
+  colour), no generated colour detail (mottling, redness, freckles, moles, veins, pore tint all
+  0), relief kept under the brows (`detail_maps.py --scan-brows`), hazel irises, seed 9.
+  Every `set.json` now names the scan under `micro_relief`; set 09 also under `skin`.
+- Looked at: wrap front and three-quarter (`outputs/tmp/m2/sets/tex_09/wrap_pair.png`) and the
+  textured eye close-ups, front and three-quarter (`eye_pair.png`). It is the most real of
+  the sets: real brow hair, skin tone and stubble, and the lids look right with the eyes
+  open even though they were scanned closed. Not yet looked at during a blink.
+- It is one man's likeness (his own scan, released CC BY). The other eight sets carry the
+  variety; this one is the hero for the videos and the main still (see `docs/BRIEF_M3.md`).
+- The iris is now the weakest part of the close-up: flat and painted next to real skin. M3.
+- Repo size: each full rebuild of `textures/` adds about 350 MB of history. Commit rebuilt
+  sets only when they are meant to stay.
 
 ### Fri 13 Nov 2026, night — M2 section 5: the 8 texture sets (Opus)
 `tools/build_textures.py` builds `textures/tex_01 … tex_08` from a recipe table at the top of

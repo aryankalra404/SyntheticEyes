@@ -303,13 +303,12 @@ environment and the downloaded assets, and are not needed to run the wrapper.
 | [Google GNM Head v3](https://github.com/google/GNM) | head mesh, joints, UVs, expression basis | Apache-2.0 |
 | [MakeHuman](https://static.makehumancommunity.org/assets/assetpacks.html) Skins 01 and 02, Eyebrows 01, Eyelashes 01, system assets and base mesh | skin colour source, eyebrows, registration target | CC0 |
 | [Poly Haven `brown_photostudio_02`](https://polyhaven.com/a/brown_photostudio_02) | lighting (HDRI packed in `scene.blend`) | CC0 |
+| "Infinite, 3D Head Scan by Lee Perry-Smith", based on a work at www.triplegangers.com ([download](https://casual-effects.com/g3d/data10/research/model/lpshead/lpshead.zip), McGuire Computer Graphics Archive) | displacement map, filtered to pore scale: skin micro-relief in the normal maps and colour detail of every set; colour map: the skin of `tex_09` only | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Blender 4.5.1 | renderer (tool only, not redistributed) | GPL |
 
-Irises, sclera, detail maps, the gaze engine and all code are our own work.
-
-> TODO: if the Lee Perry-Smith head scan relief is adopted (see `docs/PROGRESS.md`), add:
-> "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com",
-> CC BY 3.0, used for skin micro-relief.
+Irises, sclera, the rest of the detail maps (lips, lids, ears, roughness, colour variation), the
+gaze engine and all code are our own work. The scan's geometry and original files are not
+redistributed; each `set.json` names what it takes from the scan.
 
 Code licence: TODO (pick one before submission, e.g. MIT).
 

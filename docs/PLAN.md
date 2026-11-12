@@ -24,7 +24,7 @@ not happened, and the skin detail is generated, not real. The base stays as deci
 | 1 | M1 rig, `scene.blend`, wrapper (`docs/BRIEF_M1.md`). Plumbing done by Opus 13 Nov on stand-in lids; Fable does the lid solve and reviews the rig (see the brief's "Status 13 Nov") | Fable | nothing; it gates 40 points and every video |
 | 2 | M2 tuning pass on irises and detail maps (`docs/BRIEF_M2.md`, "Added 13 Nov") | Opus 5.5 | nothing; runs beside 1 |
 | 3 | Eyebrow bake fix in `tools/transfer_skin.py` | Fable | nothing |
-| 4 | Scan test, one hour, optional (below) | Fable | repo owner's OK |
+| 4 | Scan test, one hour, optional (below). Comparison done by Opus 13 Nov: relief clearly better, colour not usable; integrating it is the open decision | Fable | repo owner's OK (given for the download) |
 | 5 | M2 section 5, the 8 sets | Opus 5.5 | 2 and 3 |
 | 6 | M3 look, M4 motion, M5 packaging, M6 ship | as below | 1 and 5 |
 
@@ -34,8 +34,15 @@ nose crop next to our generated detail at the same scale, and keep it only if it
 better. Its eyes are closed, so it could only supply detail away from the eyes (forehead,
 cheeks, nose, lips, chin), layered onto every set through the same registration as
 MakeHuman. Using it means adding CC BY to the licence rule in `CLAUDE.md` and a credit line
-in the README and deck. Not started; needs the owner's go-ahead for the download and the
-licence change.
+in the README and deck.
+
+Result (13 Nov, `tools/scan_compare.py`, details in PROGRESS): the scan's **relief** is
+clearly more real than our procedural pores; its **colour** is not usable as albedo (baked
+highlight flecks, stubble, one identity). Recommendation: use its displacement, high-passed and
+masked, as the micro-relief for every set; keep our procedural pores only on the lips and lids.
+Cost: a second registration (scan to GNM, same method as MakeHuman), a bake into tile 1001,
+artifact masks; about half a day. Needs the owner's OK for the CC BY licence change before
+anything derived from it ships.
 
 ## Architecture
 

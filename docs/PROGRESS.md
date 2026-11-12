@@ -21,6 +21,54 @@ what the next session needs to know.
 
 ## Log
 
+### Fri 13 Nov 2026, night — scan test comparison (Opus)
+The owner approved the download. `lpshead.zip` (43.6 MB) from the McGuire Computer Graphics
+Archive is in `assets/third_party/lpshead/` (git-ignored); the licence file inside says
+**CC BY 3.0**, "Infinite, 3D Head Scan by Lee Perry-Smith", based on a work at
+www.triplegangers.com. Recorded in TECH_NOTES, Assets. Nothing derived from it is in the repo,
+and the licence rule in `CLAUDE.md` is unchanged.
+
+**What is in it**: `head.OBJ` (8,844 vertices, quads, ZBrush units), `lambertian.jpg` colour
+4096², `bump.png` displacement 6000² 16-bit, a 1024² low-res bump. Eyes closed, thick brows,
+stubble on cheeks, jaw and neck, a mole on the left cheek, photo highlights baked into the colour.
+
+**Comparison**: `python3 -I tools/scan_compare.py` (2 s) → `outputs/tmp/scan/compare.png`.
+Forehead, cheek and nose, 24 × 24 mm each at 20 px/mm. Columns: scan colour, our colour
+(eurasian bake × detail layer, seed 0), scan relief, our relief. Both reliefs are shaded with
+the same light and normalised to the same contrast, so compare structure, not depth (the
+scan's displacement scale is unknown). The scan's scale (915 mm per unit) comes from its
+cranial breadth and length against an average adult male head, good to about ±4 %. Its head
+is pitched back, so its patch offsets were set separately and checked by drawing the boxes on
+both maps. Texel density at those spots: scan colour 6–10 px/mm, scan displacement 8–14 px/mm,
+ours 6–9 px/mm, so resolution is not the limit.
+
+**Verdict, relief: the scan is clearly better.** It shows real skin microstructure: fine
+furrows crossing in two or three directions, pores as irregular pits of mixed size, fine lines
+on the cheek and forehead. Ours is the same isotropic pebble field everywhere with no
+directional structure; next to the scan it reads as procedural. The scan's relief has problems
+that need filtering: medium-scale sculpt lumps, a hard-edged smooth patch on the forehead
+(a sculpt layer or seam), stretched streaks near the nostrils.
+
+**Verdict, colour: not usable as albedo.** Real pores and blackheads on the nose and natural
+redness, but white specular flecks baked in across the forehead, stubble on the cheek, a mole,
+and one man's skin. At most a luminance detail on forehead and nose, which is not worth the
+masking. Our colour detail is weak by comparison (soft round mottling and an even stipple of
+dark dots that reads as noise), but that is a separate fix.
+
+**Recommendation** (the owner decides; Fable does the work if yes):
+1. Register the scan to GNM the way `tools/register_mh.py` did MakeHuman (landmarks on the
+   scan, identity fit, smooth snap). Eyes closed and stubble do not matter for the relief.
+2. Bake `bump.png` into tile 1001 as height, high-pass it (keep below about 2 mm), mask the
+   artifacts, the lids and the lips, convert to a tangent normal map.
+3. Use it as the micro-relief for every set in `tools/detail_maps.py`, blended over our
+   undulation; keep our procedural lip creases and lid lines. One person's microrelief on all
+   eight sets is fine; skin microstructure is generic, as ours is now.
+4. Licence: add CC BY to the rule in `CLAUDE.md` and a credit line in the README and deck.
+Estimated half a day. Weigh it against M3 and M4, which still need doing; this is the
+single biggest gain available for the 60 texture points that I can see.
+- A cheaper fallback without the scan: add anisotropic micro-furrows (two or three crossing
+  directions, varying with region) to `detail_maps.py`. Less real than the scan, no licence change.
+
 ### Fri 13 Nov 2026, night — M1 plumbing (Opus), stand-in lids, handover to Fable
 Fable's budget was out, so Opus 5.5 built sections 2–5 of `docs/BRIEF_M1.md` and left
 section 1 (the lid solve) alone. **Fable: start with the brief's "Status 13 Nov" list.**

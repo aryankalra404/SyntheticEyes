@@ -3,6 +3,50 @@
 Run on the Mac, in this repo, with Fable. Needs M1's `scene.blend` and `tools/build_scene.py`,
 and at least one texture set from M2. Paste everything below the line.
 
+## Status 13 Nov, night (Opus): mechanical parts built, look not started
+
+**Built** (rebuild: `python3 tools/carry_hair.py`, then `$BLENDER -b --factory-startup -P tools/build_scene.py`)
+- Section 1: `tools/look_shots.py` renders `face` (`cam_test_face`, 85 mm, forehead to chin) and
+  `eye` (`cam_test_eye`, subject's left eye from 30° to that side, 5° up, 100 mm at 11 cm) at gaze
+  centre and 20° toward image right into `outputs/tmp/m3/current/`; the run before moves to
+  `previous/`, and `pairs/` shows previous | current. `--blink` renders the eye shot at blink
+  0, 0.5, 1.0 into `outputs/tmp/m3/blink/`. 16 s per 1024² frame at 128 spp (Metal).
+- Texture hookup: skin and both eye-interior materials have image nodes `tex_albedo`,
+  `tex_normal`, `tex_rough`, `tex_eye` on the UDIM UVs, filled from `textures/tex_NN` by
+  `wrapper/eyes.py use_texture` (`--texture NN`; build default 01). Paths relative, nothing packed.
+  `use_texture` also shows the brow hair object named in the set's `set.json` and sets its colour.
+- Section 3: lashes (Mindfront eyelashes 01) and the three Mindfront strand brow sets carried
+  through `wrapped_to_mh.npz` (`tools/carry_hair.py` → `assets/gnm/hair_binding.npz`). Lashes bind
+  per root triangle, brows per point. Each is a hidden carrier mesh with the head's shape keys
+  (driven by the head key of the same name) and bone weights, plus a Curves object that reads it
+  through Object Info and renders as Cycles hair. (Curves made by a modifier on a mesh object do
+  not render in Cycles 4.5; that is why the carrier is separate.)
+- Section 2, geometry only: `tear_line.L/R`, a 3-row strip along the lower lid from inner to
+  outer corner: lid row between the socket rim and the next ring in, globe row 0.35 mm up the
+  globe (tapered to 0 at the corners), middle row sunk 0.1 mm. Follows the lid keys the same way.
+  Material is the brief's spec only: Principled, transmission 1, roughness 0, IOR 1.34.
+
+**Stand-ins / plain defaults** (Fable judges all of these): skin is plain Principled (no
+subsurface); eye interior specular 0.1 / roughness 0.6 as in M1; cornea is M1's; hair is a
+default Principled Hair BSDF with direct colour; lighting, HDRI and AgX are M1's; lid shapes are
+still M1's stand-ins.
+
+**Fable must judge / fix**
+- Lashes: a few strays (one long upper lash standing up near the inner third, outer-corner
+  lashes hanging across the sclera); the lower set is long and dense for the MakeHuman set.
+  Try `mindfront_eyelashes_02…05`, or trim lower lashes by length in `carry_hair.py`.
+- At blink 1.0 the lower lashes disappear under the closing upper lid (stand-in blink overlaps
+  the lower lid). Recheck with the solved lids.
+- Brow hair sits a median 0.9–1.3 mm off the skin (MakeHuman's strands do); hair plus the painted
+  brow may read too heavy. Consider flattening the normal offset or thinning.
+- Tear line: built and following the keys, but invisible at the test-shot size with this
+  material; needs wetness/shading work and a close look.
+- Section 6 not done: no per-set stills script yet. Plan: export each set's `gnm_identity`
+  with `export_gnm.py --gender --ethnicity --identity-seed`, build a scene per identity with
+  `build_scene.py --npz <id>.npz --out outputs/tmp/m3/scenes/... --no-bake --texture NN` (hair
+  and tear line rebuild from that identity), then `look_shots.py --texture NN --still`, which
+  already writes `outputs/stills/tex_NN.png` and `outputs/stills/eye/tex_NN_eye.png`.
+
 ---
 
 You are doing milestone M3. Read `CLAUDE.md`, `docs/REQUIREMENTS.md`, the "Reference bar" and

@@ -11,7 +11,16 @@ What goes into the file:
   (or blink_33 / blink_66 / blink when solved), brow_up, squint; plus `pupil`
 - vertex groups pupil_L / pupil_R and custom properties on `gnm_rig` that wrapper/rig.py reads
   (the wrapper never reads assets/ or tools/)
-- cam_face (40 cm, 50 mm) and cam_eyes (same spot, 105 mm), 1024x1024
+- materials load a texture set from textures/tex_NN by path (made relative on save, never
+  packed): albedo, normal and roughness on the skin tile, the eye image on each eye-interior tile.
+  `--texture NN` picks the set; wrapper/eyes.py `use_texture` switches it in an open file.
+- M3 extras, all rebuilt from this identity's vertices and following every shape key (each hair
+  or strip shape key is driven by the head key of the same name, so rig.py stays unchanged):
+  eyelashes and eyebrow hair from assets/gnm/hair_binding.npz (tools/carry_hair.py), rendered as
+  Cycles hair curves, one brow object per Mindfront set with only the texture set's one shown;
+  and a tear-line strip along each lower lid margin. Shading on all of them is a plain default.
+- cam_face (40 cm, 50 mm) and cam_eyes (same spot, 105 mm), 1024x1024; M3 test cameras
+  cam_test_face (whole face, forehead to chin) and cam_test_eye (subject's left eye, three-quarter)
 - constant light: the CC0 studio HDRI (packed into the file) plus one soft key; AgX
 - the `generate` motion, seed 0, baked as keyframes, so pressing play shows the expression
 
@@ -56,6 +65,8 @@ def parse_args():
                     default=REPO / "assets/third_party/hdri/brown_photostudio_02_2k.hdr")
     ap.add_argument("--out", type=Path, default=REPO / "scene.blend")
     ap.add_argument("--no-bake", action="store_true", help="skip baking `generate` onto the Timeline")
+    ap.add_argument("--texture", type=int, default=1, help="texture set textures/tex_NN loaded by default")
+    ap.add_argument("--hair", type=Path, default=REPO / "assets/gnm/hair_binding.npz")
     return ap.parse_args(argv)
 
 
@@ -330,18 +341,306 @@ def cornea(name):
     return mat
 
 
+def image_node(nt, name, uv, colour=True):
+    """Empty image texture node on the UDIM UV map; wrapper/eyes.py use_texture fills it.
+
+    Each material covers one UDIM tile and the image repeats, so tile 100N's UVs (u in [N-1, N])
+    read a plain single-tile image without a tile offset."""
+    n = nt.nodes.new("ShaderNodeTexImage")
+    n.name = n.label = name
+    n.interpolation = "Cubic" if name == "tex_normal" else "Linear"
+    nt.links.new(uv.outputs["UV"], n.inputs["Vector"])
+    return n
+
+
+def skin_textured():
+    """Plain Principled with the set's albedo, tangent normal (OpenGL) and roughness maps."""
+    mat = principled("skin", (0.5, 0.5, 0.5))
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    uv = nt.nodes.new("ShaderNodeUVMap")
+    uv.uv_map = "UDIM"
+    alb = image_node(nt, "tex_albedo", uv)
+    nt.links.new(alb.outputs["Color"], bsdf.inputs["Base Color"])
+    nrm = image_node(nt, "tex_normal", uv, colour=False)
+    nm = nt.nodes.new("ShaderNodeNormalMap")
+    nm.uv_map = "UDIM"
+    nt.links.new(nrm.outputs["Color"], nm.inputs["Color"])
+    nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+    rough = image_node(nt, "tex_rough", uv, colour=False)
+    nt.links.new(rough.outputs["Color"], bsdf.inputs["Roughness"])
+    return mat
+
+
+def eye_textured(name):
+    """Eye interior: the set's eye tile as base colour. Specular 0.1 and roughness 0.6 as in M1's
+    debug eye (under the cornea a full Principled sheen washes the iris out, see PROGRESS M2)."""
+    mat = principled(name, (0.7, 0.7, 0.7), rough=0.6)
+    nt = mat.node_tree
+    bsdf = nt.nodes["Principled BSDF"]
+    bsdf.inputs["Specular IOR Level"].default_value = 0.1
+    uv = nt.nodes.new("ShaderNodeUVMap")
+    uv.uv_map = "UDIM"
+    tex = image_node(nt, "tex_eye", uv)
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    return mat
+
+
 def build_materials(ob):
     mats = {
-        "skin": principled("skin", (0.5, 0.5, 0.5)),
-        "eye_interior.L": eye_interior("eye_interior.L"),
+        "skin": skin_textured(),
+        "eye_interior.L": eye_textured("eye_interior.L"),
         "cornea.L": cornea("cornea.L"),
-        "eye_interior.R": eye_interior("eye_interior.R"),
+        "eye_interior.R": eye_textured("eye_interior.R"),
         "cornea.R": cornea("cornea.R"),
         "teeth": principled("teeth", (0.75, 0.72, 0.66), rough=0.35),
         "tongue": principled("tongue", (0.45, 0.16, 0.16), rough=0.45),
     }
     for name in TILE_MATERIALS:
         ob.data.materials.append(mats[name])
+
+
+# ---- M3 extras: hair and tear line -----------------------------------------------------------
+
+def tri_frames(A, B, C):
+    """Per-triangle orthonormal frame rows (edge, normal x edge, normal); as tools/carry_hair.py."""
+    e1 = B - A
+    e1 = e1 / np.linalg.norm(e1, axis=1, keepdims=True)
+    n = np.cross(B - A, C - A)
+    n = n / np.linalg.norm(n, axis=1, keepdims=True)
+    return np.stack([e1, np.cross(n, e1), n], 1)
+
+
+def hair_points(V, tri, bary, off):
+    A, B, C = V[tri[:, 0]], V[tri[:, 1]], V[tri[:, 2]]
+    base = A * bary[:, :1] + B * bary[:, 1:2] + C * bary[:, 2:3]
+    return base + np.einsum("nij,ni->nj", tri_frames(A, B, C), off)
+
+
+def drive_keys(ob, head):
+    """Drive each shape key of ob by the head shape key of the same name (single-property SUM
+    drivers, so no Python runs). Head keys are what rig.py writes and keyframes."""
+    for kb in ob.data.shape_keys.key_blocks[1:]:
+        fc = kb.driver_add("value")
+        drv = fc.driver
+        drv.type = "SUM"
+        var = drv.variables.new()
+        var.type = "SINGLE_PROP"
+        var.targets[0].id_type = "KEY"
+        var.targets[0].id = head.data.shape_keys
+        var.targets[0].data_path = f'key_blocks["{kb.name}"].value'
+
+
+def follower(name, verts, edges, faces, shapes, weights, head, rig):
+    """Mesh object that moves like the head: same shape keys (driven), same bones (armature)."""
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([tuple(v) for v in verts], edges, faces)
+    me.update(calc_edges=True)
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    ob.shape_key_add(name="Basis", from_mix=False)
+    for k, co in shapes.items():
+        sk = ob.shape_key_add(name=k, from_mix=False)
+        src = head.data.shape_keys.key_blocks[k]
+        sk.slider_min, sk.slider_max = src.slider_min, src.slider_max
+        sk.data.foreach_set("co", co.astype(np.float32).ravel())
+    if len(shapes):
+        drive_keys(ob, head)
+    for bone, w in weights.items():
+        vg = ob.vertex_groups.new(name=bone)
+        nz = np.where(w > 1e-6)[0]
+        for i in nz:
+            vg.add([int(i)], float(w[i]), "REPLACE")
+    mod = ob.modifiers.new("rig", "ARMATURE")
+    mod.object = rig
+    ob.parent = rig
+    return ob
+
+
+def follower_shapes(points_fn, base_pts, D, deltas):
+    """Shape-key positions (Blender coords) for every head key that moves these points."""
+    out = {}
+    for k, delta in deltas.items():
+        P = to_blender(points_fn(D.V + delta))
+        if np.abs(P - base_pts).max() > 1e-7:
+            out[k] = P
+    return out
+
+
+def bone_weights(D, vids, w):
+    """Skinning weights of points interpolated from head vertices vids (n, m) with weights w (n, m)."""
+    sw = D.d["skinning_weights"]
+    names = [BONES[str(n)] for n in D.d["joint_names"]]
+    return {names[j]: (sw[j][vids] * w).sum(1) for j in range(len(names)) if (sw[j][vids] * w).sum() > 0}
+
+
+def hair_node_group():
+    """Carrier mesh edges -> Catmull-Rom hair curves with the per-point radius.
+
+    Lives on a Curves object and reads the carrier through Object Info: Cycles 4.5 renders curves
+    on a Curves object as hair, but drops curves that a mesh object's modifier makes."""
+    ng = bpy.data.node_groups.new("hair_curves", "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Carrier", in_out="INPUT", socket_type="NodeSocketObject")
+    ng.interface.new_socket("Material", in_out="INPUT", socket_type="NodeSocketMaterial")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+    n = ng.nodes
+    gi, go = n.new("NodeGroupInput"), n.new("NodeGroupOutput")
+    info = n.new("GeometryNodeObjectInfo")
+    info.transform_space = "RELATIVE"
+    m2c = n.new("GeometryNodeMeshToCurve")
+    spl = n.new("GeometryNodeCurveSplineType")
+    spl.spline_type = "CATMULL_ROM"
+    rad = n.new("GeometryNodeSetCurveRadius")
+    attr = n.new("GeometryNodeInputNamedAttribute")
+    attr.data_type = "FLOAT"
+    attr.inputs["Name"].default_value = "hair_radius"
+    mat = n.new("GeometryNodeSetMaterial")
+    L = ng.links
+    L.new(gi.outputs[1], info.inputs["Object"])
+    L.new(info.outputs["Geometry"], m2c.inputs["Mesh"])
+    L.new(m2c.outputs["Curve"], spl.inputs["Curve"])
+    L.new(spl.outputs["Curve"], rad.inputs["Curve"])
+    L.new(attr.outputs["Attribute"], rad.inputs["Radius"])
+    L.new(rad.outputs["Curve"], mat.inputs["Geometry"])
+    L.new(gi.outputs[2], mat.inputs["Material"])
+    L.new(mat.outputs["Geometry"], go.inputs[0])
+    return ng
+
+
+def hair_material(name, colour):
+    """Plain Principled Hair BSDF, direct colouring; M3 tunes it."""
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.remove(nt.nodes["Principled BSDF"])
+    h = nt.nodes.new("ShaderNodeBsdfHairPrincipled")
+    h.parametrization = "COLOR"
+    h.inputs["Color"].default_value = (*colour, 1.0)
+    nt.links.new(h.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
+    return mat
+
+
+def build_hair(D, deltas, head, rig, path):
+    """Eyelashes and the three Mindfront brow sets as driven hair objects."""
+    if not path.exists():
+        print(f"[build] {path.name} not found (run tools/carry_hair.py): no lashes or brow hair")
+        return []
+    H = np.load(path, allow_pickle=False)
+    ng = hair_node_group()
+    mats = {"lashes": hair_material("lash_hair", (0.012, 0.009, 0.007)),
+            "brows": hair_material("brow_hair", (0.045, 0.028, 0.018))}
+    made = []
+    for name in ("lashes", "brows_01", "brows_05", "brows_08"):
+        tri, bary, off = H[f"{name}_tri"], H[f"{name}_bary"], H[f"{name}_off"]
+        count = H[f"{name}_count"]
+        pts_fn = lambda V, tri=tri, bary=bary, off=off: hair_points(V, tri, bary, off)
+        base = to_blender(pts_fn(D.V))
+        start = np.concatenate([[0], np.cumsum(count)[:-1]])
+        edges = [(int(s0 + i), int(s0 + i + 1)) for s0, c in zip(start, count) for i in range(c - 1)]
+        shapes = follower_shapes(pts_fn, base, D, deltas)
+        label = name if name == "lashes" else f"brow_hair_{name[-2:]}"
+        carrier = follower(f"{label}_carrier", base, edges, [], shapes, bone_weights(D, tri, bary), head, rig)
+        a = carrier.data.attributes.new("hair_radius", "FLOAT", "POINT")
+        a.data.foreach_set("value", H[f"{name}_radius"].astype(np.float32))
+        carrier.hide_render = True
+        carrier.display_type = "WIRE"
+        ob = bpy.data.objects.new(label, bpy.data.hair_curves.new(label))
+        bpy.context.scene.collection.objects.link(ob)
+        mat = mats["lashes" if name == "lashes" else "brows"]
+        ob.data.materials.append(mat)
+        mod = ob.modifiers.new("hair", "NODES")
+        mod.node_group = ng
+        ids = {it.socket_type: it.identifier for it in ng.interface.items_tree
+               if getattr(it, "in_out", "") == "INPUT"}
+        mod[ids["NodeSocketObject"]] = carrier
+        mod[ids["NodeSocketMaterial"]] = mat
+        if name != "lashes":
+            ob.hide_render = ob.hide_viewport = name != "brows_01"
+        print(f"[build] {ob.name}: {len(count)} hairs, {len(base)} points, {len(shapes)} driven keys")
+        made.append(ob)
+    return made
+
+
+TEAR_RISE = 0.00035     # m the strip climbs the globe above the lid-globe contact line
+TEAR_SINK = 0.0001      # m the middle row is pulled toward the eye centre (concave meniscus)
+
+
+def lower_margin(D, side):
+    """Ordered lower-lid margin, inner to outer corner: the socket rim (ring 0, where the socket
+    meets the lid's outer skin) and the next ring in (ring 1, where the lid meets the globe)."""
+    V, Q = D.V, D.d["quads"]
+    sign = 1.0 if side == "L" else -1.0
+    sock = D.mask("eye_sockets") & (np.sign(V[:, 0]) == sign)
+    eye = D.mask("eyes")
+    skin = D.mask("skin")
+    nbr = [set() for _ in range(len(V))]
+    for q in Q:
+        for i in range(4):
+            a, b = int(q[i]), int(q[(i + 1) % 4])
+            nbr[a].add(b)
+            nbr[b].add(a)
+    S = np.where(sock)[0]
+    rim = [v for v in S if any(not sock[u] and skin[u] and not eye[u] for u in nbr[v])]
+    rim_set = set(rim)
+    p = D.pupil(side)
+    # ring-1 partner: the socket neighbour of each rim vertex that is not on the rim, nearest to it
+    r1 = []
+    for v in rim:
+        c = [u for u in nbr[v] if sock[u] and u not in rim_set]
+        r1.append(min(c, key=lambda u: np.linalg.norm(V[u] - V[v])))
+    rim, r1 = np.array(rim), np.array(r1)
+    xs = V[rim, 0]
+    inner, outer = rim[np.argmin(np.abs(xs))], rim[np.argmax(np.abs(xs))]
+    a, b = V[inner], V[outer]
+    line_y = a[1] + (V[rim, 0] - a[0]) / (b[0] - a[0]) * (b[1] - a[1])
+    low = (V[rim, 1] <= line_y + 1e-9) | np.isin(rim, [inner, outer])
+    rim, r1 = rim[low], r1[low]
+    order = np.argsort(np.abs(V[rim, 0] - V[inner, 0]))     # inner corner to outer corner
+    return rim[order], r1[order]
+
+
+def build_tear_lines(D, deltas, head, rig):
+    made = []
+    for side in ("L", "R"):
+        rim, r1 = lower_margin(D, side)
+        J = D.joint(side)
+        sclera = D.mask("left_eye" if side == "L" else "right_eye") & D.mask("scleras")
+        R = float(np.median(np.linalg.norm(D.V[sclera] - J, axis=1)))
+        n = len(rim)
+        taper = np.sqrt(np.sin(np.linspace(0, np.pi, n)))[:, None]
+
+        def rows(V, rim=rim, r1=r1, J=J, R=R, taper=taper):
+            lid = 0.5 * (V[rim] + V[r1])
+            u = V[r1] - J
+            u /= np.linalg.norm(u, axis=1, keepdims=True)
+            up = np.array([0.0, 1.0, 0.0]) - u[:, 1:2] * u            # GNM up, tangent to the globe
+            up /= np.linalg.norm(up, axis=1, keepdims=True)
+            g = u * R + up * TEAR_RISE * taper
+            glob = J + g / np.linalg.norm(g, axis=1, keepdims=True) * (R + 0.00003)
+            mid = 0.5 * (lid + glob)
+            mid -= (mid - J) / np.linalg.norm(mid - J, axis=1, keepdims=True) * TEAR_SINK * taper
+            return np.concatenate([lid, mid, glob])
+
+        base = to_blender(rows(D.V))
+        faces = [(r * n + i, r * n + i + 1, (r + 1) * n + i + 1, (r + 1) * n + i)
+                 for r in range(2) for i in range(n - 1)]
+        shapes = follower_shapes(rows, base, D, deltas)
+        vids = np.concatenate([np.stack([rim, r1], 1)] * 3)
+        w = np.full(vids.shape, 0.5)
+        ob = follower(f"tear_line.{side}", base, [], faces, shapes, bone_weights(D, vids, w), head, rig)
+        ob.data.polygons.foreach_set("use_smooth", np.ones(len(faces), dtype=bool))
+        mat = bpy.data.materials.get("tear_line")
+        if mat is None:
+            mat = principled("tear_line", (1.0, 1.0, 1.0), rough=0.0)
+            b = mat.node_tree.nodes["Principled BSDF"]
+            b.inputs["Transmission Weight"].default_value = 1.0
+            b.inputs["IOR"].default_value = 1.34
+        ob.data.materials.append(mat)
+        print(f"[build] tear_line.{side}: {n} margin points, globe radius {R * 1000:.2f} mm, "
+              f"{len(shapes)} driven keys")
+        made.append(ob)
+    return made
 
 
 # ---- cameras, light, render settings --------------------------------------------------------
@@ -392,6 +691,28 @@ def build_cameras_and_light(mid, hdri):
     return cams
 
 
+def build_test_cameras(D):
+    """The two fixed M3 test shots. face: forehead to chin, straight on. eye: the subject's left
+    eye (+X, image right) from 30 deg to that side and 5 deg up, about the "Eye Piece" crop."""
+    eyeL = Vector(to_blender(D.pupil("L")))
+    mid = Vector(to_blender(D.joints[2:4]).mean(axis=0))
+    scene = bpy.context.scene
+    out = {}
+    for name, target, lens, dist, az, el in (
+            ("cam_test_face", mid + Vector((0, -0.01, -0.03)), 85.0, 0.50, 0.0, 0.0),
+            ("cam_test_eye", eyeL, 100.0, 0.11, 30.0, 5.0)):
+        cd = bpy.data.cameras.new(name)
+        cd.lens, cd.sensor_width, cd.sensor_fit = lens, 36.0, "HORIZONTAL"
+        cd.clip_start, cd.clip_end = 0.005, 10.0
+        cam = bpy.data.objects.new(name, cd)
+        a, e = math.radians(az), math.radians(el)
+        cam.location = target + dist * Vector((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)))
+        cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
+        scene.collection.objects.link(cam)
+        out[name] = cam
+    return out
+
+
 def render_settings(scene):
     scene.render.engine = "CYCLES"
     scene.cycles.samples = 128
@@ -430,6 +751,13 @@ def main():
     eyes = to_blender(D.joints[2:4])
     mid = Vector(eyes.mean(axis=0))
     build_cameras_and_light(mid, args.hdri)
+    build_test_cameras(D)
+    build_hair(D, deltas, ob, rig, args.hair)
+    build_tear_lines(D, deltas, ob, rig)
+    scene.cycles_curves.shape = "THICK"     # hair curves as round tubes
+
+    from wrapper.eyes import use_texture
+    use_texture(args.texture)
 
     # Everything wrapper/rig.py needs at run time.
     rig["eye_rest_L"] = list(eyes[0])

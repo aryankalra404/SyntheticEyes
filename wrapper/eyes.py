@@ -155,55 +155,49 @@ def setup_render(quality="final", cpu=False):
 
 
 def use_texture(nn):
-    """Point the skin and eye materials at textures/tex_NN (legacy per-region UVs).
+    """Load textures/tex_NN into the scene's materials, and show the brow hair that goes with it.
 
-    A minimal hookup so --texture works before M3: albedo x nothing else fancy, normal and
-    roughness if present. M3 replaces this with the full shading in tools/build_scene.py.
+    scene.blend (tools/build_scene.py) has image nodes named tex_albedo, tex_normal, tex_rough on
+    the skin material and tex_eye on each eye interior, on the UDIM UVs. This points them at the
+    set's files; images are never packed, and paths saved in the .blend are relative.
+    set.json names the set's Mindfront brow set and colour, which pick the brow hair object.
     """
     folder = REPO / "textures" / f"tex_{int(nn):02d}"
     if not folder.is_dir():
-        print(f"[eyes] --texture {nn}: {folder.relative_to(REPO)} not found, keeping debug materials")
+        print(f"[eyes] --texture {nn}: textures/tex_{int(nn):02d} not found, keeping the current set")
         return False
 
     def image(name, colour=True):
-        p = folder / name
-        if not p.exists():
-            return None
-        img = bpy.data.images.load(str(p), check_existing=True)
+        img = bpy.data.images.load(str(folder / name), check_existing=True)
         img.colorspace_settings.name = "sRGB" if colour else "Non-Color"
         return img
 
-    def hook(mat_name, albedo, normal=None, rough=None):
+    slots = {"skin": {"tex_albedo": ("skin.1001.png", True), "tex_normal": ("skin_normal.1001.png", False),
+                      "tex_rough": ("skin_rough.1001.png", False)},
+             "eye_interior.L": {"tex_eye": ("eye.1002.png", True)},
+             "eye_interior.R": {"tex_eye": ("eye.1004.png", True)}}
+    for mat_name, nodes in slots.items():
         mat = bpy.data.materials.get(mat_name)
-        if mat is None or albedo is None:
-            return
-        nt = mat.node_tree
-        bsdf = nt.nodes["Principled BSDF"]
-        uv = nt.nodes.new("ShaderNodeUVMap")
-        uv.uv_map = "legacy"
-        tex = nt.nodes.new("ShaderNodeTexImage")
-        tex.image = albedo
-        nt.links.new(uv.outputs["UV"], tex.inputs["Vector"])
-        nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
-        if normal is not None:
-            nt_ = nt.nodes.new("ShaderNodeTexImage")
-            nt_.image = normal
-            nm = nt.nodes.new("ShaderNodeNormalMap")
-            nm.uv_map = "legacy"
-            nt.links.new(uv.outputs["UV"], nt_.inputs["Vector"])
-            nt.links.new(nt_.outputs["Color"], nm.inputs["Color"])
-            nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
-        if rough is not None:
-            rt = nt.nodes.new("ShaderNodeTexImage")
-            rt.image = rough
-            nt.links.new(uv.outputs["UV"], rt.inputs["Vector"])
-            nt.links.new(rt.outputs["Color"], bsdf.inputs["Roughness"])
+        if mat is None:
+            continue
+        for node_name, (fname, colour) in nodes.items():
+            node = mat.node_tree.nodes.get(node_name)
+            if node is not None:
+                node.image = image(fname, colour)
 
-    hook("skin", image("skin.1001.png"), image("skin_normal.1001.png", False),
-         image("skin_rough.1001.png", False))
-    hook("eye_interior.L", image("eye.1002.png"))
-    hook("eye_interior.R", image("eye.1004.png"))
-    print(f"[eyes] texture set {folder.relative_to(REPO)}")
+    meta_path = folder / "set.json"
+    if meta_path.exists():
+        brows = json.loads(meta_path.read_text()).get("eyebrows", {})
+        tag = brows.get("source", "")[-2:]
+        for ob in bpy.data.objects:
+            if ob.type == "CURVES" and ob.name.startswith("brow_hair_"):
+                ob.hide_render = ob.hide_viewport = ob.name[-2:] != tag
+        mat = bpy.data.materials.get("brow_hair")
+        if mat is not None and "color_linear" in brows:
+            for node in mat.node_tree.nodes:
+                if node.bl_idname == "ShaderNodeBsdfHairPrincipled":
+                    node.inputs["Color"].default_value = (*brows["color_linear"], 1.0)
+    print(f"[eyes] texture set textures/tex_{int(nn):02d}")
     return True
 
 

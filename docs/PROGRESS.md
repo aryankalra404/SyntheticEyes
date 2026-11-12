@@ -10,7 +10,7 @@ what the next session needs to know.
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
-| M3 Look | not started |
+| M3 Look | mechanical parts built by Opus (13 Nov): test shots, texture hookup, lashes, brow hair, tear-line geometry; stills script and all look work left for Fable (`docs/BRIEF_M3.md`, "Status 13 Nov, night") |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
@@ -20,6 +20,23 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — texture fixes and M3 mechanical parts (Opus)
+**Texture sets**: `tools/build_textures.py` has an optional per-set `tone` (saturation about
+luminance, hue rotation about grey, gain; linear light, before the detail layer). tex_02 to medium
+brown (cheek Y 0.34 → 0.150, sRGB ≈ 145/97/68); tex_06 from red-brown 96/39/20 to deep brown
+86/52/37 (Y 0.046, still the darkest); tex_05 brows lighter (opacity 0.75, density 1.2). Order by
+cheek Y: 01 0.51, 07 0.47, 08 0.44, 05 0.38, 04 0.34, 02 0.15, 03 0.069, 06 0.046. Wrap tests of
+02, 05, 06 looked at; contact sheet updated.
+
+**M3**: see "Status 13 Nov, night" at the top of `docs/BRIEF_M3.md` for what is built, what is a
+stand-in and what Fable must judge. New: `tools/carry_hair.py`, `tools/look_shots.py`; changed:
+`tools/build_scene.py` (textured materials, hair, tear line, test cameras), `wrapper/eyes.py`
+(`use_texture` only). `scene.blend` rebuilt (9.4 MB). Test shots 16 s per 1024² frame.
+Looked at: the four test shots, the blink strip (0, 0.5, 1.0), a lower-margin crop.
+Found on the way: the lash meshes store each hair's root ring last, so rings are now chained
+through the faces and the root is the end lower along the skin normal (nearest-end flipped the
+lower lashes). Section 6 (stills per set on its identity) is not done; plan in the brief.
 
 ### Fri 13 Nov 2026, night — M2 scanned skin relief in every set (Fable)
 The owner approved using the Infinite head scan's relief (CC BY 3.0, credit required). Its

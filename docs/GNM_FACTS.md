@@ -8,8 +8,9 @@ Measured on 12 Nov 2026 from the real weights, not from memory.
   sha256 `61d78bbfb4ad8e0b38495804a4caef3214d3df00f8c3f68761e63b41ce3747eb`, `version` = `3.0`.
 - Source read: google/GNM at commit `846ab76` (`gnm_xnp.py`, `gnm_common.py`, `gnm_udim.py`,
   `gnm_landmarks.py`, `semantic_sampler.py`, `oss_data_loaders.py`).
-- Read with plain numpy (`allow_pickle=False`) via `tools/gnm_core.py`. The GNM package itself
-  has not been run yet (see PROGRESS.md), so samplers are untested.
+- Read with plain numpy (`allow_pickle=False`) via `tools/gnm_core.py`. Checked against the
+  installed GNM package (TensorFlow 2.21): with random identity, expression and pose,
+  `gnm_core.lbs` matches `GNM.__call__` to 4.5e-8 m, and UDIM tiles and UVs match exactly.
 
 ## Mesh
 
@@ -71,8 +72,10 @@ Measured on 12 Nov 2026 from the real weights, not from memory.
 
 A unit coefficient on the first head components moves vertices up to ~9 mm. A plain
 N(0, 1) draw on all 170 head coefficients (`export_gnm.py --identity-seed 3`) gives a believable
-face but the **ears collapse into the head**, so N(0, 1) is not the model's prior. Use the
-IdentitySampler or a smaller scale.
+face but the **ears collapse into the head**, so N(0, 1) is not the model's prior. The
+IdentitySampler (`--gender female --ethnicity asian --identity-seed 3`) gives a larger vector
+(|c| = 25.6 vs 13.6) with intact ears, so the problem is direction, not scale. Use the
+sampler for identities.
 
 ## Expression: 383 coefficients
 
@@ -128,7 +131,7 @@ rows are the lid margins, which is what `gnm_core.lid_margins` uses.
 weight) pairs. Landmark = Σ w·v over the three vertices. Exported as `landmark_indices`
 (68 × 3) and `landmark_weights` (68 × 3).
 
-## Samplers (from source, not run)
+## Samplers
 
 - `ExpressionSampler` / `IdentitySampler` load Keras `.h5` decoders
   (`data/semantic_sampler/*.h5`) with `tf.keras.models.load_model`. They are seeded through
@@ -138,8 +141,26 @@ weight) pairs. Landmark = Σ w·v over the three vertices. Exported as `landmark
   MOUTH_LEFT, MOUTH_RIGHT, LIPS_ROLL_IN, SNARL, TONGUE_CENTER.
 - Identity classes: Gender FEMALE 0 / MALE 1; Ethnicity MIDDLE_EASTERN 0, ASIAN 1, WHITE 2,
   BLACK 3.
-- Whether WINK_LEFT closes the subject's left (+X) eye is **unconfirmed**. `spike_blink.py`
-  measures both sides and reports.
+- WINK_LEFT closes the **subject's left (+X)** eye, WINK_RIGHT the right (confirmed by the
+  spike). A full wink also half-closes the other eye, so keep one side's coefficients only.
+
+## Lid shapes (tools/spike_blink.py, 64 samples, seed 0)
+
+Lid gap in mm, column through the pupil:
+
+| Shape | Weight 0 | 0.5 | 1.0 | Scale that closes (≤ 0.2 mm) |
+|---|---|---|---|---|
+| blink_L (left gap) | 8.34 | 5.33 | 2.32 | **1.40** |
+| blink_R (right gap) | 8.36 | 5.30 | 2.23 | **1.35** |
+| full WINK_LEFT | L 2.32, R 6.68 at 1.0 | | | |
+| brow_up (SURPRISE eye regions) | | | L 8.58, R 8.60 | |
+| squint | | | L 3.37, R 3.27 | |
+
+The eye-region-only vectors move no eyeball vertex and nothing in the lip/chin regions
+(max displacement 5.6 mm). Rendered at the closing scale the lid shuts cleanly with no cornea
+poking through and only a faint crease at the outer corner. At 1.0 a thin slit stays open.
+The averaged vector is weaker than a single wink sample, so M1 should either bake the scale
+into `blink.L/R` or solve the lid coefficients directly.
 
 ## base.npz (tools/export_gnm.py)
 

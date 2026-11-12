@@ -17,6 +17,7 @@ GNM is +Y up / +Z forward; Blender is +Z up / -Y forward: (x, y, z) -> (x, -z, y
 """
 
 import argparse
+import json
 import math
 import sys
 import time
@@ -135,6 +136,7 @@ def build_shape_keys(d, ob):
     base = to_blender(d["vertices"])
     for k in keys:
         sk = ob.shape_key_add(name=k, from_mix=False)
+        sk.slider_max = 3.0
         co = base + to_blender(d[f"delta_{k}"])
         sk.data.foreach_set("co", co.astype(np.float32).ravel())
     return keys
@@ -261,18 +263,23 @@ def main():
             print(f"[bench] {s} samples: {min(times):.2f} s (runs {', '.join(f'{x:.2f}' for x in times)})")
         return
 
-    shots = [("neutral", None, (0, 0))]
-    for k, side in (("blink_L", "L"), ("blink_R", "R")):
+    spike = args.npz.parent / "blink_spike.json"
+    close = json.loads(spike.read_text()) if spike.exists() else {}
+    shots = [("neutral", None, 1.0, (0, 0))]
+    for k in ("blink_L", "blink_R"):
         if k in keys:
-            shots.append((k, k, (0, 0)))
+            shots.append((k, k, 1.0, (0, 0)))
+            s = (close.get(k) or {}).get("scale_to_close")
+            if s and s != 1.0:  # weight that actually closes the lid
+                shots.append((f"{k}_x{s}", k, s, (0, 0)))
         else:
             print(f"[smoke] skip {k}: no delta_{k} in {args.npz.name} (blink spike not run)")
-    shots += [("gaze_left15", None, (-15, 0)), ("gaze_up15", None, (0, 15))]
+    shots += [("gaze_left15", None, 1.0, (-15, 0)), ("gaze_up15", None, 1.0, (0, 15))]
 
     base_px = None
-    for name, key, (yaw, pitch) in shots:
+    for name, key, weight, (yaw, pitch) in shots:
         for kb in (ob.data.shape_keys.key_blocks if ob.data.shape_keys else []):
-            kb.value = 1.0 if kb.name == key else 0.0
+            kb.value = weight if kb.name == key else 0.0
         set_gaze(rig, yaw, pitch)
         px = pupil_centres_px(ob, cam, d)
         base_px = base_px or px

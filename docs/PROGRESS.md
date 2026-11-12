@@ -7,7 +7,7 @@ what the next session needs to know.
 
 | Milestone | State |
 |---|---|
-| M0 Setup and spikes | mostly done; blink spike blocked (GNM package not installed yet) |
+| M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | not started |
 | M2 Texture pipeline | not started |
 | M3 Look | not started |
@@ -20,8 +20,6 @@ what the next session needs to know.
 - Does the DRM-locked `Evaluation_for_SyntheticEyes.pptx` differ from `_1.pptx`?
 - What does the second reference video (youtu.be/TAZIvyAJfeM) show?
 - College and team name for the zip and deck (`CollegeName_TeamName`)
-- Does `WINK_LEFT` close the subject's left (+X) eye, and does its eye-region part close the lid
-  at weight 1.0? (blink spike, pending)
 
 ## Log
 
@@ -36,14 +34,17 @@ Python 3.11.11, numpy 1.26.4. `.venv-gnm` is Python 3.13.4 (uv).
   lid gap. TECH_NOTES corrected (joint order was wrong; tongue is 1 mean + 31).
 - `tools/gnm_core.py` + `tools/export_gnm.py`: **numpy only**, no GNM import. Reproduces GNM's
   vertex-group masks, UDIM tiling and LBS from the source. Writes `assets/gnm/base.npz`
-  (19.3 MB, byte-identical across runs). `--identity-seed`, `--identity-scale`; `--gender` /
-  `--ethnicity` import GNM's IdentitySampler (needs the package, untested).
+  (19.4 MB, byte-identical across runs). `--identity-seed`, `--identity-scale`; `--gender` /
+  `--ethnicity` use GNM's IdentitySampler (tested, also byte-identical across runs).
+- Checked against the installed package: `gnm_core.lbs` matches `GNM.__call__` to 4.5e-8 m with
+  random identity, expression and pose; UDIM tiles and UVs match exactly.
 - `tools/smoke_render.py`: mesh with `UDIM` + `legacy` UV layers, 4-bone armature from GNM
   joints and skin weights, shape keys from any `delta_*`, camera 40 cm in front of the eye
   midpoint, one area light, Cycles on Metal GPU, OIDN. Debug materials: transparent cornea
   shell, dark iris and pupil, so gaze reads by eye.
-- Renders in `outputs/spike/` (git-ignored), all looked at: `neutral`, `gaze_left15`,
-  `gaze_up15` and `id_seed3/neutral`. Gaze is correct by eye and in numbers: 15° left moves
+- Renders in `outputs/spike/` (git-ignored), all looked at: `neutral`, `blink_L`, `blink_R`,
+  `blink_L_x1.4`, `blink_R_x1.35`, `gaze_left15`, `gaze_up15`, `id_seed3/neutral`,
+  `id_f_asian3/neutral`. Gaze is correct by eye and in numbers: 15° left moves
   both pupils −12.2 px in x, 15° up moves them −12.2 px in y (up in the image). Eyeballs turn
   about their centres (radius change 1e-17 m, no skin vertex moves).
 - MakeHuman Skins 01, Skins 02, Eyebrows 01, Eyelashes 01, system assets, `base.obj`, and the
@@ -54,19 +55,18 @@ best of 2 after a warm-up frame): **64 spp 3.8 s · 128 spp 4.4 s · 256 spp 4.9
 is per-frame overhead, not sampling. The first frame of a session takes about 46 s while
 Metal kernels compile. Re-measure once skin has subsurface.
 
-**Blocked: blink spike (task 5) and the two lid-closed renders.** Claude Code's auto-mode
-safety check refused `pip install -e assets/third_party/gnm/gnm/shape` (it installs and runs
-code from an external repo, plus TensorFlow). The ExpressionSampler loads Keras `.h5`
-decoders, so the spike cannot run without that install. No workaround was built.
-`tools/spike_blink.py` is written but **untested**. To finish:
-
-    uv pip install --python .venv-gnm/bin/python -e assets/third_party/gnm/gnm/shape
-    .venv-gnm/bin/python tools/spike_blink.py      # writes expr_*.npy + blink_spike.json
-    .venv-gnm/bin/python tools/export_gnm.py       # adds delta_blink_L/R, brow_up, squint
-    $BLENDER -b --factory-startup -P tools/smoke_render.py   # adds blink_L.png, blink_R.png
-
-The lid-gap measure is ready and checked at rest: **8.34 mm left, 8.36 mm right** (column
-through the pupil, front rim of `eye_sockets`).
+**Blink spike** (after the GNM package install was allowed; TensorFlow 2.21). 64 samples per
+class, seed 0, eye-region coefficients only. Full table in GNM_FACTS.
+- WINK_LEFT closes the subject's left (+X) eye. A full wink also half-closes the other eye
+  (8.36 → 6.68 mm), so one-side-only coefficients are needed.
+- Lid gap left: 8.34 / 5.33 / **2.32 mm** at weight 0 / 0.5 / 1.0. Right: 8.36 / 5.30 / 2.23.
+  **Weight 1.0 does not close the lid.** It closes (≤ 0.2 mm) at **×1.40 left, ×1.35 right**.
+- Rendered: at ×1.4 / ×1.35 the lid shuts cleanly, with no cornea poking through, the other
+  eye untouched and only a faint crease at the outer corner. At 1.0 a thin slit stays open.
+- Shapes move no eyeball or lip/chin vertex. `brow_up` (SURPRISE) widens the lids 0.24 mm;
+  `squint` narrows them to 3.3 mm.
+- Vectors are in `assets/gnm/expr_*.npy` (git-ignored, rebuilt by the script);
+  `blink_spike.json` holds the numbers.
 
 **Surprises / for M1**
 - Subject's left eye is at +X, so it appears on **image right**. `left` input (image-left)
@@ -77,7 +77,9 @@ through the pupil, front rim of `eye_sockets`).
 - The upper lid does not follow pitch: at 15° up the iris tucks under the lid. M1's lid driver
   is needed.
 - A unit-Gaussian identity (`--identity-seed 3`) looks like a face, but the ears sink into the
-  head. Use the IdentitySampler, or scale ≤ 0.5, for identities.
+  head. The IdentitySampler has a larger norm with intact ears, so use the sampler.
+- `blink.L/R` need the closing scale (1.40 / 1.35) baked in, or a direct lid solve, before
+  the mid-pose corrective work.
 
 **For M2**
 - `base.obj` includes MakeHuman helper geometry; keep only the body group when registering.

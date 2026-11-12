@@ -21,7 +21,7 @@ not happened, and the skin detail is generated, not real. The base stays as deci
 
 | # | Work | Model | Depends on |
 |---|---|---|---|
-| 1 | M1 rig, `scene.blend`, wrapper (`docs/BRIEF_M1.md`) | Fable | nothing; start now, it gates 40 points and every video |
+| 1 | M1 rig, `scene.blend`, wrapper (`docs/BRIEF_M1.md`). Plumbing done by Opus 13 Nov on stand-in lids; Fable does the lid solve and reviews the rig (see the brief's "Status 13 Nov") | Fable | nothing; it gates 40 points and every video |
 | 2 | M2 tuning pass on irises and detail maps (`docs/BRIEF_M2.md`, "Added 13 Nov") | Opus 5.5 | nothing; runs beside 1 |
 | 3 | Eyebrow bake fix in `tools/transfer_skin.py` | Fable | nothing |
 | 4 | Scan test, one hour, optional (below) | Fable | repo owner's OK |

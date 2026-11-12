@@ -2,6 +2,44 @@
 
 Run on the Mac, in this repo, with Fable. Paste everything below the line.
 
+## Status 13 Nov, night: plumbing done by Opus 5.5, lids and review left for Fable
+
+Fable's budget was out for the day, so an Opus session built everything in this brief
+**except section 1**. Sections 2–5 run end to end on **stand-in lid shapes**. Details and
+measurements are in `docs/PROGRESS.md`, entry "M1 plumbing (Opus)". What is left for Fable:
+
+1. **Write `tools/solve_lids.py` (section 1).** It only has to write
+   `assets/gnm/lids.npz` with arrays `delta_<key>`, shape (17821, 3) float, in **GNM
+   coordinates** (metres, +Y up, +Z forward), for keys `lid_up.L/R`, `lid_down.L/R`,
+   `lid_open.L/R`, `blink_33.L/R`, `blink_66.L/R`, `blink.L/R`. It may also override
+   `brow_up.L/R`, `squint.L/R` or `pupil`. Then rebuild:
+   `tools/build_scene.py` picks the file up, sets `gnm_rig["lid_shapes"] = "solved"`, and
+   because `blink_33.L` exists sets `blink_keys = "tent"`; `Rig.apply` already does the tent
+   weights. Nothing in `wrapper/` needs to change.
+2. **Report the three section-1 numbers** in `docs/PROGRESS.md`. None were measured for the
+   stand-ins.
+3. **Pick `REST_LID_OPEN`** (top of `tools/build_scene.py`, default 0.5) from the `cam_eyes`
+   reset frame once the solved `lid_open` exists.
+4. **Review `wrapper/rig.py`**: eye aim and vergence, the head split, the lid-follow
+   mapping, the bone-basis maths in `_set_local`. Directions pass by number and by eye, but
+   it has not had a second pair of eyes.
+5. **Play the draft `left.mp4` at full speed** after the rebuild
+   (`--input left --quality draft`). The Opus session looked at frames 32–40 (first saccade)
+   and 89–98 (first blink) as stills, not at playback.
+
+Stand-ins, so you know what you are replacing (`lid_standins` in `tools/build_scene.py`):
+the M0 averaged wink, scaled to close (×1.40 L, ×1.35 R), is `blink`. Its per-vertex
+magnitude, normalised on the margin row, is a falloff mask; `lid_up`, `lid_down` and
+`lid_open` rotate that masked skin about the eye joint's left-right axis by the brief's
+angles (upper 0.85×20° / 0.90×25°, lower 0.35×20° / 0.45×25°), split into upper and lower
+lid by height relative to the pupil. No basis fit, no collision pass, no blink mid-poses.
+They look right in `outputs/tmp/m1/` (lid follow −25…+20°, yaw ±30°, blink 0…1) but the
+blink is a straight-line blend.
+
+One correction to "Added 13 Nov" below: measured in the column through the pupil (front-most
+socket row), the template's upper margin sits **3.24 mm (L) and 3.33 mm (R)** above the pupil
+centre, not 2.7 mm. The front view still shows the lid over the top of the iris.
+
 ---
 
 You are doing milestone M1. Read `CLAUDE.md`, `docs/REQUIREMENTS.md`, `docs/GNM_FACTS.md`,

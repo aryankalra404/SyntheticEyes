@@ -8,10 +8,10 @@ what the next session needs to know.
 | Milestone | State |
 |---|---|
 | M0 Setup and spikes | done |
-| M1 Rig and calibrated wrapper | not started |
+| M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
 | M2 Texture pipeline | sections 1–4 built and tuned (13 Nov); eyebrow bake fix pending; the 8 sets (section 5) wait for it |
 | M3 Look | not started |
-| M4 Motion | gaze engine done and tested; rig adapter, bake and videos pending |
+| M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
 | M5 Compliance and packaging | not started |
 | M6 Ship | not started |
 
@@ -20,6 +20,80 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — M1 plumbing (Opus), stand-in lids, handover to Fable
+Fable's budget was out, so Opus 5.5 built sections 2–5 of `docs/BRIEF_M1.md` and left
+section 1 (the lid solve) alone. **Fable: start with the brief's "Status 13 Nov" list.**
+
+**New files**
+- `tools/build_scene.py` → `scene.blend` (7.1 MB, 2 s). Mesh with `UDIM` + `legacy` UVs, one
+  material slot per UDIM tile (debug greys; the eye interior is a procedural pupil / iris /
+  sclera from the measured UV radii; cornea is Fresnel gloss + transparent to shadow rays).
+  Armature `neck → head → eye.L, eye.R`; skin groups renamed to match. Shape keys `lid_up`,
+  `lid_down`, `lid_open`, `blink`, `brow_up`, `squint` per side, plus `pupil` (−3…+3).
+  Vertex groups `pupil_L/R`. Custom properties on `gnm_rig`: `eye_rest_L/R`, `eye_mid`,
+  `forward`, `rest_pupil` −1.2, `rest_lid_open` 0.5, `lid_shapes` (`standin` / `solved`),
+  `blink_keys` (`single` / `tent`). `cam_face` (50 mm) and `cam_eyes` (105 mm), both 40 cm in
+  front of the eye midpoint, 1024². HDRI packed into the file (its source is git-ignored),
+  strength 0.6, plus one disk key. AgX, Cycles 128 spp, motion blur shutter 0.5, 30 fps.
+  `generate` seed 0 baked as keyframes (321 frames, linear interpolation).
+- `wrapper/rig.py`: `Rig.apply(channels)`, `key`, `bake(track)`, `pupil_px`, `pupil_world`,
+  `eye_rotations`. No drivers, no constraints. Bones are posed by writing
+  `basis = M⁻¹ · L · M` (M = bone rest matrix, L = the rigid delta in rest space), so no
+  depsgraph update is needed between parent and child.
+- `wrapper/eyes.py`: `move`, `reset`, `render`, `static_pose`; CLI `--clockwise`,
+  `--check-directions [--render]`, `--input left|right|generate`, `--move H V`, `--seed`,
+  `--fps`, `--quality draft|final`, `--camera face|eyes`, `--texture NN`, `--limit N`.
+  `--texture` is a minimal hookup (albedo, normal, roughness on the `legacy` UVs) until M3.
+  Videos: PNG frames → `outputs/frames/<mode>/` → H.264 with Blender's own FFmpeg (VSE).
+- `tools/validate.py`: layout, 10 renders at 1024², metadata schema and values, clockwise
+  order, the direction signs from `outputs/direction_check.json`, reset ≤ 0.1 px, videos
+  ≤ 15 s (reads the mp4 header, no ffprobe), texture sets and stills.
+- `tools/rig_strips.py`: lid-follow, yaw, blink, brow, squint and widen strips from
+  `cam_eyes` → `outputs/tmp/m1/`.
+
+**Measured**
+- Direction check, `cam_eyes`, ±1 input: left −13.8 / −14.2 px (L / R eye), right +14.2 /
+  +13.8, up −14.0 y, down +14.0 y; cross-axis drift ≤ 0.01 px; reset returns exactly.
+  At `cam_face` the same inputs move the pupils about ±6.5 px, as predicted.
+- `metadata.json`: 10 records. `camera_matrix` reproduces `world_to_camera_view` to < 0.05 px
+  (asserted for every frame). `--clockwise` takes 61 s (6 s per Cycles frame on Metal).
+- `python tools/validate.py --skip textures`: all pass. `python -m unittest discover tests`:
+  18 pass.
+- Two builds give identical mesh, shape keys and keyframes (sha256 over all three).
+- Template upper lid margin, column through the pupil: **3.24 mm (L), 3.33 mm (R)** above the
+  pupil centre (the brief said 2.7). `lid_open` at 1.0 rotates it to 3.75 mm (1.99° L, 1.66° R).
+- Draft videos (EEVEE, 512²): `left` 9.0 s, `right` 9.0 s, `generate` 10.7 s; 0.34–0.38 s per
+  frame, about 100–120 s per video. Not committed; they are placeholders until M4.
+
+**Looked at**: the direction sheet (reset, left, right, up, down, reset), clockwise
+`frame_02`, the lid strips (pitch −25, −12, 0, +10, +20; yaw ±30; blink 0, 0.33, 0.66, 1.0;
+brow, squint), `left.mp4` frames 32–40 (first saccade, 23.7°: the eyes jump in 2–3 frames,
+the head follows) and 89–98 (first blink: closes in about 2 frames, opens in about 5), and
+six frames across `generate` (glance, eye roll with brows and wide lids, look down with the
+lids following).
+
+**Stand-in lids** (`lid_standins` in `tools/build_scene.py`, replaced automatically by
+`assets/gnm/lids.npz`): the closing-scaled M0 wink is `blink`; its per-vertex magnitude is a
+falloff mask, and `lid_up / lid_down / lid_open` rotate the masked skin about the eye joint by
+the brief's angles. They look right in the strips: the iris never tucks under the upper lid
+from −25 to +20°, and a little sclera shows below the iris at +20°. Not done: basis fit,
+collision pass, blink mid-poses, any of the section-1 numbers.
+
+**Found / for Fable and M3–M4**
+- **Baked animation overrides static poses at render time.** The render re-evaluates the
+  F-curves at the current frame, so `move()` renders came out as frame 1 of `generate` until
+  `eyes.static_pose()` was added (it clears the animation in memory; the file keeps it).
+  Anything that poses statically must go through it.
+- Blink 0.66 already looks nearly shut, because `lid_open` fades with (1 − blink) and the
+  stand-in blink is a straight blend. Recheck with the solved tent keys.
+- `squint` at 1.0 nearly closes the eye; the engine never sends more than about 0.3.
+- EEVEE drafts show a faint vertical shading line down the forehead midline during brow
+  raises; the Cycles frames do not. Check before trusting drafts for the look.
+- `cam_eyes` at 105 mm frames the eyes and forehead at 1024²; M4 still has to choose the
+  video framing (whole face tight plus an eye inset, per PLAN).
+- Not committed: `renders/`, `metadata.json`, the draft videos and `outputs/direction_check*`.
+  They are regenerated after the lid solve and the M3 look. `scene.blend` is committed.
 
 ### Fri 13 Nov 2026 — M2 tuning pass on irises, detail maps and checks
 Did the "Added 13 Nov" list in `docs/BRIEF_M2.md` on `tools/make_iris.py`, `tools/detail_maps.py`

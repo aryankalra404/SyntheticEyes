@@ -73,6 +73,8 @@ $BLENDER -b scene.blend -P wrapper/eyes.py -- --input generate --seed 7 --qualit
 python tools/validate.py              # layout, metadata schema, direction signs, video length
 python -m unittest discover tests     # gaze engine against the published numbers
 python -m wrapper.gaze --mode left --seed 0 --plot /tmp/left.png   # see the motion as curves
+$BLENDER -b scene.blend -P wrapper/eyes.py -- --check-directions --render   # feeds validate.py
+$BLENDER -b scene.blend -P tools/rig_strips.py   # lid follow, blink, brow strips → outputs/tmp/m1/
 ```
 
 ## Working rules

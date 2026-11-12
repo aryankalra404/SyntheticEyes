@@ -1,7 +1,7 @@
 # Tech notes
 
-Facts checked against source on 12 Nov 2026. Anything marked **confirm** has not been
-verified on the real model yet.
+Facts checked against source on 12 Nov 2026, and against the real v3.0 weights in M0.
+Measured numbers live in `docs/GNM_FACTS.md`; this file keeps only what decisions need.
 
 ## GNM Head v3
 
@@ -9,19 +9,29 @@ Source: https://github.com/google/GNM (commit `846ab76`, 10 Nov 2026), Apache-2.
 Technical report: https://arxiv.org/abs/2607.23687
 
 - 17,821 vertices covering skin, eyeballs, teeth and tongue
-- 4 joints: right eye, left eye, neck, head. Linear blend skinning, axis-angle rotations
-  `[num_joints, 3]`. **Confirm** the order and parent indices from `joint_names`.
+- 4 joints in this order: `neck` (root), `head` (parent neck), `left_eye`, `right_eye` (both
+  parented to head). Linear blend skinning, world-frame axis-angle rotations `[num_joints, 3]`.
+  Pose correctives are all zero in v3.0. Units are metres, +Y up, +Z forward, subject's left
+  eye at +X (image right for a front camera). Eye joints are 61.7 mm apart.
 - Identity: 253 coefficients (170 head, 3 eyeball, 80 teeth), typical range −3..+3
-- Expression: 383 coefficients (100 left eye, 100 right eye, 150 lower face, 32 tongue,
-  1 iris/pupil). **Confirm** the index ranges in that order.
+- Expression: 383 coefficients: 0–99 left eye region, 100–199 right eye region,
+  200–349 lower face, 350 `tongue_mean`, 351–381 tongue, 382 pupils (confirmed from
+  `expression_names`).
 - Pupil coefficient: −3 closes the pupil to a point, 0 is half the iris radius, +3 is full iris
 - Eyeball is a two-sphere model (sclera + cornea); sclera radius is fixed at about 14.6 mm
-- Vertex groups: `skin`, `left_eye`, `right_eye`, `eye_interiors`, `eye_exteriors`,
-  `upper_teeth_and_gums`, `lower_teeth_and_gums`, `tongue`
+- 46 vertex groups, including `skin`, `left_eye`, `right_eye`, `eye_interiors`,
+  `eye_exteriors`, `scleras`, `irises`, `pupils`, `eye_sockets` (the lid pocket; its front rim
+  is the lid margin), per-side brow, orbital and cheek regions, `upper_teeth_and_gums`,
+  `lower_teeth_and_gums`, `tongue`. Full list with sizes in `GNM_FACTS.md`.
 - 68 sparse landmarks ship in `gnm/shape/data/landmarks/head_sparse_68.txt`
   (vertex indices + barycentric weights) — use these for registration
 - Weights download from Google's Hugging Face CDN on first `GNM.from_remote(...)` and are
   cached in `~/.cache/gnm/models/`. `GNM.from_custom_file(path)` loads a local `.npz`.
+  The file is a plain numpy archive at
+  `https://huggingface.co/google/gnm-v3/resolve/main/v3_0/gnm_head.npz` (cache path
+  `~/.cache/gnm/models/v3_0/gnm_head.npz`); `tools/export_gnm.py` reads it with numpy alone.
+  The UDIM layout is not stored; it is computed from vertex groups (`gnm_udim.py`), and
+  `tools/gnm_core.py` reproduces that.
 - Package needs Python ≥ 3.12 and pulls TensorFlow (for the semantic samplers). Keep it in
   its own env; never import it inside Blender.
 - No skin texture ships with GNM. `data/textures/` holds only an edge-flow test image.

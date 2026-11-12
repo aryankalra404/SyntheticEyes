@@ -42,6 +42,12 @@ A `.blend` file that loads the head model and animates an expression using the
 **Timeline panel in Blender**. For more realism animate eyelids, iris and eyebrows.
 The goal is to imitate natural human expression.
 
+### Face or just the eyes?
+The whole face. Slide 1 asks for a "rendered video showcasing natural eye and eyelid motion
+with fully textured, seam-free face and realistic eyeballs"; slide 2 says the UV maps "should
+include face and eyes texture" and will be wrapped on the GNM head. The eyes are where the
+motion is; the face is what the 60 texture points are judged on.
+
 ### Evaluation standard
 Visual photorealism, seam absence, kinematic smoothness, UV map compatibility.
 Verification: direct asset portability and automated execution.

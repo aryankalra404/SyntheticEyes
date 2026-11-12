@@ -84,3 +84,22 @@ apparent age. Each PNG must stay under 50 MB; use 8-bit PNG.
 
 If a skin transfers badly, drop it and use another rather than hand-fixing it. If the
 registration itself is the problem, fix the registration: every set depends on it.
+
+## Added 12 Nov, after sections 1 and 2 (read before sections 3 to 5)
+
+Sections 1 and 2 are done; numbers and usage are in `docs/PROGRESS.md`. Three changes:
+
+- **Section 3 also makes an albedo detail layer.** MakeHuman skins give about 2 px per mm
+  on the face against 8.5 in tile 1001, so the baked albedo carries tone, lips, lash line
+  and brows but no fine marks. Add a multiply map for tile 1001 at 4096² (subtle mottling,
+  freckles and moles, faint redness on nose and cheeks, small veins near the temples and
+  lids; none on the lips), seeded, with strength parameters, applied in section 5.
+- **Relief has to stand on its own.** Check the normal and roughness maps on the GNM
+  template in plain grey, front and three-quarter, close on the eye and on the lips. Pores
+  and lip creases must be visible there (see "Flexpressions" in TECH_NOTES, "Reference bar").
+- **Section 4: the sclera is not white.** Veins, pink toward the corners and a darker rim
+  under the lids matter more than iris variety (see "Eye Piece" at 0:11 and 0:14).
+
+For section 5: bake with `tools/transfer_skin.py --skin <folder> --eyebrows <folder>
+--name <name> --check`. Use the Mindfront strand eyebrows (`eyebrows01/eyebrows/…`), a denser
+set for male skins. The system skins in `makehuman_system_assets/skins/` widen the tone spread.

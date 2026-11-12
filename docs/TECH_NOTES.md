@@ -180,33 +180,61 @@ Implementation consequences:
 
 ## Reference bar
 
-Both videos the organisers link are by Chris Jones. Frames from each were looked at on
-12 Nov 2026 (ten from "Eye Piece", five from "Flexpressions").
+Both videos the organisers link are by Chris Jones. Stills from each were looked at on
+12 Nov 2026 (motion and sound were not). The frames are his work and this repo is public,
+so they are **not** stored here; the timestamps below say where to look.
+
+To look again from a session: open the normal watch page in the browser pane (the `/embed/`
+player refuses to play), make sure the pane is showing, then set
+`document.querySelector('video').currentTime = <seconds>` and take a screenshot.
 
 **"Eye Piece"** (https://youtu.be/TAZIvyAJfeM, 47 s, 2014; Lightwave, Sculptris, Krita). An
-extreme close-up of one eye on a patch of face, fully textured, then the same shot as
-wireframe. This is the bar for the eye itself:
-- wet lid margins with bright specular glints, and a tear line along the lower lid
-- lashes as real strands on both lids; the brow as strands too
-- cornea bulge with a sharp catchlight, iris fibres with depth, a dark limbal ring
-- sclera that is not white: veins, pink toward the corners, a red caruncle
-- lid skin that is thin and translucent, with fine creases and pore-scale highlights
-- shot with a hard key light against black, so every wet surface reads
+extreme close-up of one eye on a small patch of face, fully textured, then the same shot as
+wireframe. This is the bar for the eye itself.
+
+| Time | What is on screen |
+|---|---|
+| 0:09 | lid almost closed: lash strands, glints along the wet lid margin, pores catching light |
+| 0:11 | eye open, three-quarter: cornea bulge, catchlight, iris fibres, limbal ring, sclera veins, tear line |
+| 0:14 | eye turned away: mostly sclera, pink toward the corner, lower lid pulled by the globe |
+| 0:19 | wider: the model is only a patch around one eye, lit by a hard key against black |
+| 0:24 | wireframe: coarse skin mesh, lashes and brow as real strands |
+| 0:30–0:37 | dense wireframe with rig handles on brow, lid and cheek |
+
+What makes it read as real: wet lid margins with bright specular glints and a tear line on the
+lower lid; lashes on both lids; a sclera that is not white (veins, pink corners, red caruncle);
+thin lid skin with fine creases; one hard light, so every wet surface shows.
 
 **"Flexpressions"** (https://youtu.be/gh6WbaYzwFc, 31 s, 2021; Blender, Krita, Cycles). A whole
-head in **untextured grey**, pulling strong expressions. There is no colour map at all; the
-realism is geometry and fine surface relief:
-- brows, lids, cheeks and nose move together; nothing moves alone
-- wrinkles form with the motion: forehead lines, crow's feet, nasolabial folds, nose scrunch
-- pores and lip creases are visible as relief, so they survive without colour
+head in **untextured grey**, pulling strong expressions. No colour map at all.
+
+| Time | What is on screen |
+|---|---|
+| 0:04 | hard squint with bared teeth: crow's feet, nose scrunch, forehead bunching |
+| 0:10 | sneer with lowered brows: asymmetric, the whole face involved |
+| 0:16 | near-neutral close-up: pores visible as relief on a grey surface |
+| 0:22 | lips close-up: vertical lip creases as relief |
+| 0:27 | topology overlay on the same head |
+
+What makes it read as real: brows, lids, cheeks and nose move together; wrinkles form with
+the motion; pores and lip creases are relief, so they survive without colour.
+
+**What the organisers ask for, in their words** (evaluation PPT):
+- "natural eye and eyelid motion with fully textured, seam-free face and realistic eyeballs"
+- textures "should include face and eyes texture"
+- "animate the eyelids as well as eye iris and eyebrows to get realistic feel"
+So the **whole face** is expected, textured and seam-free, with the eyes as the thing that
+moves. Lids and brows moving with the gaze are asked for by name. Wrinkles are not.
 
 What this means for us:
-- The videos want **close-ups of the eye**. Shoot the three videos with `cam_eyes`.
-- Wetness, lashes and the tear line count for more than the iris pattern.
+- Stills and videos show the whole face. Frame it tight (forehead to chin) so the eyes are
+  large, and add an eye close-up as an inset or a second shot. Not an eye-only video.
+- Wetness, lashes and the tear line count for more than the iris pattern. We have none yet.
 - Relief carries the high frequency. The pore and lip-crease normal maps matter as much as
-  the albedo, and should be visible on a grey head.
-- Brows and squint should travel with the gaze. Expression-driven wrinkle normal maps
-  (forehead with brow raise, crow's feet with squint) are the cheap way to echo Flexpressions.
+  the albedo, and must look right on a grey head.
+- Brows and a slight squint travel with the gaze (already channels in the gaze engine).
+- Stretch only, after everything else ships: wrinkle normal maps that fade in with brow raise
+  and squint. Not in the rubric.
 
 ## Assets and licences
 

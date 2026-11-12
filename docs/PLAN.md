@@ -7,8 +7,9 @@ move well. Most teams will build a gaze script on a default mesh. We win on thre
 
 1. **Textures that survive the judges' own wrap test.** They will put our maps on a bare
    GNM head. Skin, brows and eyes must look right with no help from our scene.
-2. **Eyes that read as alive.** Lids that follow the eyeball, a wet refractive cornea, a lid
-   shadow on the sclera, lashes, blinks tied to gaze shifts, a head that joins big movements.
+2. **Eyes that read as alive.** Lids that follow the eyeball, a wet refractive cornea, a wet
+   lid margin and tear line, a lid shadow on the sclera, lashes, blinks tied to gaze shifts,
+   brows that travel with the gaze, a head that joins big movements.
 3. **A bundle that runs first time.** One command, no manual steps, fixed layout.
 
 ## Architecture
@@ -75,26 +76,44 @@ Can run in parallel with M1.
 three-quarter and profile renders.
 
 ### M3 — Look (Sun 15 Nov) · Fable
-- Skin shader: subsurface, roughness and normal detail, lips and eyelid rims handled
+Brief: `docs/BRIEF_M3.md`. Needs M1's `scene.blend` and at least one M2 texture set.
+The bar is "Eye Piece" (see TECH_NOTES, "Reference bar"); order of work follows what that
+video gets its realism from.
+- Wet eye first: tear line along the lower lid, glossy lid margins, wet inner corner
+- Lashes on both lids (MakeHuman CC0), carried from MakeHuman to GNM through the M2
+  registration and bound so they follow blinks
 - Eye shader: refractive cornea that still lets light reach the iris, limbal darkening,
-  sclera with veins and subsurface, tear line along the lower lid, wet inner corner
-- Eyelashes (MakeHuman CC0) bound to the lids so they follow blinks
+  sclera with veins and subsurface
+- Skin shader: subsurface, roughness and normal detail; lips and eyelid rims handled
 - Lighting: soft indoor HDRI plus one key light that puts a window catchlight in the cornea
-- 8 stills, one per texture set, each paired with a matching GNM identity
+- Relief check: the head in plain grey with only the normal and roughness maps must already
+  show pores and lip creases
+- 8 stills of the **whole face**, one per texture set, each paired with a matching GNM
+  identity, plus one eye close-up per set
 
-**Done when** a still at 1024² holds up next to a frame from the reference video at the
-same crop. Iterate render → look → fix; this milestone gets the most review time.
+**Done when** an eye close-up at 1024² holds up next to "Eye Piece" at 0:11 at the same crop,
+and a whole-face still shows no seam. Iterate render → look → fix; this milestone gets the
+most review time.
 
 ### M4 — Motion (Mon 16 Nov) · Fable
 - `wrapper/gaze/`: saccade generator, fixation jitter and drift, lid follow, blink model,
-  eye–head coordination with counter-rotation, pupil, brows
+  eye–head coordination with counter-rotation, pupil, brows (done, see PROGRESS)
 - `left`, `right`: gaze shift with head following, hold, blink, return. Never a linear tween.
 - `generate`: seeded behaviour sequence — look around, eyes roll up with a brow raise, blink, settle
+- Brows and a slight squint move with the gaze in all three; the rubric names eyelids,
+  iris and eyebrows
 - Motion baked to keyframes so the `.blend` plays it on the Timeline
 - Three videos at 30 fps with motion blur, about 10 s each, hard cap 15 s
+- Framing: the whole face, tight (forehead to chin), with an eye close-up inset from
+  `cam_eyes`. The organisers ask for a "fully textured, seam-free face"; an eye-only video
+  does not show it, and the 40 cm spec camera makes the motion too small to see
+  (a 15° turn is 12 px). If the inset costs too much render time, use one 70 mm camera.
 
 **Done when** the three videos look natural at full speed and frame by frame, and
 opening `scene.blend` and pressing play shows the expression.
+
+**Stretch, only after M5 is green:** wrinkle normal maps that fade in with `brow_up` and
+`squint` (forehead lines, crow's feet). Echoes "Flexpressions"; not in the rubric.
 
 ### M5 — Compliance and packaging (Tue 17 Nov) · Opus 5.5
 - `README.md` with setup, commands, conventions, licences
@@ -114,7 +133,7 @@ opening `scene.blend` and pressing play shows the expression.
 | Risk | Mitigation |
 |---|---|
 | GNM has no labelled blink | Use the eye-region components of `WINK_LEFT`/`WINK_RIGHT`; confirm in M0. Fallback: solve lid coefficients so the upper lid margin meets the lower. |
-| MakeHuman skins look flat | Shader and detail maps carry the realism; brows and lashes add most of the "face" read. |
+| MakeHuman skins look flat | Measured: 2 px per mm on the face against 8.5 in the GNM tile, so the albedo is soft. Detail maps carry the relief, a fine colour layer is added to the albedo, and the shader, brows and lashes add most of the "face" read. |
 | Texture seams after transfer | Bake with a cage, dilate islands, inspect back-of-head and ear seams on every set. |
 | Cornea glass blocks light, iris goes black | Make the cornea transparent to shadow rays. |
 | Cycles too slow on the M4 for ~900 frames | Benchmark in M0; lower samples with denoise; EEVEE fallback for video only. |

@@ -1,0 +1,66 @@
+{
+ "set": "tex_02",
+ "label": "young woman, South Asian, dark brown eyes",
+ "skin": {
+  "source": "assets/third_party/makehuman/skins01/skins/cutoff3d_indian_female_skin",
+  "licence": "CC0 (MakeHuman)"
+ },
+ "eyebrows": {
+  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_05",
+  "licence": "CC0 (MakeHuman)",
+  "color_linear": [
+   0.022,
+   0.015,
+   0.011
+  ],
+  "opacity": 0.8,
+  "width_mm": 0.11,
+  "density": 1.3,
+  "shadow": 0.35,
+  "seed": 2
+ },
+ "iris": {
+  "color": "dark_brown",
+  "seed": 2,
+  "params": {
+   "color": "dark_brown",
+   "seed": 2,
+   "size": 2048,
+   "params": {
+    "collarette": 0.311393456109918,
+    "collarette_jag": 0.042462278585353085,
+    "fibre_contrast": 0.962845148118856,
+    "crypts": 30,
+    "furrows": 1,
+    "limbal": 0.6500251314914135,
+    "pupillary_mix": 0.7685681580435384,
+    "veins": 59,
+    "redness": 0.8220586509332273,
+    "freckle_count": 0,
+    "streaks": 0.2474969367906038,
+    "collarette_gaps": 0.2814866029751185
+   }
+  }
+ },
+ "detail_maps": {
+  "seed": 2,
+  "flags": {
+   "redness": 0.8
+  }
+ },
+ "gnm_identity": {
+  "sampler": "IdentitySampler",
+  "gender": "female",
+  "ethnicity": "middle_eastern",
+  "seed": 2
+ },
+ "files": {
+  "skin.1001.png": "albedo 4096\u00b2, sRGB, brows and detail layer baked in",
+  "skin_normal.1001.png": "tangent-space normal 4096\u00b2, OpenGL (+G up), non-colour",
+  "skin_rough.1001.png": "roughness 2048\u00b2, non-colour",
+  "eye.1002.png": "left eye interior (subject's left, +X) 2048\u00b2, sRGB",
+  "eye.1004.png": "right eye interior 2048\u00b2, sRGB",
+  "legacy/": "same pixels under per-region names for the legacy UV layer"
+ },
+ "command": "python3 tools/build_textures.py --sets 02"
+}

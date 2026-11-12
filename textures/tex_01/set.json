@@ -1,0 +1,64 @@
+{
+ "set": "tex_01",
+ "label": "young woman, light skin, hazel eyes",
+ "skin": {
+  "source": "assets/third_party/makehuman/skins01/skins/onlytheghosts_young_eurasian_female",
+  "licence": "CC0 (MakeHuman)"
+ },
+ "eyebrows": {
+  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_01",
+  "licence": "CC0 (MakeHuman)",
+  "color_linear": [
+   0.06,
+   0.038,
+   0.024
+  ],
+  "opacity": 0.85,
+  "width_mm": 0.12,
+  "density": 1.4,
+  "shadow": 0.4,
+  "seed": 1
+ },
+ "iris": {
+  "color": "hazel",
+  "seed": 1,
+  "params": {
+   "color": "hazel",
+   "seed": 1,
+   "size": 2048,
+   "params": {
+    "collarette": 0.3414185949640308,
+    "collarette_jag": 0.05876159240814838,
+    "fibre_contrast": 0.8288319225439268,
+    "crypts": 40,
+    "furrows": 3,
+    "limbal": 0.5779578630026214,
+    "pupillary_mix": 0.6769979346917727,
+    "veins": 48,
+    "redness": 0.9636796545476645,
+    "freckle_count": 4,
+    "streaks": 0.274959368767306,
+    "collarette_gaps": 0.15551182264861366
+   }
+  }
+ },
+ "detail_maps": {
+  "seed": 1,
+  "flags": {}
+ },
+ "gnm_identity": {
+  "sampler": "IdentitySampler",
+  "gender": "female",
+  "ethnicity": "white",
+  "seed": 1
+ },
+ "files": {
+  "skin.1001.png": "albedo 4096\u00b2, sRGB, brows and detail layer baked in",
+  "skin_normal.1001.png": "tangent-space normal 4096\u00b2, OpenGL (+G up), non-colour",
+  "skin_rough.1001.png": "roughness 2048\u00b2, non-colour",
+  "eye.1002.png": "left eye interior (subject's left, +X) 2048\u00b2, sRGB",
+  "eye.1004.png": "right eye interior 2048\u00b2, sRGB",
+  "legacy/": "same pixels under per-region names for the legacy UV layer"
+ },
+ "command": "python3 tools/build_textures.py --sets 01"
+}

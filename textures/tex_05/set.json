@@ -1,0 +1,67 @@
+{
+ "set": "tex_05",
+ "label": "young man, East Asian, brown eyes",
+ "skin": {
+  "source": "assets/third_party/makehuman/makehuman_system_assets/skins/young_asian_male",
+  "licence": "CC0 (MakeHuman)"
+ },
+ "eyebrows": {
+  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_08",
+  "licence": "CC0 (MakeHuman)",
+  "color_linear": [
+   0.014,
+   0.011,
+   0.009
+  ],
+  "opacity": 0.9,
+  "width_mm": 0.13,
+  "density": 1.5,
+  "shadow": 0.45,
+  "seed": 5
+ },
+ "iris": {
+  "color": "brown",
+  "seed": 5,
+  "params": {
+   "color": "brown",
+   "seed": 5,
+   "size": 2048,
+   "params": {
+    "collarette": 0.37660035084944565,
+    "collarette_jag": 0.05519851974341234,
+    "fibre_contrast": 0.9030651122084284,
+    "crypts": 35,
+    "furrows": 1,
+    "limbal": 0.513482675595414,
+    "pupillary_mix": 0.6650106642356555,
+    "veins": 53,
+    "redness": 0.8181100775609781,
+    "freckle_count": 2,
+    "streaks": 0.2248757710727168,
+    "collarette_gaps": 0.3498352230130143
+   }
+  }
+ },
+ "detail_maps": {
+  "seed": 5,
+  "flags": {
+   "pore_strength": 1.1,
+   "freckles": 0.5
+  }
+ },
+ "gnm_identity": {
+  "sampler": "IdentitySampler",
+  "gender": "male",
+  "ethnicity": "asian",
+  "seed": 5
+ },
+ "files": {
+  "skin.1001.png": "albedo 4096\u00b2, sRGB, brows and detail layer baked in",
+  "skin_normal.1001.png": "tangent-space normal 4096\u00b2, OpenGL (+G up), non-colour",
+  "skin_rough.1001.png": "roughness 2048\u00b2, non-colour",
+  "eye.1002.png": "left eye interior (subject's left, +X) 2048\u00b2, sRGB",
+  "eye.1004.png": "right eye interior 2048\u00b2, sRGB",
+  "legacy/": "same pixels under per-region names for the legacy UV layer"
+ },
+ "command": "python3 tools/build_textures.py --sets 05"
+}

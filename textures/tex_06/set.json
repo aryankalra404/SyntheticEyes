@@ -1,0 +1,68 @@
+{
+ "set": "tex_06",
+ "label": "old woman, Black, brown eyes",
+ "skin": {
+  "source": "assets/third_party/makehuman/makehuman_system_assets/skins/old_african_female",
+  "licence": "CC0 (MakeHuman)"
+ },
+ "eyebrows": {
+  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_01",
+  "licence": "CC0 (MakeHuman)",
+  "color_linear": [
+   0.01,
+   0.007,
+   0.006
+  ],
+  "opacity": 0.9,
+  "width_mm": 0.13,
+  "density": 1.5,
+  "shadow": 0.45,
+  "seed": 6
+ },
+ "iris": {
+  "color": "brown",
+  "seed": 6,
+  "params": {
+   "color": "brown",
+   "seed": 6,
+   "size": 2048,
+   "params": {
+    "collarette": 0.3445797221766332,
+    "collarette_jag": 0.04358177174533346,
+    "fibre_contrast": 0.8738134479590757,
+    "crypts": 35,
+    "furrows": 2,
+    "limbal": 0.7468612475466166,
+    "pupillary_mix": 0.7398268817821438,
+    "veins": 50,
+    "redness": 0.9319853821541834,
+    "freckle_count": 3,
+    "streaks": 0.28799176611640226,
+    "collarette_gaps": 0.174594474977438
+   }
+  }
+ },
+ "detail_maps": {
+  "seed": 6,
+  "flags": {
+   "redness": 0.5,
+   "lid_lines": 1.6,
+   "micro_strength": 1.3
+  }
+ },
+ "gnm_identity": {
+  "sampler": "IdentitySampler",
+  "gender": "female",
+  "ethnicity": "black",
+  "seed": 6
+ },
+ "files": {
+  "skin.1001.png": "albedo 4096\u00b2, sRGB, brows and detail layer baked in",
+  "skin_normal.1001.png": "tangent-space normal 4096\u00b2, OpenGL (+G up), non-colour",
+  "skin_rough.1001.png": "roughness 2048\u00b2, non-colour",
+  "eye.1002.png": "left eye interior (subject's left, +X) 2048\u00b2, sRGB",
+  "eye.1004.png": "right eye interior 2048\u00b2, sRGB",
+  "legacy/": "same pixels under per-region names for the legacy UV layer"
+ },
+ "command": "python3 tools/build_textures.py --sets 06"
+}

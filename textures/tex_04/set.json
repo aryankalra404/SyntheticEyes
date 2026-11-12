@@ -1,0 +1,68 @@
+{
+ "set": "tex_04",
+ "label": "old man, light skin, blue eyes, ash brows",
+ "skin": {
+  "source": "assets/third_party/makehuman/skins02/skins/onlytheghosts_old_eurasian_male",
+  "licence": "CC0 (MakeHuman)"
+ },
+ "eyebrows": {
+  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_05",
+  "licence": "CC0 (MakeHuman)",
+  "color_linear": [
+   0.075,
+   0.062,
+   0.05
+  ],
+  "opacity": 0.7,
+  "width_mm": 0.12,
+  "density": 1.3,
+  "shadow": 0.25,
+  "seed": 4
+ },
+ "iris": {
+  "color": "blue",
+  "seed": 4,
+  "params": {
+   "color": "blue",
+   "seed": 4,
+   "size": 2048,
+   "params": {
+    "collarette": 0.3931667326686841,
+    "collarette_jag": 0.04778318882035904,
+    "fibre_contrast": 0.9952487411415408,
+    "crypts": 44,
+    "furrows": 1,
+    "limbal": 0.6518389579987574,
+    "pupillary_mix": 0.6629459753131818,
+    "veins": 54,
+    "redness": 0.8698111264576114,
+    "freckle_count": 4,
+    "streaks": 0.3071635274187656,
+    "collarette_gaps": 0.2587882801526996
+   }
+  }
+ },
+ "detail_maps": {
+  "seed": 4,
+  "flags": {
+   "pore_strength": 1.15,
+   "lid_lines": 1.6,
+   "micro_strength": 1.3
+  }
+ },
+ "gnm_identity": {
+  "sampler": "IdentitySampler",
+  "gender": "male",
+  "ethnicity": "white",
+  "seed": 4
+ },
+ "files": {
+  "skin.1001.png": "albedo 4096\u00b2, sRGB, brows and detail layer baked in",
+  "skin_normal.1001.png": "tangent-space normal 4096\u00b2, OpenGL (+G up), non-colour",
+  "skin_rough.1001.png": "roughness 2048\u00b2, non-colour",
+  "eye.1002.png": "left eye interior (subject's left, +X) 2048\u00b2, sRGB",
+  "eye.1004.png": "right eye interior 2048\u00b2, sRGB",
+  "legacy/": "same pixels under per-region names for the legacy UV layer"
+ },
+ "command": "python3 tools/build_textures.py --sets 04"
+}

@@ -1,0 +1,66 @@
+{
+ "set": "tex_07",
+ "label": "young man, light freckled skin, auburn brows, green eyes",
+ "skin": {
+  "source": "assets/third_party/makehuman/skins02/skins/toigo_light_skin_male_freckles",
+  "licence": "CC0 (MakeHuman)"
+ },
+ "eyebrows": {
+  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_05",
+  "licence": "CC0 (MakeHuman)",
+  "color_linear": [
+   0.13,
+   0.055,
+   0.025
+  ],
+  "opacity": 0.7,
+  "width_mm": 0.11,
+  "density": 1.2,
+  "shadow": 0.25,
+  "seed": 7
+ },
+ "iris": {
+  "color": "green",
+  "seed": 7,
+  "params": {
+   "color": "green",
+   "seed": 7,
+   "size": 2048,
+   "params": {
+    "collarette": 0.35501145599256007,
+    "collarette_jag": 0.05743034502423938,
+    "fibre_contrast": 0.9551371380490387,
+    "crypts": 40,
+    "furrows": 1,
+    "limbal": 0.5750415712278063,
+    "pupillary_mix": 0.8120660336188785,
+    "veins": 58,
+    "redness": 1.1284913673531065,
+    "freckle_count": 0,
+    "streaks": 0.2997069428752046,
+    "collarette_gaps": 0.24358699056874414
+   }
+  }
+ },
+ "detail_maps": {
+  "seed": 7,
+  "flags": {
+   "freckles": 1.6
+  }
+ },
+ "gnm_identity": {
+  "sampler": "IdentitySampler",
+  "gender": "male",
+  "ethnicity": "white",
+  "seed": 7
+ },
+ "files": {
+  "skin.1001.png": "albedo 4096\u00b2, sRGB, brows and detail layer baked in",
+  "skin_normal.1001.png": "tangent-space normal 4096\u00b2, OpenGL (+G up), non-colour",
+  "skin_rough.1001.png": "roughness 2048\u00b2, non-colour",
+  "eye.1002.png": "left eye interior (subject's left, +X) 2048\u00b2, sRGB",
+  "eye.1004.png": "right eye interior 2048\u00b2, sRGB",
+  "legacy/": "same pixels under per-region names for the legacy UV layer"
+ },
+ "command": "python3 tools/build_textures.py --sets 07"
+}

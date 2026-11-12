@@ -12,6 +12,31 @@ move well. Most teams will build a gaze script on a default mesh. We win on thre
    brows that travel with the gaze, a head that joins big movements.
 3. **A bundle that runs first time.** One command, no manual steps, fixed layout.
 
+## Order of work from Fri 13 Nov
+
+The first M2 check renders (generated irises and detail maps on the baked skin) were held
+against the reference videos on 13 Nov and read as CG. Two causes: the look work (M3) has
+not happened, and the skin detail is generated, not real. The base stays as decided
+(MakeHuman skins on GNM); what changes is the order and where the realism goes.
+
+| # | Work | Model | Depends on |
+|---|---|---|---|
+| 1 | M1 rig, `scene.blend`, wrapper (`docs/BRIEF_M1.md`) | Fable | nothing; start now, it gates 40 points and every video |
+| 2 | M2 tuning pass on irises and detail maps (`docs/BRIEF_M2.md`, "Added 13 Nov") | Opus 5.5 | nothing; runs beside 1 |
+| 3 | Eyebrow bake fix in `tools/transfer_skin.py` | Fable | nothing |
+| 4 | Scan test, one hour, optional (below) | Fable | repo owner's OK |
+| 5 | M2 section 5, the 8 sets | Opus 5.5 | 2 and 3 |
+| 6 | M3 look, M4 motion, M5 packaging, M6 ship | as below | 1 and 5 |
+
+**Scan test.** Candidate: the Lee Perry-Smith head scan by Infinite Realities (CC BY 3.0,
+colour and displacement maps of a real face). Download the original maps, put a cheek and a
+nose crop next to our generated detail at the same scale, and keep it only if it is clearly
+better. Its eyes are closed, so it could only supply detail away from the eyes (forehead,
+cheeks, nose, lips, chin), layered onto every set through the same registration as
+MakeHuman. Using it means adding CC BY to the licence rule in `CLAUDE.md` and a credit line
+in the README and deck. Not started; needs the owner's go-ahead for the download and the
+licence change.
+
 ## Architecture
 
 ```
@@ -134,6 +159,7 @@ opening `scene.blend` and pressing play shows the expression.
 |---|---|
 | GNM has no labelled blink | Use the eye-region components of `WINK_LEFT`/`WINK_RIGHT`; confirm in M0. Fallback: solve lid coefficients so the upper lid margin meets the lower. |
 | MakeHuman skins look flat | Measured: 2 px per mm on the face against 8.5 in the GNM tile, so the albedo is soft. Detail maps carry the relief, a fine colour layer is added to the albedo, and the shader, brows and lashes add most of the "face" read. |
+| Renders read as CG next to the reference videos | Realism for the judges' wrap test goes into the texture files (tuning pass, brow fix, optional scan detail). Realism for our own stills and videos comes from M3: lashes and brow hair as geometry, wet lid edge, side key on a dark background, shallow depth of field. |
 | Texture seams after transfer | Bake with a cage, dilate islands, inspect back-of-head and ear seams on every set. |
 | Cornea glass blocks light, iris goes black | Make the cornea transparent to shadow rays. |
 | Cycles too slow on the M4 for ~900 frames | Benchmark in M0; lower samples with denoise; EEVEE fallback for video only. |

@@ -59,6 +59,21 @@ apply built-in UV texture or bake skin textures from other sources by comparing 
 separate high-resolution iris maps for left and right eyes → photorealism audit for seams
 and artifacts.
 
+### Tools and assets the organisers name
+- Toolkit (PPT slide 1): "Blender, Python (`bpy`), OpenCV, and open 3D assets".
+- Open assets (PDF slide 6): MakeHuman / MPFB (CC0), GNM Head Editor, Textured FLAME.
+- Skin may come from "the model's built-in UV texture" or be baked "from other sources by
+  comparing UV maps". Our MakeHuman → GNM transfer is the second route.
+- Neither document sets a licence rule. "CC0, Apache-2.0 or MIT only" is our own rule in
+  `CLAUDE.md`. Anything outside the three named assets (for example a CC BY scan) is neither
+  named nor forbidden; it would need credit in the README and deck, and the repo owner's OK.
+
+### How the 60 texture points are checked
+"The textures will be directly wrapped around GNM Head Model": the judges put our maps on
+their own head. Realism that should score has to be in the texture files (albedo, normal,
+roughness, eye tiles). Hair curves, lashes, wetness and lighting only show in our own stills
+and videos.
+
 ### Reference videos named by the organisers
 Introduced as "watch the below two videos to understand how natural eye expressions are
 simulated. For ex:". Both are by Chris Jones; what each shows is in TECH_NOTES, "Reference bar".

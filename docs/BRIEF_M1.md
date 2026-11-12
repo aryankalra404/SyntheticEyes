@@ -152,5 +152,18 @@ reset returns to the reset position within 0.1 px; each video ≤ 15 s.
 - The three numbers in section 1 are in `docs/PROGRESS.md`
 - `scene.blend` opens and plays; everything is committed and pushed
 
+## Added 13 Nov
+
+- **The template's eyes are narrow at rest.** Measured from the front on the template
+  (`assets/gnm/eye_uv.json`, `lid_opening`): the upper lid margin sits about 2.7 mm above
+  the pupil centre, so the lid hides the top half of the iris; the lower margin touches the
+  limbus. Verify on the mesh. Add one more solved shape per eye, `lid_open`: upper margin
+  rotated up about the eye joint until it sits 3.5 to 4 mm above the pupil centre, with the
+  same collision pass. `Rig.apply` adds a rest amount (armature custom property
+  `rest_lid_open`, 0..1) before lid follow and blink. Pick the default by looking at the
+  `cam_eyes` reset frame: the top of the iris just under the lid, no sclera above it.
+- The resting pupil stays at the smaller value in section 2 (about 3.5 mm); GNM's own rest
+  pupil is 5.2 mm and reads as dilated under a key light.
+
 If something in this brief turns out to be wrong for the real model, fix the approach,
 say what you changed and why in `docs/PROGRESS.md`, and carry on.

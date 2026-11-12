@@ -103,3 +103,41 @@ Sections 1 and 2 are done; numbers and usage are in `docs/PROGRESS.md`. Three ch
 For section 5: bake with `tools/transfer_skin.py --skin <folder> --eyebrows <folder>
 --name <name> --check`. Use the Mindfront strand eyebrows (`eyebrows01/eyebrows/…`), a denser
 set for male skins. The system skins in `makehuman_system_assets/skins/` widen the tone spread.
+
+## Added 13 Nov, after the review of sections 3 and 4 (do this before section 5)
+
+The check renders were held against the reference videos and read as CG. The judges wrap
+our maps on their own GNM head, so realism has to be in the texture files themselves.
+This is a tuning pass on `tools/make_iris.py`, `tools/detail_maps.py` and
+`tools/check_detail.py`. Do not edit `tools/transfer_skin.py`: the eyebrow bake is being
+fixed there by another session. Section 5 waits for both.
+
+**Detail maps**
+- Relief is too shallow: mean normal tilt is about 2° on the nose and cheeks and 1.5° on
+  the forehead, so the grey head is smooth plastic at whole-face size. Raise the default
+  pore and micro-furrow depth until the grey front and three-quarter renders at 1024² show
+  skin grain on the nose, cheeks and forehead, without orange peel in the eye close-up.
+  Start at 2×.
+- Add shallow fine lines under the lower lid and at the outer eye corner, running along
+  the lid direction.
+- The albedo detail layer varies by about ±4 % and cannot be seen in the face render.
+  Raise the mottling and redness defaults until they are just visible in `tex_face`;
+  start at 2×. Freckles and moles stay as they are.
+
+**Irises and sclera**
+- At render size the iris is a flat disc with tree rings. Make the contraction furrows
+  fainter, shorter and fewer. Raise fibre contrast and add radial light and dark streaks a
+  few fibres wide, so structure survives when the iris is 60 px across ("Eye Piece" at 0:11).
+- Break up the collarette: varying width and brightness, with gaps, not one bright line.
+- Sclera veins look drawn (one width, saturated red). Taper them along their length, vary
+  the width, lower the saturation, blur the finest ones slightly, fade them toward the limbus.
+
+**Checks**
+- The textured check renders are overexposed. Lower the key until the brightest skin is
+  below about 85 %, and re-render before judging anything.
+- Add a **wrap test** shot to `tools/check_detail.py`: the bare GNM template with a plain
+  Principled material (albedo × detail, normal, roughness, eye tiles; no subsurface, no
+  extra geometry) under neutral light, front and three-quarter. This is the judges' view.
+- Keep seeds and identical reruns. Make before/after pairs for grey front, grey eye,
+  `tex_face`, `tex_eye_front`, the wrap test and the iris sheet.
+

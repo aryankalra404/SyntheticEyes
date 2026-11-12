@@ -50,6 +50,9 @@ MakeHuman eyelashes (`assets/third_party/makehuman/eyelashes01/` or the system s
   (the stored triangle binding is enough; evaluate it per frame or bake it as shape keys).
 - Upper and lower lids. Dark, thin, slightly glossy. Check for lashes passing through the lid
   at blink 1.0.
+- **Brows as hair too.** Carry a Mindfront strand eyebrow set the same way and render it as
+  hair curves over the painted brows. The painted brows stay in the albedo, softened, because
+  the judges wrap the textures on a bare head with no hair.
 
 ## 4. Skin
 
@@ -66,6 +69,9 @@ MakeHuman eyelashes (`assets/third_party/makehuman/eyelashes01/` or the system s
   catchlight lands in the upper outer quadrant of each cornea.
 - Same lighting for all texture sets and for the 10 clockwise renders.
 - AgX view transform. Check the darkest skin set is not crushed and the lightest not clipped.
+- For the `eye` shot and the eye inset in the videos: dark background, the key from the
+  side, shallow depth of field focused on the iris. Much of how "Eye Piece" reads as a
+  photograph is this, not the textures. The 10 clockwise renders keep the plain constant light.
 
 ## 6. Stills
 
@@ -78,6 +84,8 @@ identity named in its `set.json`. Whole-face stills go to `outputs/stills/`.
   line, lashes, catchlight, a sclera that is not white
 - The grey check shows pores and lip creases
 - No seam on any whole-face still: look at the hairline, behind the ears, the neck
+- Every set also passes the wrap test from `tools/check_detail.py` (bare template, plain
+  material, no hair, no tear line): this is what the judges see when they apply our maps
 - Blink at 0, 0.5 and 1.0 with lashes and tear line: nothing pokes through
 - Render time per 1024² frame is measured again and written in `docs/PROGRESS.md`; the three
   videos are about 900 frames, so say what the full set will cost

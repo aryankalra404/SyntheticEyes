@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | not started |
-| M2 Texture pipeline | sections 1–4 done (registration, skin transfer, detail maps, eyes); the 8 sets (section 5) pending |
+| M2 Texture pipeline | sections 1–4 built; tuning pass on irises and detail maps and the eyebrow bake fix pending; the 8 sets (section 5) wait for both |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter, bake and videos pending |
 | M5 Compliance and packaging | not started |
@@ -20,6 +20,34 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026 — M2 review of sections 3 and 4, and a change of order
+Looked at `outputs/tmp/m2/iris/sheet.png`, `iris/brown_pair_1to1.png` and every render in
+`outputs/tmp/m2/check_detail/`, then held them against "Eye Piece" and "Flexpressions".
+The scripts are sound (measured radii match the mesh, Blender side is `bpy` + `numpy`);
+the look reads as CG. Seeding and identical reruns were not re-run in this review.
+
+**Measured**
+- Normal map: mean tilt 2.4° on the nose, 2.3° on a cheek, 1.5° on the forehead, 1.8° on
+  the lips (95th percentile 4 to 7°). Pores show only in the eye close-up under raking light.
+- Albedo detail layer: standard deviation 4 to 6 on a 128 base (about ±4 %), 1st to 99th
+  percentile 114 to 139. Not visible in `tex_face`, which is also overexposed.
+- Irises: good at 1:1; at render size the fibres vanish and the concentric furrows and the
+  collarette line dominate. Sclera veins are one width and saturated red.
+- Eyebrows (section 2, `tools/transfer_skin.py`): the strand bake gives hard, thin, broken
+  strokes in `skin.1001.png`; stippled in the close-up, pencil-thin at face size.
+- Template eye: upper lid margin about 2.7 mm above the pupil centre (hides the top half of
+  the iris); rest pupil 5.2 mm. Both passed to M1 in `docs/BRIEF_M1.md`.
+- Lip creases are good; no seam at the back of the head or behind the ears.
+
+**Decided**
+- Base stays MakeHuman skins on GNM. Order of work and the reasons are in `docs/PLAN.md`,
+  "Order of work from Fri 13 Nov"; the tuning list for Opus is in `docs/BRIEF_M2.md`,
+  "Added 13 Nov".
+- The organisers name MakeHuman / MPFB, GNM Head Editor and Textured FLAME as open assets
+  and set no licence rule (`docs/REQUIREMENTS.md`). A CC BY head scan as a detail source is
+  a one-hour test that has not been started and needs the owner's go-ahead.
+- Section 5 waits for the tuning pass and the eyebrow fix.
 
 ### Fri 13 Nov 2026 — M2 sections 4 and 3: eyes and detail maps
 **Eye UV radii** (`tools/make_iris.py --measure` → `assets/gnm/eye_uv.json`, also in GNM_FACTS).

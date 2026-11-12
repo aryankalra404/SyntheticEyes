@@ -42,7 +42,9 @@ The repo root mirrors the submission zip, so zipping the root (minus dev files) 
 ```
 scene.blend            built by tools/build_scene.py, never hand-edited
 wrapper/eyes.py        public API + CLI: move(h, v), reset(), render(), --input left|right|generate
-wrapper/gaze/          gaze engine: saccades, lids, blinks, head, vergence
+wrapper/gaze/          gaze engine: saccades, lids, blinks, head, vergence (pure numpy, no bpy)
+wrapper/rig.py         poses bones and shape keys from the gaze channels
+tests/                 unit tests that run without Blender
 textures/tex_NN/       one texture set per folder (UDIM tiles + legacy names + preview)
 renders/               10 clockwise frames for the PDF spec
 metadata.json          per-frame ground truth for those 10 frames
@@ -68,7 +70,9 @@ $BLENDER -b scene.blend -P wrapper/eyes.py -- --clockwise          # 10 renders 
 $BLENDER -b scene.blend -P wrapper/eyes.py -- --input generate --seed 7 --quality draft
 
 # checks
-python tools/validate.py        # layout, metadata schema, direction signs, video length
+python tools/validate.py              # layout, metadata schema, direction signs, video length
+python -m unittest discover tests     # gaze engine against the published numbers
+python -m wrapper.gaze --mode left --seed 0 --plot /tmp/left.png   # see the motion as curves
 ```
 
 ## Working rules
@@ -103,6 +107,8 @@ python tools/validate.py        # layout, metadata schema, direction signs, vide
   change `user.name` / `user.email` to an AI identity.
 - Small commits, one logical change each. Commit working states often; push after each milestone.
 - Work on `main`. This is a one-week solo sprint.
+- Sessions run in parallel on different files. `git pull --rebase` before every push, and
+  only add to `docs/PROGRESS.md` under your own milestone's entry.
 
 ## Who does what
 

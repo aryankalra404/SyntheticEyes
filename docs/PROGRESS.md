@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | not started |
 | M2 Texture pipeline | not started |
 | M3 Look | not started |
-| M4 Motion | not started |
+| M4 Motion | gaze engine done and tested; rig adapter, bake and videos pending |
 | M5 Compliance and packaging | not started |
 | M6 Ship | not started |
 
@@ -22,6 +22,30 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Thu 12 Nov 2026 — gaze engine (part of M4, done early)
+Written and tested in a cloud session with no Blender, so nothing here has been seen on the head yet.
+- `wrapper/gaze/`: pure numpy, Python 3.11 syntax, no bpy. `generate(mode, seed)` returns a
+  `Track` with 15 channels (listed in the `engine.py` docstring) on a 1 kHz clock;
+  `track.frames(fps)` gives one dict per frame.
+- Model: saccades on the main sequence (5° 31 ms, 10° 42 ms, 30° peaks about 550°/s),
+  10 % undershoot plus a corrective saccade on shifts over 12°, small glissade, fixational
+  drift and microsaccades, ≥ 150 ms between saccades. Head takes 10–40 % of the shift, starts
+  40 ms after the eyes and follows smoothly; eye-in-head = gaze − head, so gaze holds while
+  the head catches up. Blinks close in 75 ms and open in 165 ms, come with large gaze
+  shifts, never in the first or last 0.35 s, never during an eye roll. Brows rise with
+  up-gaze. Fixation distance drives vergence and a small pupil response.
+- Inputs: `left` and `right` are 9.0 s (glance, two refixations, blink, return, settle).
+  `generate` is about 10.7 s (glance, eye roll with brows and wide lids, look down, look up
+  and aside, closing blink). The seed changes timing, amplitudes and side.
+- `tests/test_gaze.py`: 18 checks against the numbers in TECH_NOTES, all passing.
+- The pupil channel is an offset; the rig adds it to a resting coefficient of about −1.2.
+- Briefs for the next two sessions: `docs/BRIEF_M1.md` (rig, lid solve, wrapper) and
+  `docs/BRIEF_M2.md` (texture transfer, irises, 8 sets).
+- **Framing finding:** at the spec camera (40 cm, 50 mm, 1024²) a 15° eye turn moves the pupil
+  only 12 px and the ±5 cm calibrated range about 6 px. Keep that camera for the 10
+  clockwise renders, and shoot the three videos with the tighter `cam_eyes` so the motion
+  and the textures can be seen.
 
 ### Thu 12 Nov 2026 — M0 setup and spikes
 **Pinned:** Blender **4.5.1 LTS** (build 2025-07-29, already in `/Applications`), bundled

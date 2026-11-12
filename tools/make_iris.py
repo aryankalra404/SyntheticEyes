@@ -175,14 +175,16 @@ def structure_params(seed: int) -> dict:
     return dict(
         collarette=rng.uniform(0.28, 0.40),
         collarette_jag=rng.uniform(0.035, 0.06),
-        fibre_contrast=rng.uniform(0.55, 0.8),
+        fibre_contrast=rng.uniform(0.8, 1.0),
         crypts=int(rng.integers(18, 45)),
-        furrows=int(rng.integers(2, 5)),
+        furrows=int(rng.integers(1, 4)),
         limbal=rng.uniform(0.5, 0.75),
         pupillary_mix=rng.uniform(0.55, 0.85),
         veins=int(rng.integers(44, 60)),
         redness=rng.uniform(0.8, 1.2),
         freckle_count=int(rng.integers(0, 5)),
+        streaks=rng.uniform(0.22, 0.32),
+        collarette_gaps=rng.uniform(0.15, 0.35),
     )
 
 
@@ -202,19 +204,31 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
     fine = polar_noise(rng, (nt, nth), (7, 0.9))
     f = 0.65 * coarse + 0.45 * fine
     f = map_coordinates(f, [rows, cols], order=1, mode="grid-wrap")
-    fib = np.clip(0.5 + 0.28 * f, 0, 1) ** 1.3
+    fib = np.clip(0.5 + 0.36 * f, 0, 1) ** 1.3
+
+    # radial streaks a few fibres wide, light and dark, long along the radius. At render size
+    # (iris ~60 px across, ~20 polar columns per pixel) single fibres average out; these do not.
+    st = 0.6 * polar_noise(rng, (nt, nth), (60, 12)) + 0.6 * polar_noise(rng, (nt, nth), (90, 26))
+    st = map_coordinates(norm01(st), [rows, cols], order=1, mode="grid-wrap")
 
     # collarette radius, jagged
     jag = polar_noise(rng, (1, nth), (0, 26))[0] * 0.6 + polar_noise(rng, (1, nth), (0, 6))[0] * 0.4
     tc_th = S["collarette"] + S["collarette_jag"] * jag
-    inside = 1.0 - smoothstep(tc_th - 0.02, tc_th + 0.02, t)
+    inside = 1.0 - smoothstep(tc_th - 0.035, tc_th + 0.03, t)
 
-    col = lerp(base, fibre, fib * S["fibre_contrast"] + 0.22)
+    col = lerp(base, fibre, np.clip(fib * S["fibre_contrast"] + 0.18 + 0.12 * st, 0, 1))
     col = lerp(col, pupillary * (0.7 + 0.6 * fib[..., None]), inside * S["pupillary_mix"])
+    col = col * (1 + S["streaks"] * np.clip(st, -2.2, 2.2))[..., None]
 
-    # collarette band: brighter, slightly raised
-    band = np.exp(-0.5 * ((t - tc_th) / 0.022) ** 2) * (0.6 + 0.4 * np.clip(fib * 1.5, 0, 1))
-    col = lerp(col, coll_c, np.clip(band * 0.75, 0, 1))
+    # collarette: a broken ridge, not a ring. Width and brightness vary around the iris and
+    # it has gaps.
+    width = 0.022 * np.clip(0.75 + 0.45 * polar_noise(rng, (1, nth), (0, 30))[0], 0.3, 1.6)
+    bright = np.clip(0.6 + 0.4 * polar_noise(rng, (1, nth), (0, 45))[0], 0.1, 1.0)
+    gap_n = polar_noise(rng, (1, nth), (0, 60))[0]
+    gaps = smoothstep(np.quantile(gap_n, S["collarette_gaps"]) - 0.3,
+                      np.quantile(gap_n, S["collarette_gaps"]) + 0.3, gap_n)
+    band = np.exp(-0.5 * ((t - tc_th) / width) ** 2) * (0.5 + 0.5 * np.clip(fib * 1.5, 0, 1))
+    col = lerp(col, coll_c, np.clip(0.95 * band * bright * gaps, 0, 1))
 
     # crypts: dark radial lozenges near and outside the collarette, with lighter rims
     dark = np.zeros((nt, nth))
@@ -233,13 +247,13 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
     col = col * (1 - 0.7 * dark)[..., None]
     col = lerp(col, fibre, 0.25 * rim)
 
-    # contraction furrows: broken concentric dark lines in the outer (ciliary) zone
+    # contraction furrows: a few short, faint arcs in the outer (ciliary) zone
     for i in range(S["furrows"]):
-        ft = 0.55 + 0.38 * (i + rng.uniform(0.2, 0.8)) / S["furrows"]
+        ft = 0.6 + 0.32 * (i + rng.uniform(0.2, 0.8)) / S["furrows"]
         ft_th = ft + 0.012 * polar_noise(rng, (1, nth), (0, 40))[0]
-        broken = smoothstep(-0.2, 0.6, polar_noise(rng, (1, nth), (0, 80))[0])
-        line = np.exp(-0.5 * ((t - ft_th) / 0.006) ** 2) * broken
-        col = col * (1 - 0.35 * line)[..., None]
+        broken = smoothstep(0.9, 1.6, polar_noise(rng, (1, nth), (0, 50))[0])
+        line = np.exp(-0.5 * ((t - ft_th) / 0.005) ** 2) * broken
+        col = col * (1 - 0.15 * line)[..., None]
 
     # iris freckles (Fuchs nevi): a few small dark-brown dots, brown-ish eyes more often
     nfreck = int(round(S["freckle_count"] * P["freckles"]))
@@ -274,10 +288,14 @@ def draw_vessels(rng, size, count, eye_uv, side, S, layer):
     canthi, where the conjunctiva is exposed) get most vessels, the nasal side most of all.
     """
     cov = np.zeros((size, size), dtype=np.float64)
+    thin = np.zeros((size, size), dtype=np.float64)        # finest vessels, blurred at the end
     nasal = np.pi if side == "L" else 0.0
     lim = eye_uv["limbus"]
 
     def seg(p0, p1, w):
+        # opacity follows width, so a vessel fades as it tapers instead of ending as a hard line
+        a_w = np.clip((w - 0.2) / 1.6, 0.4, 1.0)
+        target = thin if w < 1.6 else cov
         # anti-aliased capsule from p0 to p1 (pixel coords), width w px
         x0, y0 = np.minimum(p0, p1) - w - 2
         x1, y1 = np.maximum(p0, p1) + w + 2
@@ -290,8 +308,8 @@ def draw_vessels(rng, size, count, eye_uv, side, S, layer):
         L2 = max(float(d @ d), 1e-9)
         tt = np.clip(((xs - p0[0]) * d[0] + (ys - p0[1]) * d[1]) / L2, 0, 1)
         dist = np.hypot(xs - (p0[0] + tt * d[0]), ys - (p0[1] + tt * d[1]))
-        a = np.clip(w / 2 + 0.5 - dist, 0, 1)
-        cov[y0:y1, x0:x1] = np.maximum(cov[y0:y1, x0:x1], a)
+        a = np.clip(w / 2 + 0.5 - dist, 0, 1) * a_w
+        target[y0:y1, x0:x1] = np.maximum(target[y0:y1, x0:x1], a)
 
     def to_px(r, a):
         return np.array([(0.5 + r * np.cos(a)) * size, (0.5 - r * np.sin(a)) * size])
@@ -304,7 +322,7 @@ def draw_vessels(rng, size, count, eye_uv, side, S, layer):
         p = to_px(r, a)
         step = 0.0035
         wiggle = 0.05 if layer == "fine" else 0.03
-        while r > r_end and w > 0.45:
+        while r > r_end and w > 0.5:
             kappa = 0.75 * kappa + rng.normal(0, wiggle)
             heading += kappa - 0.08 * (heading - np.pi)
             dr = step * np.cos(heading)
@@ -313,7 +331,7 @@ def draw_vessels(rng, size, count, eye_uv, side, S, layer):
             q = to_px(r, a)
             seg(p, q, w)
             p = q
-            w *= rng.uniform(0.975, 0.995)
+            w *= rng.uniform(0.968, 0.99)
             if depth < 3 and rng.random() < (0.05 if layer == "fine" else 0.03):
                 side_turn = rng.choice([-1, 1]) * rng.uniform(0.35, 0.8)
                 walk(r, a, w * rng.uniform(0.5, 0.75), max(r_end, r - rng.uniform(0.04, 0.12)),
@@ -332,11 +350,11 @@ def draw_vessels(rng, size, count, eye_uv, side, S, layer):
         horiz = np.abs(np.cos(a))
         r_end = lim + 0.008 + rng.uniform(0.0, 0.07) + 0.06 * (1 - horiz)
         if layer == "fine":
-            w0 = rng.uniform(1.8, 3.8) * (0.6 + 0.4 * horiz)
+            w0 = rng.uniform(1.0, 4.8) * (0.6 + 0.4 * horiz)
         else:
             w0 = rng.uniform(4.0, 8.0)
         walk(r0, a, w0, r_end, 0)
-    return cov
+    return np.maximum(cov, gaussian_filter(thin, 0.7) * 1.3)
 
 
 def sclera(rng, size, eye_uv, side, S, R, TH):
@@ -378,9 +396,9 @@ def sclera(rng, size, eye_uv, side, S, R, TH):
     col = lerp(col, lin((150, 70, 82)), np.clip(0.22 * deep * S["redness"], 0, 1))
     fine = draw_vessels(rng, size, S["veins"], eye_uv, side, S, "fine")
     halo = gaussian_filter(fine, 2.0)
-    fade = smoothstep(lim + 0.004, lim + 0.045, R)               # vessels fade toward the limbus
-    col = lerp(col, lin((196, 96, 92)), np.clip(0.25 * halo * fade * S["redness"], 0, 1))
-    col = lerp(col, lin((150, 32, 34)), np.clip(0.75 * fine * fade * S["redness"], 0, 1))
+    fade = smoothstep(lim + 0.005, lim + 0.06, R)                # vessels fade toward the limbus
+    col = lerp(col, lin((200, 122, 116)), np.clip(0.25 * halo * fade * S["redness"], 0, 1))
+    col = lerp(col, lin((160, 64, 62)), np.clip(0.85 * fine * fade * S["redness"], 0, 1))
 
     # faint grey-blue band just outside the limbus
     band = np.exp(-0.5 * ((R - (lim + 0.01)) / 0.008) ** 2)
@@ -431,14 +449,21 @@ def write_set(color, seed, out: Path, eye_uv, size=2048):
     return imgs
 
 
-def sheet(imgs: list[np.ndarray], crop: float = 0.24, cell: int = 512) -> np.ndarray:
+def sheet(imgs: list[np.ndarray], limbus: float, crop: float = 0.24, cell: int = 512,
+          small_iris_px: int = 60) -> np.ndarray:
+    """Top row: each iris cropped and downsized to `cell`. Bottom row: the same crop at the
+    size it has in a face render (iris `small_iris_px` across), blown up with nearest
+    neighbour so each render pixel is visible."""
     from PIL import Image
-    tiles = []
+    top, bottom = [], []
     for img in imgs:
         s = img.shape[0]
         a, b = int((0.5 - crop) * s), int((0.5 + crop) * s)
-        tiles.append(np.asarray(Image.fromarray(img[a:b, a:b]).resize((cell, cell), Image.LANCZOS)))
-    return np.concatenate(tiles, 1)
+        im = Image.fromarray(img[a:b, a:b])
+        top.append(np.asarray(im.resize((cell, cell), Image.LANCZOS)))
+        n = max(8, int(round((b - a) * small_iris_px / (2 * limbus * s))))
+        bottom.append(np.asarray(im.resize((n, n), Image.LANCZOS).resize((cell, cell), Image.NEAREST)))
+    return np.concatenate([np.concatenate(top, 1), np.concatenate(bottom, 1)], 0)
 
 
 def main():
@@ -469,7 +494,7 @@ def main():
             imgs = write_set(color, args.seed + i, out / color, eye_uv, args.size)
             left.append(imgs["L"])
             print(f"[iris] {color} seed {args.seed + i} -> {(out / color).relative_to(REPO)}")
-        tc.write_png(out / "sheet.png", sheet(left))
+        tc.write_png(out / "sheet.png", sheet(left, eye_uv["L"]["limbus"]))
         print(f"[iris] sheet {(out / 'sheet.png').relative_to(REPO)}")
     else:
         out = args.out or REPO / f"outputs/tmp/m2/iris/{args.color}"

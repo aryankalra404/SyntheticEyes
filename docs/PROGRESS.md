@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | not started |
-| M2 Texture pipeline | sections 1–4 built; tuning pass on irises and detail maps and the eyebrow bake fix pending; the 8 sets (section 5) wait for both |
+| M2 Texture pipeline | sections 1–4 built and tuned (13 Nov); eyebrow bake fix pending; the 8 sets (section 5) wait for it |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter, bake and videos pending |
 | M5 Compliance and packaging | not started |
@@ -20,6 +20,63 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026 — M2 tuning pass on irises, detail maps and checks
+Did the "Added 13 Nov" list in `docs/BRIEF_M2.md` on `tools/make_iris.py`, `tools/detail_maps.py`
+and `tools/check_detail.py`. Section 5 not started; `transfer_skin.py` untouched.
+Before/after pairs (old maps vs new, same check settings): `outputs/tmp/m2/tune/pairs/`
+(grey front, grey three-quarter, grey eye, `tex_face`, `tex_eye_front`, wrap front, wrap
+three-quarter, iris sheet). Old maps kept in `outputs/tmp/m2/tune/before/`. All looked at.
+
+**Checks** (`check_detail.py`)
+- Each render prints `peak`, the 99.5th percentile of the head's brightest channel. Textured key
+  is now 0.3× (per-mode default, `--key` overrides): `tex_face` 0.92 → 0.81,
+  `tex_three_quarter` 0.85. Grey mode is unchanged (0.90; relief needs the hard key).
+- New `--wrap` (with `--skin`): the judges' view. Plain Principled everywhere, skin = albedo ×
+  detail + normal + roughness, no subsurface; eye tiles as base colour with default Principled
+  settings; cornea alpha 0; grey world 0.6 plus one 0.5 m soft key; front and three-quarter at
+  face size, peak 0.84. Default shots per mode, so the three modes are three plain commands.
+- **Found in the wrap test:** with default Principled specular on the eye interior and no
+  cornea, the irises read grey-brown and washed out at face size. That is a material issue,
+  not a texture one; worth a line in the README on how to set the eye up (specular ≈ 0.1,
+  roughness ≈ 0.6, as in our check and M3).
+
+**Detail maps** (`detail_maps.py`; scales are now named constants at the top of the file, and the
+flags stay multipliers around them)
+- Pore depth 0.024 → 0.048 mm, micro-furrows 0.014 → 0.028 mm (2×). Normal tilt, mean / 95th
+  percentile: nose 2.8 / 7.5° → 5.4 / 14.8°, cheek 2.1 / 5.9° → 4.1 / 11.6°, forehead
+  1.5 / 3.9° → 3.0 / 7.9°, lids 1.2 → 2.4°; lips unchanged (2.3°). Grain now reads on nose,
+  cheeks and forehead in the grey three-quarter at 1024²; the eye close-up is grainier but not
+  orange peel. Pore tint and pore roughness are normalised to the new depth, so they did not double.
+- New fine lines under the lower lid and at the outer corner (`--lid-lines`, depth 0.022 mm):
+  valleys of constant distance below the lower-lid margin (front rim of `eye_sockets`, extended
+  past the outer corner as a gently rising line), wavy and broken, a coarse and a fine set,
+  strongest near the lid. Visible in the grey eye close-up and in `tex_eye_front`.
+- Mottling 2× (3.5 → 7 %), redness 1.6× (G −10 → −16 %). At 2× the cheek redness read as a
+  blush patch in the wrap test, so it was backed off. Albedo detail sd 4–6 → 8–10 on 128;
+  1st–99th percentile about 100–140. Just visible in `tex_face` and the wrap shots. Freckles and
+  moles unchanged; a mole now lands near the right outer eye corner for seed 0 (rng streams moved).
+
+**Irises and sclera** (`make_iris.py`)
+- Fibre contrast up (seeded range 0.55–0.8 → 0.8–1.0, amplitude 0.28 → 0.36). New radial
+  streaks, light and dark, 12 and 26 polar columns wide (1.5–3 px when the iris is 60 px across),
+  long along the radius, strength 0.22–0.32 per seed.
+- Contraction furrows: 1–3 instead of 2–4, short arcs (gaps most of the way round), 0.15 dark
+  instead of 0.35. The tree-ring look is gone.
+- Collarette: width and brightness vary around the iris and 15–35 % of it is gaps; the edge of
+  the pupillary zone is softer.
+- Sclera veins: opacity follows width, so they fade as they taper; taper faster; wider spread of
+  starting widths; the thinnest drawn on their own layer and blurred 0.7 px; colour 150/32/34 →
+  160/64/62 and halo less saturated; fade over lim + 0.005 … 0.06.
+- `sheet.png` has a second row: each iris at 60 px across, nearest-neighbour enlarged. Before,
+  that row showed a flat disc with a ring; now the radial structure survives.
+- In `tex_eye_front` only a few faint vessels show inside the visible almond (before: too many,
+  too red). If the sets look too clean, raise the per-set `redness` structure parameter rather
+  than the width.
+
+**Reruns**: detail maps and irises are byte-identical on a second run (md5 checked).
+Commands, unchanged: `make_iris.py --all --seed 0`, `detail_maps.py --seed 0`,
+`check_detail.py -- --detail D --iris I [--skin S [--wrap]]`.
 
 ### Fri 13 Nov 2026 — M2 review of sections 3 and 4, and a change of order
 Looked at `outputs/tmp/m2/iris/sheet.png`, `iris/brown_pair_1to1.png` and every render in

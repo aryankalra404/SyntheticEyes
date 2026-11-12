@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
-| M2 Texture pipeline | sections 1–4 built and tuned, eyebrow bake fixed (13 Nov); the 8 sets (section 5) can start; using the scan's relief is an open decision |
+| M2 Texture pipeline | sections 1–5 done (13 Nov): 8 sets in `textures/`, contact sheet in `outputs/stills/texture_sheet.png`; using the scan's relief is an open decision |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
@@ -20,6 +20,59 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — M2 section 5: the 8 texture sets (Opus)
+`tools/build_textures.py` builds `textures/tex_01 … tex_08` from a recipe table at the top of
+the file (skin, brow set and brow flags, iris colour, seed, detail-map multipliers, GNM identity).
+Per set: `transfer_skin.py` bake → `detail_maps.py --seed N` → `make_iris.py --color C --seed N`
+→ albedo × detail in linear light → `skin.1001.png`, normal, roughness, `eye.1002/1004.png`,
+`legacy/skin.png, eye_L.png, eye_R.png` (same bytes), `set.json`, then the wrap test on the
+shipped files (front, three-quarter, profile, back) and its front as `preview.png`.
+About 80 s per set. `python3 tools/build_textures.py` does all 8 and the sheet; `--sets 03 07`,
+`--skip-bake`, `--skip-maps`, `--skip-check`, `--sheet-only`. Work files and the four wrap views
+per set are in `outputs/tmp/m2/sets/tex_NN/` (git-ignored).
+
+| Set | Who | Skin | Brows | Iris |
+|---|---|---|---|---|
+| 01 | young woman, light | onlytheghosts young eurasian F | 01 thin, mid brown | hazel |
+| 02 | young woman, South Asian | cutoff3d indian female | 05, near black, opacity 0.8 | dark brown |
+| 03 | middle-aged man, Black | mindfront male african middleage | 08 full, black | dark brown |
+| 04 | old man, light | onlytheghosts old eurasian M | 05, ash brown, opacity 0.7 | blue |
+| 05 | young man, East Asian | system young_asian_male | 08 full, black | brown |
+| 06 | old woman, Black | system old_african_female | 01 thin, warm black | brown |
+| 07 | young man, light freckled | toigo light skin male freckles | 05, auburn, opacity 0.7 | green |
+| 08 | middle-aged woman, light | onlytheghosts middle-aged eurasian F | 01 thin, mid brown | grey |
+
+Older sets get more lid lines and micro-furrows, male sets a little more pore depth, dark skins
+half the redness, 07 more freckles (flags in `set.json`). Identity pairing for stills is in
+`set.json` (`gnm_identity`: gender, ethnicity class, seed = set number; South Asian has no class,
+paired with MIDDLE_EASTERN).
+
+**Checks**: wrap test looked at for every set, front and three-quarter, plus profile and back;
+eye crops at 2× for 01, 02, 04, 06, 07. Peaks 0.84 on light skins, 0.64–0.69 on 03 and 06.
+`tools/validate.py` passes every texture check (8 sets, complete, all files under 50 MB; the
+largest is the normal map, 21 MB). Assembly reruns byte-identical (md5 of tex_01 `skin.1001.png`).
+`textures/` is 554 MB on disk; legacy files are identical blobs, so git stores them once.
+
+**Changed on the way**
+- First brow pass: grey brows on 04 read as blue painted bars, dark grey-brown on 06 was nearly
+  invisible and bluish, auburn on 07 a flat band, 02 heavy. Fixed with lower opacity and shadow
+  and warmer, darker colours. The pixels are warm (04 brow ≈ 80/72/63); the blue cast is contrast
+  against orange skin, so keep brow colours warmer than seems right.
+- 07 started on `toigo_light_skin_male_ginger`: its freckles smear into an orange streak along
+  the inner corner of the left upper lid. Swapped for the same author's freckles skin, which is clean.
+
+**Known, not fixed** (none of these need changes in the protected files to ship)
+- Tone spread leans light: 02 (South Asian) reads light-medium on the template, and 05 reads
+  as light as 01. Only 03 and 06 are dark. A medium-brown skin would widen it; the candidates
+  (`callharvey3d_midtoned_female`, system `middleage_asian_*`) are also light-medium.
+- 06 (system old_african_female) is saturated red-brown; plausible, but the reddest set.
+- Dark-brown irises (02, 03) read grey at face size in the wrap test. That is the eye material
+  issue from the tuning entry (default Principled specular, no cornea), not the texture.
+- Most source skins carry shaved-scalp stubble; it shows on the back of the head in every set.
+- 04: a lighter band above the brows comes from the source skin, not the brow drawing.
+- `validate.py` still fails "stills: one per texture set": that is M3 (one still per set on its
+  paired identity), not section 5.
 
 ### Fri 13 Nov 2026, night — M5 README, Dockerfile, validator (Opus)
 **README.md** rewritten for evaluators: contents, setup (Blender 4.5.1 LTS, no add-ons, no pip

@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | not started |
-| M2 Texture pipeline | not started |
+| M2 Texture pipeline | registration and skin transfer working (sections 1–2); detail maps, eyes and the 8 sets pending |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter, bake and videos pending |
 | M5 Compliance and packaging | not started |
@@ -22,6 +22,53 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Thu 12 Nov 2026 — M2 sections 1 and 2: registration and skin transfer
+**Registration** (`tools/register_mh.py`, numpy + scipy, 9 s). MakeHuman base head → GNM.
+- `assets/mh_landmarks.json` (committed, written by `tools/pick_mh_landmarks.py`): 52 of GNM's
+  68 landmarks as MakeHuman surface points (three vertex indices + weights). Lips are read off
+  the painted vermilion border, lids come from where the eyeball shows through the opening,
+  brows from the hair of `mindfront_eyebrows_01`. Jaw points other than the chin are not used.
+- Identity fit (170 coefficients, 16 rounds): landmarks 1.03 mm mean, 2.49 mm max; surface
+  1.79 mm mean; |c| = 15.6. Final similarity scale 0.093 (MakeHuman dm → GNM m).
+- Smooth snap (thin-plate displacement, 8 passes): **face residual 0.040 mm mean, 0.114 mm at
+  the 95th percentile**, 1.87 mm max, over 4,348 face vertices; all exterior skin 0.063 / 0.188 mm.
+  Lid pockets, mouth sock and one ring around them are not pulled and follow their neighbours.
+  The snap moves the skin 5.3 mm on average, up to 26 mm on the bib, where the two models differ most.
+- Looked at: both meshes overlaid from front and profile (they interleave everywhere, including
+  ears and bib) and GNM's lip, lid, nose and brow groups drawn on the textured MakeHuman head.
+- Output `assets/gnm/wrapped_to_mh.npz` (git-ignored, rebuilt by the script).
+
+**Transfer** (`tools/transfer_skin.py`, Blender headless, bpy + numpy, 36 s per skin at 4096²).
+- Cycles bake, Selected to Active, cage 3 mm, ray 8 mm, margin 16 px, into float images: skin
+  colour, hit mask, region mask, brow coverage. Composited in linear light, written as 8-bit sRGB.
+- 936 of MakeHuman's 4,800 head quads are hidden inner sheets (eye pockets, mouth cavity) and are
+  removed before baking, so nothing can land on the red socket paint.
+- 85 % of the tile comes from the source. The rest (outside the islands, lid pockets, inner lip)
+  is filled by push-pull; the mouth sock gets a darkened lip colour. Darkest texel 75/255, so no
+  black or magenta.
+- Brows: strand sets bake as individual hairs at 4096², plus a soft shadow under them.
+- First skin `onlytheghosts_young_eurasian_female` + `mindfront_eyebrows_01`, checked on the
+  unwrapped template from four angles: lip colour on the lip edge, brows above the orbit, nostril
+  shading in the nostrils, clean ears, no seam at the back or behind the ears.
+
+**Found**
+- The face gets about 2 px per mm in a MakeHuman skin (2048² for the whole body) against 8.5 px
+  per mm in GNM tile 1001 at 4096². The baked albedo is soft: it carries tone, lips, lash line
+  and brows, not pores. **Section 3 must add fine colour detail to the albedo** (mottling,
+  freckles, small veins) as well as the pore normal map.
+- The `.obj` of the system eyebrow cards (`eyebrow001…012`) is **not** in base-mesh space; they
+  sit 2 cm too high unless fitted through the `.mhclo` (`mh_core.load_proxy`). The Mindfront
+  strand sets are in place either way. The cards are 512² for both brows, so prefer the strands.
+- `makehuman_system_assets/skins/` has 17 more plain skins across three ethnicities, both sexes
+  and three ages: use them for the tone spread in section 5.
+- `.venv-gnm` has no matplotlib; system `python3` has numpy, scipy, matplotlib and PIL.
+
+**For sections 3 to 5**
+- `transfer_skin.py --skin <folder> --eyebrows <folder> --name <name> --check` writes
+  `outputs/tmp/m2/<name>/skin.1001.png` and `check_sheet.png`. `--brow-color` is linear RGB.
+- The inner lip is a flat dark band with a fairly hard edge; soften it if it shows in close-ups.
+- Male skins want a denser brow set (`mindfront_eyebrows_05` or `_08`).
 
 ### Thu 12 Nov 2026 — gaze engine (part of M4, done early)
 Written and tested in a cloud session with no Blender, so nothing here has been seen on the head yet.

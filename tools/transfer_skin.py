@@ -608,4 +608,5 @@ def main():
         check(args, d, png, name)
 
 
-main()
+if __name__ == "__main__":
+    main()

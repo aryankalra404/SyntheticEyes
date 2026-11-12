@@ -23,7 +23,7 @@ not happened, and the skin detail is generated, not real. The base stays as deci
 |---|---|---|---|
 | 1 | M1 rig, `scene.blend`, wrapper (`docs/BRIEF_M1.md`). Plumbing done by Opus 13 Nov on stand-in lids; Fable does the lid solve and reviews the rig (see the brief's "Status 13 Nov") | Fable | nothing; it gates 40 points and every video |
 | 2 | M2 tuning pass on irises and detail maps (`docs/BRIEF_M2.md`, "Added 13 Nov") | Opus 5.5 | nothing; runs beside 1 |
-| 3 | Eyebrow bake fix in `tools/transfer_skin.py` | Fable | nothing |
+| 3 | Eyebrow bake fix in `tools/transfer_skin.py`. Done 13 Nov: strand hairs are drawn in UV, not ray-baked | Fable | nothing |
 | 4 | Scan test, one hour, optional (below). Comparison done by Opus 13 Nov: relief clearly better, colour not usable; integrating it is the open decision | Fable | repo owner's OK (given for the download) |
 | 5 | M2 section 5, the 8 sets | Opus 5.5 | 2 and 3 |
 | 6 | M3 look, M4 motion, M5 packaging, M6 ship | as below | 1 and 5 |

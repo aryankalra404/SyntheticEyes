@@ -141,3 +141,11 @@ fixed there by another session. Section 5 waits for both.
 - Keep seeds and identical reruns. Make before/after pairs for grey front, grey eye,
   `tex_face`, `tex_eye_front`, the wrap test and the iris sheet.
 
+
+## Added 13 Nov, night: eyebrows fixed, section 5 can start
+
+`tools/transfer_skin.py` now draws strand eyebrows in UV as soft tapered hairs (see the
+eyebrow entry in `docs/PROGRESS.md`). For each set choose the brow set and colour to suit the
+skin: `mindfront_eyebrows_01` is thin and arched, `_05` and `_08` are fuller. Flags:
+`--brow-color R G B` (linear), `--brow-width`, `--brow-density`, `--brow-shadow`,
+`--brow-seed`. Check every set with the wrap test in `tools/check_detail.py`.

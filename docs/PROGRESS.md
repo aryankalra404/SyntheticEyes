@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
-| M2 Texture pipeline | sections 1–4 built and tuned (13 Nov); eyebrow bake fix pending; the 8 sets (section 5) wait for it |
+| M2 Texture pipeline | sections 1–4 built and tuned, eyebrow bake fixed (13 Nov); the 8 sets (section 5) can start; using the scan's relief is an open decision |
 | M3 Look | not started |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
 | M5 Compliance and packaging | not started |
@@ -20,6 +20,38 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — M2 eyebrow bake fix (Fable)
+The strand eyebrows baked as hard, broken strokes because each hair is a tube about 0.08 mm
+across, under one texel at 8.5 px/mm, and the ray bake sampled it as dashes.
+`tools/transfer_skin.py` no longer bakes strand sets. It takes each hair's centreline from the
+tube rings, projects it onto the wrapped GNM skin (closest point, then UV), and draws it in UV
+as a tapered anti-aliased stroke, composited hair over hair in linear light.
+- Extra hairs are seeded around each modelled one (root moved 0.35 mm, turned 5°, length
+  0.7–1.1×), and about 30 % of hairs get a short fine stray off the edge, so the outline is soft.
+  Per-hair width, tone and opacity vary. Two soft shadows of the hair density darken the skin
+  underneath.
+- New flags: `--brow-width` 0.13 mm at the root, `--brow-density` 1.4 hairs per modelled
+  strand, `--brow-seed` 0. `--brow-shadow` default is now 0.45. `--brow-color` and
+  `--brow-opacity` as before. Card (textured) eyebrow sets still go through the Cycles bake;
+  that path is untested on a real set.
+- Works for both strand layouts (4 rings in set 01; 5 and 6 rings in sets 05 and 08).
+- Same command twice gives the same file (md5 checked on the first skin). About 40 s per skin.
+
+Looked at, in `outputs/tmp/m2/brow_fix/` and `brow_fix_05/`: the brow at 3× in the flat
+texture; the wrap test front (judges' view) and `tex_eye_front` for
+`onlytheghosts_young_eurasian_female` + `mindfront_eyebrows_01`; the wrap test front for
+`cutoff3d_indian_female_skin` + `mindfront_eyebrows_05`. The brows read as hair at face size
+and in the close-up. Only the brow areas changed in the texture (diff against the old bake).
+
+**For section 5**
+- Set 01 is a thin arched brow, 05 is full; pick per skin and pass a `--brow-color` that
+  suits the skin and iris (the default is dark brown).
+- Set 01's inner ends hook down toward the nose on the GNM template; 05 does not show it.
+- A few light specks sit in the upper-lid crease of the baked skin (there before this change,
+  from the source skin or a bake miss); worth a look when the sets are made.
+- The iris still reads grey and washed out in the wrap test, as logged in the tuning entry
+  (eye material, not the texture).
 
 ### Fri 13 Nov 2026, night — scan test comparison (Opus)
 The owner approved the download. `lpshead.zip` (43.6 MB) from the McGuire Computer Graphics

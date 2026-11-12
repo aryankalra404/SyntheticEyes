@@ -19,6 +19,11 @@
   "shadow": 0.25,
   "seed": 7
  },
+ "micro_relief": {
+  "source": "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com (displacement map, filtered to pore scale)",
+  "licence": "CC BY 3.0",
+  "in": "skin_normal.1001.png and the pore tint in skin.1001.png"
+ },
  "iris": {
   "color": "green",
   "seed": 7,
@@ -42,6 +47,7 @@
    }
   }
  },
+ "tone": null,
  "detail_maps": {
   "seed": 7,
   "flags": {

@@ -1,0 +1,68 @@
+{
+ "set": "tex_09",
+ "label": "man, light skin with stubble, photographed skin, hazel eyes",
+ "skin": {
+  "source": "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com (colour map)",
+  "licence": "CC BY 3.0"
+ },
+ "eyebrows": {
+  "source": "in the scan's colour map"
+ },
+ "micro_relief": {
+  "source": "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com (displacement map, filtered to pore scale)",
+  "licence": "CC BY 3.0",
+  "in": "skin_normal.1001.png and the pore tint in skin.1001.png"
+ },
+ "iris": {
+  "color": "hazel",
+  "seed": 9,
+  "params": {
+   "color": "hazel",
+   "seed": 9,
+   "size": 2048,
+   "params": {
+    "collarette": 0.3844299044764102,
+    "collarette_jag": 0.04217043022718889,
+    "fibre_contrast": 0.9206296300103124,
+    "crypts": 36,
+    "furrows": 3,
+    "limbal": 0.6790186574008913,
+    "pupillary_mix": 0.8246140361471522,
+    "veins": 58,
+    "redness": 1.1672950516195049,
+    "freckle_count": 4,
+    "streaks": 0.22265877344675972,
+    "collarette_gaps": 0.23744960002590174
+   }
+  }
+ },
+ "tone": null,
+ "detail_maps": {
+  "seed": 9,
+  "flags": {
+   "mottle_strength": 0,
+   "redness": 0,
+   "freckles": 0,
+   "moles": 0,
+   "veins": 0,
+   "pore_tint": 0,
+   "variation": 0,
+   "scan_brows": true
+  }
+ },
+ "gnm_identity": {
+  "sampler": "IdentitySampler",
+  "gender": "male",
+  "ethnicity": "white",
+  "seed": 9
+ },
+ "files": {
+  "skin.1001.png": "albedo 4096\u00b2, sRGB, brows and detail layer baked in",
+  "skin_normal.1001.png": "tangent-space normal 4096\u00b2, OpenGL (+G up), non-colour",
+  "skin_rough.1001.png": "roughness 2048\u00b2, non-colour",
+  "eye.1002.png": "left eye interior (subject's left, +X) 2048\u00b2, sRGB",
+  "eye.1004.png": "right eye interior 2048\u00b2, sRGB",
+  "legacy/": "same pixels under per-region names for the legacy UV layer"
+ },
+ "command": "python3 tools/build_textures.py --sets 09"
+}

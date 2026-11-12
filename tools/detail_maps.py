@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from pathlib import Path
@@ -80,6 +81,14 @@ LID_LINE_DEPTH_MM = 0.022
 MOTTLE = 0.07
 REDNESS = (0.016, 0.16, 0.136)              # 1.6x: at 2x the cheeks read as a blush patch
 
+# Scanned micro-relief (tools/bake_scan.py): the displacement map of the Infinite head scan
+# ("Infinite, 3D Head Scan by Lee Perry-Smith", CC BY 3.0) in GNM's UV layout. Where it is
+# trusted it replaces the generated pores and micro-furrows; lids, brows, ears and lips stay
+# generated. Without the file the maps are fully generated.
+SCAN_HEIGHT = REPO / "assets/gnm/scan_height.npz"
+SCAN_TILT_DEG = 4.5                         # mean normal tilt it is scaled to on nose, cheeks, forehead
+SCAN_HIGHPASS_PX = 14                       # about 1.6 mm on the face: keeps pores and furrows only
+
 
 # --------------------------------------------------------------------------- fields
 
@@ -106,6 +115,13 @@ def region_fields(d, T: tc.Texels) -> dict[str, np.ndarray]:
     res["lips"] = T.attr(W["lips"] / total)
     res["veins"] = T.attr(np.clip(W["temple"] * 1.5 + W["lids"], 0, 1) / total)
     res["lid_s"], res["lid_w"] = lid_coords(d, T)
+    # where a scanned relief may be used: not around the eyes (the scan's are closed), not the
+    # brows (its own brow hair is in the relief), not the ears or the lips
+    sockets = tc.group(d, "eye_sockets", True).astype(np.float64)
+    near_eye = np.clip(4 * tc.smooth_vertex_values(d, sockets, 10), 0, 1)
+    near_brow = np.clip(3 * tc.smooth_vertex_values(d, W["brow"], 6), 0, 1)     # brow tails reach the temple
+    block = np.clip(near_eye + W["lids"] + near_brow + W["ears"] + W["lips"], 0, 1)
+    res["scan_ok"] = T.attr(1 - block)
     return res
 
 
@@ -210,6 +226,40 @@ def scatter(rng, T: tc.Texels, density_per_mm2):
 
 # --------------------------------------------------------------------------- maps
 
+def scan_relief(T, F, size):
+    """Scanned micro-relief in mm (size², locally zero-mean), where to use it (0..1), and how
+    much of its valleys may darken the colour (low where the scan has stubble)."""
+    z = np.load(SCAN_HEIGHT)
+    raw, hit = z["height"], z["hit"]
+    if raw.shape[0] != size:
+        raise SystemExit(f"{SCAN_HEIGHT.name} is {raw.shape[0]} px; rebake with --size {size}")
+    valid = (hit & T.mask).astype(np.float32)
+    s = SCAN_HIGHPASS_PX
+    hp = (raw - gaussian_filter(raw * valid, s) / np.maximum(gaussian_filter(valid, s), 1e-3)) * valid
+    # away from island borders and misses, where the high-pass has only one side to look at
+    inner = smoothstep(0.90, 0.99, gaussian_filter(valid, 3)) * valid
+    ok = T.image(F["scan_ok"], 0.0) * inner
+    core = ok > 0.5
+    sd = float(hp[core].std())
+    hp = 3.5 * sd * np.tanh(hp / (3.5 * sd))                     # sculpt seams and stretched streaks
+    # drop patches with no fine detail (a smoothed sculpt layer) or far too much (seams)
+    local = np.sqrt(gaussian_filter(hp * hp, 24) / np.maximum(gaussian_filter(valid, 24), 1e-3))
+    rel = local / float(np.median(local[core]))
+    w = ok * smoothstep(0.35, 0.6, rel) * (1 - smoothstep(2.2, 3.5, rel))
+    w = np.minimum(gaussian_filter(w, 4), ok).astype(np.float32)
+    # even out the local contrast a little: stubble on the scan's jaw is much rougher than its cheeks
+    hp = hp * np.clip(np.maximum(rel, 1e-3) ** -0.6, 0.75, 1.3)
+    # the map's displacement scale is unknown: set it from the slope it gives on the face
+    hpad = np.pad(hp, 1, mode="edge")
+    gx = (hpad[1:-1, 2:] - hpad[1:-1, :-2]) * 0.5 / np.maximum(T.image(np.linalg.norm(T.jac[:, :, 0], axis=1), 1.0), 1e-4)
+    gy = (hpad[2:, 1:-1] - hpad[:-2, 1:-1]) * 0.5 / np.maximum(T.image(np.linalg.norm(T.jac[:, :, 1], axis=1), 1.0), 1e-4)
+    face = (w > 0.9) & (T.image(F["density"], 0.0) > 3.0)
+    gain = math.tan(math.radians(SCAN_TILT_DEG)) / float(np.hypot(gx, gy)[face].mean())
+    print(f"[detail] scan relief on {100 * w[T.mask].mean():.0f}% of the skin, rms {1000 * gain * sd:.0f} um")
+    calm = np.clip((1.45 - rel) / 0.45, 0.15, 1.0).astype(np.float32)
+    return (hp * gain).astype(np.float32), w, calm
+
+
 def height_map(rng, T, F, size, args, lo, hi):
     """Height in mm per texel (size², zero outside the islands) and the pore field."""
     t0 = time.time()
@@ -236,6 +286,17 @@ def height_map(rng, T, F, size, args, lo, hi):
     micro_amp = T.image(F["micro"] * MICRO_DEPTH_MM * args.micro_strength)
     mod = T.image(0.75 + 0.25 * fbm3(rng, T.pos, lo, hi, [6.0], [1.0]))
     h = -pores + micro * micro_amp * mod
+    if args.scan_relief > 0 and SCAN_HEIGHT.exists():
+        hs, w, calm = scan_relief(T, F, size)
+        hs *= args.scan_relief
+        # the scan carries the structure; a third of the generated grain stays on top of it, since
+        # the bake cannot hold detail finer than a texel
+        h = (1 - w) * h + w * (hs + 0.35 * h)
+        # the same valleys drive the pore tint and pore roughness downstream
+        cavity = np.clip(-hs / (1.6 * float(hs[w > 0.9].std())), 0, 1.5)
+        pores = (1 - w) * pores + w * PORE_NORM_MM * cavity * calm
+    elif args.scan_relief > 0:
+        print(f"[detail] {SCAN_HEIGHT.name} not found: fully generated relief")
 
     # gentle 3D undulation (0.5-3 mm), not on the lips
     und = fbm3(rng, T.pos, lo, hi, [0.8, 2.0], [0.6, 1.0]) * 0.006
@@ -408,6 +469,8 @@ def main():
     ap.add_argument("--moles", type=float, default=1.0)
     ap.add_argument("--veins", type=float, default=1.0)
     ap.add_argument("--pore-tint", type=float, default=1.0)
+    ap.add_argument("--scan-relief", type=float, default=1.0,
+                    help="strength of the scanned micro-relief (0 = generated pores only)")
     ap.add_argument("--variation", type=float, default=0.1,
                     help="per-seed jitter of the strengths (0.1 = up to ±10 %%)")
     args = ap.parse_args()

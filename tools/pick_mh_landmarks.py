@@ -12,7 +12,7 @@ Where the points come from, all in the front view of the unmodified base mesh:
 - eyes: the lid opening is where the eyeball helper shows in front of the body mesh; the
   outer corner is its end, the inner corner is read off the render, and the lid points
   sit at the same fractions between the corners as GNM's
-- brows: centreline of the default eyebrow card, at the same fractions as GNM's five
+- brows: centreline of the hair of one strand eyebrow set, at the same fractions as GNM's five
 The subject's left half (+X) is picked and mirrored. Jaw landmarks 0-16 are not used
 except the chin; the dense fit handles the jaw line.
 """
@@ -57,6 +57,7 @@ INNER_LIP_FRAC = {63: 0.532, 65: 0.534}
 UPPER_LID_FRAC = {43: 0.327, 44: 0.703}   # inner corner -> outer corner
 LOWER_LID_FRAC = {47: 0.303, 46: 0.720}
 BROW_FRAC = {22: 0.04, 23: 0.203, 24: 0.484, 25: 0.797, 26: 0.96}
+BROW_SET = "eyebrows01/eyebrows/mindfront_eyebrows_01"
 MIRROR = {42: 39, 43: 38, 44: 37, 45: 36, 46: 41, 47: 40, 22: 21, 23: 20, 24: 19, 25: 18,
           26: 17, 34: 32, 35: 31, 52: 50, 53: 49, 54: 48, 55: 59, 56: 58, 63: 61, 64: 60,
           65: 67}
@@ -88,16 +89,20 @@ def lid_points(V, T):
     return out, (xi, xo)
 
 
-def brow_points():
-    """Centreline of the default eyebrow card on the subject's left side."""
-    B, _, _, _ = mh_core.load_obj(mh_core.MH_DIR / "makehuman_system_assets/eyebrows/eyebrow001/eyebrow001.obj")
+def brow_points(base_vertices):
+    """Centreline of the hair of an eyebrow set on the subject's left side.
+
+    Uses the strand eyebrows (real hair extents) fitted through their .mhclo; the card
+    eyebrows have transparent margins and their .obj is not stored in base-mesh space.
+    """
+    B, _, _, _ = mh_core.load_proxy(mh_core.MH_DIR / BROW_SET, base_vertices)
     B = B[B[:, 0] > 0]
     x0, x1 = B[:, 0].min(), B[:, 0].max()
     out = {}
     for k, f in BROW_FRAC.items():
         x = x0 + f * (x1 - x0)
-        near = B[np.abs(B[:, 0] - x) < 0.06]
-        out[k] = (x, 0.5 * (near[:, 1].min() + near[:, 1].max()))
+        near = B[np.abs(B[:, 0] - x) < 0.03]
+        out[k] = (x, float(np.median(near[:, 1])))
     return out
 
 
@@ -120,7 +125,7 @@ def main():
     picks[65] = (INNER_LIP_FRAC[65] * inner_x, LIP_GAP_LOWER_Y)
     lids, opening = lid_points(V, T)
     picks.update(lids)
-    picks.update(brow_points())
+    picks.update(brow_points(V))
     for k, m in MIRROR.items():
         picks[m] = (-picks[k][0], picks[k][1])
 

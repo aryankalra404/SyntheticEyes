@@ -127,7 +127,7 @@ def grow(mask, quads, rings):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rounds", type=int, default=16)
-    ap.add_argument("--prior", type=float, default=2e-6, help="weight on |identity|^2")
+    ap.add_argument("--prior", type=float, default=2e-7, help="weight on |identity|^2")
     ap.add_argument("--landmark-weight", type=float, default=60.0)
     ap.add_argument("--snap-landmark-weight", type=float, default=40.0)
     ap.add_argument("--stiffness", type=float, nargs="+", default=[3000, 1000, 300, 100, 30, 10, 3, 1])

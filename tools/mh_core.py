@@ -103,3 +103,39 @@ def cast_front(V: np.ndarray, T: np.ndarray, xy: np.ndarray, chunk: int = 4000):
         bary[s:s + chunk] = np.stack([w0[rows, best], w1[rows, best], w2[rows, best]], 1)
         depth[s:s + chunk] = z[rows, best]
     return tri, bary, depth
+
+
+def load_proxy(folder: Path, base_vertices: np.ndarray):
+    """Loads a MakeHuman proxy (eyebrows, lashes) fitted to the base mesh through its .mhclo.
+
+    The .obj next to an .mhclo is not always stored in base-mesh space, so each proxy
+    vertex is rebuilt from the three base vertices, weights and scaled offset the .mhclo
+    gives. Returns vertices (dm), uvs, faces and face uv ids.
+    """
+    mhclo = next(folder.glob("*.mhclo"))
+    scale = np.ones(3)
+    rows, obj_name, in_verts = [], None, False
+    for line in mhclo.read_text().splitlines():
+        tok = line.split()
+        if not tok or tok[0].startswith("#"):
+            continue
+        if tok[0] == "obj_file":
+            obj_name = tok[1]
+        elif tok[0] in ("x_scale", "y_scale", "z_scale"):
+            axis = "xyz".index(tok[0][0])
+            a, b, den = int(tok[1]), int(tok[2]), float(tok[3])
+            scale[axis] = abs(base_vertices[a, axis] - base_vertices[b, axis]) / den
+        elif tok[0] == "verts":
+            in_verts = True
+        elif in_verts:
+            if len(tok) == 9:
+                rows.append([float(x) for x in tok])
+            elif len(tok) == 1:
+                rows.append([float(tok[0])] * 3 + [1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+            else:
+                in_verts = False
+    rows = np.array(rows)
+    idx, w, off = rows[:, :3].astype(int), rows[:, 3:6], rows[:, 6:9]
+    V = (base_vertices[idx] * w[:, :, None]).sum(1) + off * scale
+    _, VT, F, FT = load_obj(folder / obj_name)
+    return V, VT, F, FT

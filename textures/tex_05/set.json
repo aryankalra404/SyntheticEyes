@@ -35,7 +35,7 @@
     "collarette": 0.37660035084944565,
     "collarette_jag": 0.05519851974341234,
     "fibre_contrast": 0.9030651122084284,
-    "crypts": 35,
+    "crypts": 65,
     "furrows": 1,
     "limbal": 0.513482675595414,
     "pupillary_mix": 0.6650106642356555,
@@ -43,7 +43,9 @@
     "redness": 0.8181100775609781,
     "freckle_count": 2,
     "streaks": 0.2248757710727168,
-    "collarette_gaps": 0.3498352230130143
+    "collarette_gaps": 0.3498352230130143,
+    "collarette_reach": 0.13218952892703903,
+    "crypt_scale": 0.9320785705844383
    }
   }
  },

@@ -1,4 +1,8 @@
-"""Carries MakeHuman strand eyelashes and eyebrows to GNM as a triangle binding (M3 section 3).
+"""Carries MakeHuman strand eyebrows to GNM as a triangle binding (M3 section 3).
+
+Eyelashes are no longer carried: tools/lashes.py grows them on GNM's own lid margin (the five
+Mindfront lash sets were tried on 13 Nov; see docs/PROGRESS.md). The per-root binding used for
+them is kept below (PER_ROOT) in case a lash set is wanted again: add it to SETS.
 
     python3 tools/carry_hair.py            # -> assets/gnm/hair_binding.npz (git-ignored, rebuilt here)
 
@@ -35,12 +39,11 @@ import mh_core  # noqa: E402
 REPO = mh_core.REPO
 OUT = REPO / "assets/gnm/hair_binding.npz"
 SETS = {
-    "lashes": "eyelashes01/eyelashes/mindfront_eyelashes_01",
     "brows_01": "eyebrows01/eyebrows/mindfront_eyebrows_01",
     "brows_05": "eyebrows01/eyebrows/mindfront_eyebrows_05",
     "brows_08": "eyebrows01/eyebrows/mindfront_eyebrows_08",
 }
-PER_ROOT = {"lashes"}
+PER_ROOT = {"lashes"}   # sets bound per hair root; none in SETS now
 ROOT_MAX = 0.0015      # m; lashes rooted further from the wrapped skin are dropped
 
 

@@ -5,7 +5,7 @@ gets the same binding arrays tools/carry_hair.py writes (triangle, barycentrics,
 triangle's frame, radius per point, points per hair), so lashes follow lid shape keys and bones
 like the carried brow hair does.
 
-Why not the MakeHuman lashes: all five Mindfront sets were looked at on 14 Nov. They are modelled
+Why not the MakeHuman lashes: all five Mindfront sets were looked at on 13 Nov. They are modelled
 as mascara clumps for MakeHuman's lid, and carried through the registration they root up to a
 millimetre off GNM's lid edge, stand off the upper lid and leave a tuft at the outer corner.
 Here each lash is rooted on the front edge of the lid margin of the head being built.
@@ -85,6 +85,23 @@ def edge_triangle(a, b, triangles, sock):
     return cand[pick[0] if len(pick) else 0]
 
 
+def crosses(P0, P1, A, B, C):
+    """For segments P0->P1 (m, 3) and triangles A, B, C (k, 3): (m,) bool, True where the segment
+    passes through any triangle (Moller-Trumbore, every pair at once)."""
+    d = (P1 - P0)[:, None, :]
+    e1, e2 = (B - A)[None], (C - A)[None]
+    h = np.cross(d, e2)
+    det = (e1 * h).sum(-1)
+    ok = np.abs(det) > 1e-18
+    inv = 1.0 / np.where(ok, det, 1.0)
+    sv = P0[:, None, :] - A[None]
+    u = (sv * h).sum(-1) * inv
+    qv = np.cross(sv, e1)
+    v = (d * qv).sum(-1) * inv
+    tt = (e2 * qv).sum(-1) * inv
+    return (ok & (u >= 0) & (v >= 0) & (u + v <= 1) & (tt >= 0) & (tt <= 1)).any(1)
+
+
 def frames(A, B, C):
     e1 = unit(B - A)
     n = unit(np.cross(B - A, C - A))
@@ -98,6 +115,9 @@ def grow(V, quads, triangles, sock, skin, eye, joint, side, seed=0):
     lash bound to the triangle under its root, and the lash points themselves (n, 3)."""
     rng = np.random.default_rng(seed * 2 + (side == "R"))
     rims = lid_rims(V, quads, sock, skin, eye, side)
+    close = triangles[(np.linalg.norm(V[triangles].mean(1) - joint, axis=1) < 0.035)]
+    lid_tris = (V[close[:, 0]], V[close[:, 1]], V[close[:, 2]])       # skin round this eye
+    uncurled = 0
     tri_o, bary_o, off_o, rad_o, cnt_o, pts_o = [], [], [], [], [], []
     for li, (lid, spec) in enumerate(LIDS.items()):
         back, _, rim = rims[lid]              # lashes root on the margin's front edge
@@ -128,12 +148,27 @@ def grow(V, quads, triangles, sock, skin, eye, joint, side, seed=0):
         c0 = np.radians(spec["curl"][0] + rng.normal(0, 5.0, n))
         c1 = np.radians(spec["curl"][1] + rng.normal(0, 7.0, n))
         q = np.linspace(0.0, 1.0, POINTS)
-        ang = c0[:, None] + (c1 - c0)[:, None] * q[None, :]
-        d = out[:, None, :] * np.cos(ang)[..., None] + c[:, None, :] * np.sin(ang)[..., None]
-        d = unit(d + t[:, None, :] * np.tan(fan)[:, None, None])
         step = (length / (POINTS - 1))[:, None, None]
-        pts = root[:, None, :] - d[:, :1] * ROOT_SINK + np.cumsum(
-            np.concatenate([np.zeros((n, 1, 3)), 0.5 * (d[:, 1:] + d[:, :-1]) * step], 1), 1)
+
+        def shape(c0, c1):
+            ang = c0[:, None] + (c1 - c0)[:, None] * q[None, :]
+            d = out[:, None, :] * np.cos(ang)[..., None] + c[:, None, :] * np.sin(ang)[..., None]
+            d = unit(d + t[:, None, :] * np.tan(fan)[:, None, None])
+            return root[:, None, :] - d[:, :1] * ROOT_SINK + np.cumsum(
+                np.concatenate([np.zeros((n, 1, 3)), 0.5 * (d[:, 1:] + d[:, :-1]) * step], 1), 1)
+
+        # A hooded lid overhangs its own margin; a lash curled up into the fold would come out
+        # through the skin. Uncurl any lash that passes through skin (past its first segment, which
+        # starts under the surface) until it runs clear under the fold.
+        for _ in range(18):
+            pts = shape(c0, c1)
+            hit = crosses(pts[:, 1:-1].reshape(-1, 3), pts[:, 2:].reshape(-1, 3),
+                          *lid_tris).reshape(n, POINTS - 2).any(1)
+            if not hit.any():
+                break
+            c1[hit] -= np.radians(5.0)
+            c0[hit] -= np.radians(1.5)
+        uncurled += int((c1 < np.radians(spec["curl"][1] - 25.0)).sum())
         # loose groups: tips of two or three neighbours lean toward their shared middle
         g = np.cumsum(rng.random(n) < 0.42)
         for k in np.unique(g):
@@ -167,6 +202,8 @@ def grow(V, quads, triangles, sock, skin, eye, joint, side, seed=0):
             rad_o.append(radius[k])
             cnt_o.append(POINTS)
             pts_o.append(pts[k])
+    if uncurled:
+        print(f"[lashes] {side}: {uncurled} lashes uncurled to clear the lid fold")
     return (np.concatenate(tri_o).astype(np.int32), np.concatenate(bary_o), np.concatenate(off_o),
             np.concatenate(rad_o).astype(np.float32), np.array(cnt_o, dtype=np.int32),
             np.concatenate(pts_o))

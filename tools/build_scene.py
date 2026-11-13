@@ -16,17 +16,22 @@ What goes into the file:
   `--texture NN` picks the set; wrapper/eyes.py `use_texture` switches it in an open file.
 - M3 extras, all rebuilt from this identity's vertices and following every shape key (each hair
   or strip shape key is driven by the head key of the same name, so rig.py stays unchanged):
-  eyelashes and eyebrow hair from assets/gnm/hair_binding.npz (tools/carry_hair.py), rendered as
-  Cycles hair curves, one brow object per Mindfront set with only the texture set's one shown;
-  and a tear-line strip along each lower lid margin. Shading on all of them is a plain default.
+  eyelashes grown on the lid margin (tools/lashes.py); eyebrow hair carried from MakeHuman
+  (assets/gnm/hair_binding.npz, tools/carry_hair.py), one object per Mindfront set with only the
+  texture set's one shown, all rendered as Cycles hair curves; a tear meniscus along each lower
+  lid; per-vertex masks wet / pink / lips / lids on the head for the skin shader
+- look: skin with subsurface, wet lid margins and pink inner corners; a refracting cornea shell
+  over a matte iris and scattering sclera (see the material functions)
 - cam_face (40 cm, 50 mm) and cam_eyes (same spot, 105 mm), 1024x1024; M3 test cameras
   cam_test_face (whole face, forehead to chin) and cam_test_eye (subject's left eye, three-quarter)
-- constant light: the CC0 studio HDRI (packed into the file) plus one soft key; AgX
+- two looks, chosen by the camera that renders (LOOKS, wrapper/eyes.py apply_look): `face`, the
+  constant light (CC0 studio HDRI packed into the file plus one soft key, plain dark backdrop) for
+  cam_face, cam_test_face and the 10 clockwise renders; `eye`, a dark background, one small side
+  key and a shallow depth of field, for cam_eyes and cam_test_eye. AgX.
 - the `generate` motion, seed 0, baked as keyframes, so pressing play shows the expression
 
 Lid shapes come from assets/gnm/lids.npz when tools/solve_lids.py has written it. Until then
-STAND-IN shapes are built here (see lid_standins). Materials are the grey debug ones from M0
-with a procedural pupil/iris/sclera so gaze reads by eye; look development is M3.
+STAND-IN shapes are built here (see lid_standins).
 
 GNM is +Y up / +Z forward; Blender is +Z up / -Y forward: (x, y, z) -> (x, -z, y).
 """
@@ -53,7 +58,7 @@ TILE_MATERIALS = ("skin", "eye_interior.L", "cornea.L", "eye_interior.R", "corne
 IRIS_SATURATION = 0.72                   # shader-side tone on the iris part of the eye tile
 IRIS_VALUE = 0.80
 LIMBAL_DARK = 0.55                       # how much the limbal ring darkens the base colour
-SKIN_SSS = 0.0                           # skin subsurface scale in metres (--sss), 0 = off
+SKIN_SSS = 0.0025                         # skin subsurface scale in metres (--sss), 0 = off
 BONES = {"neck": "neck", "head": "head", "left_eye": "eye.L", "right_eye": "eye.R"}
 
 
@@ -71,7 +76,7 @@ def parse_args():
                     default=REPO / "assets/third_party/hdri/brown_photostudio_02_2k.hdr")
     ap.add_argument("--out", type=Path, default=REPO / "scene.blend")
     ap.add_argument("--no-bake", action="store_true", help="skip baking `generate` onto the Timeline")
-    ap.add_argument("--texture", type=int, default=1, help="texture set textures/tex_NN loaded by default")
+    ap.add_argument("--texture", type=int, default=9, help="texture set textures/tex_NN loaded by default (09 is the hero set)")
     ap.add_argument("--hair", type=Path, default=REPO / "assets/gnm/hair_binding.npz")
     ap.add_argument("--sss", type=float, default=SKIN_SSS, help="skin subsurface scale in metres, 0 = off")
     return ap.parse_args(argv)
@@ -142,8 +147,13 @@ def lid_standins(D, side):
     rel = (V[:, 1] - p[1]) * 1000.0
     upper = np.clip((rel + 1.0) / 2.0, 0.0, 1.0) * side_mask   # 1 above the pupil, 0 below
     lower = (1.0 - upper) * side_mask
-    m_up = np.clip(mag / np.median(mag[up_rows]), 0.0, 1.0) * upper
-    m_lo = np.clip(mag / np.median(mag[lo_rows]), 0.0, 1.0) * lower
+    # The wink also moves brow and forehead a little. A lid shape must not: it would drag each
+    # half of the forehead with the gaze and leave a step down the midline (seen in the M3 stills).
+    # Fade the mask out past the orbit: full within 18 mm of the pupil, none beyond 30 mm.
+    reach = np.clip((0.030 - np.hypot(V[:, 0] - p[0], V[:, 1] - p[1])) / 0.012, 0.0, 1.0)
+    reach = reach * reach * (3.0 - 2.0 * reach)
+    m_up = np.clip(mag / np.median(mag[up_rows]), 0.0, 1.0) * upper * reach
+    m_lo = np.clip(mag / np.median(mag[lo_rows]), 0.0, 1.0) * lower * reach
 
     def rot(angle_up_deg, angle_lo_deg):
         out = np.zeros_like(V)
@@ -376,7 +386,7 @@ def mnode(nt, op, a, b=None, clamp=False):
     return n.outputs[0]
 
 
-PINK = (0.42, 0.12, 0.10)        # wet tissue inside the lids and at the inner corner (linear)
+PINK = (0.50, 0.16, 0.13)        # wet tissue inside the lids and at the inner corner (linear)
 
 
 def skin_textured(sss_scale=None):
@@ -423,8 +433,8 @@ def skin_textured(sss_scale=None):
     noise.inputs["Detail"].default_value = 2.0
     nt.links.new(tc.outputs["Object"], noise.inputs["Vector"])
     ripple = nt.nodes.new("ShaderNodeBump")
-    ripple.inputs["Distance"].default_value = 0.00012
-    nt.links.new(mnode(nt, "MULTIPLY", wet, 0.7), ripple.inputs["Strength"])
+    ripple.inputs["Distance"].default_value = 0.0002
+    nt.links.new(wet, ripple.inputs["Strength"])
     nt.links.new(noise.outputs["Fac"], ripple.inputs["Height"])
     nt.links.new(nm.outputs["Normal"], ripple.inputs["Normal"])
     nt.links.new(ripple.outputs["Normal"], bsdf.inputs["Coat Normal"])
@@ -463,7 +473,7 @@ def build_masks(D, ob):
         inner = V[rims["upper"][0][0]]
         for rim, _, o1 in rims.values():
             k = np.clip(1.0 - np.linalg.norm(V[rim] - inner, axis=1) / 0.0045, 0.0, 1.0)   # caruncle
-            wet[o1] = 0.45
+            wet[o1] = 0.9
             pink[rim] = 0.5 + 0.5 * k
             pink[o1] = np.maximum(pink[o1], 0.08 + 0.55 * k)
     lips = soften((D.mask("upper_lip") | D.mask("lower_lip")).astype(np.float64), 1)
@@ -761,13 +771,15 @@ def build_hair(D, deltas, head, rig, path):
     return made
 
 
-TEAR_RISE = 0.00060     # m the meniscus climbs the globe above the lid contact line
-TEAR_LID = 0.5          # how far across the lid margin (back edge 0, lash edge 1) it starts
+TEAR_RISE = 0.00075     # m the meniscus climbs the globe above the lid contact line
+TEAR_LID = 0.75         # how far across the lid margin (back edge 0, lash edge 1) it starts
 TEAR_ROWS = 5
 
 
 def tear_material():
-    """Clear water: sharp Fresnel reflection, refraction at IOR 1.34, no shadow of its own."""
+    """Clear water: refraction at IOR 1.34, a mirror-sharp reflection, no shadow of its own.
+    A tenth of plain mirror is mixed in: the meniscus is a millimetre wide, and with Fresnel
+    alone its reflection of the room is too faint to read as a wet line at 1024 px."""
     mat = bpy.data.materials.new("tear_line")
     mat.use_nodes = True
     nt = mat.node_tree
@@ -778,8 +790,14 @@ def tear_material():
     lp = nt.nodes.new("ShaderNodeLightPath")
     tr = nt.nodes.new("ShaderNodeBsdfTransparent")
     mix = nt.nodes.new("ShaderNodeMixShader")
+    gloss = nt.nodes.new("ShaderNodeBsdfGlossy")
+    gloss.inputs["Roughness"].default_value = 0.0
+    wetmix = nt.nodes.new("ShaderNodeMixShader")
+    wetmix.inputs[0].default_value = 0.10
+    nt.links.new(gl.outputs[0], wetmix.inputs[1])
+    nt.links.new(gloss.outputs[0], wetmix.inputs[2])
     nt.links.new(lp.outputs["Is Shadow Ray"], mix.inputs[0])
-    nt.links.new(gl.outputs[0], mix.inputs[1])
+    nt.links.new(wetmix.outputs[0], mix.inputs[1])
     nt.links.new(tr.outputs[0], mix.inputs[2])
     nt.links.new(mix.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
     return mat
@@ -837,8 +855,8 @@ def build_tear_lines(D, deltas, head, rig):
 # and the 10 clockwise renders. `eye`: dark background and one small key from the side, for the
 # eye close-up and the eye inset in the videos (those cameras also have a shallow depth of field).
 LOOKS = {
-    "face": dict(lights="key", env=0.45, backdrop=(0.028, 0.028, 0.030)),
-    "eye": dict(lights="key_eye", env=0.10, backdrop=(0.0, 0.0, 0.0)),
+    "face": dict(lights="key", env=0.24, backdrop=(0.028, 0.028, 0.030)),
+    "eye": dict(lights="key_eye", env=0.14, backdrop=(0.0, 0.0, 0.0)),
 }
 
 
@@ -885,7 +903,7 @@ def build_cameras_and_light(mid, eye_l, hdri):
     # face key: a large soft source up and to image left, so a window-shaped catchlight sits in
     # the upper left of each cornea
     ld = bpy.data.lights.new("key", "AREA")
-    ld.shape, ld.size, ld.size_y, ld.energy = "RECTANGLE", 0.45, 0.60, 38.0
+    ld.shape, ld.size, ld.size_y, ld.energy = "RECTANGLE", 0.45, 0.60, 17.0
     key = bpy.data.objects.new("key", ld)
     key.location = mid + offset(-38.0, 32.0, 0.80)
     aim(key, mid)

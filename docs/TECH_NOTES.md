@@ -138,9 +138,9 @@ As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
   behind the lids: roughness × 0.25 under a clear coat with a fine ripple, which breaks the
   highlight into glints), `pink` (the same pocket and the inner corner: red wet tissue instead
   of the skin fill in the albedo), `lips` (roughness × 0.7, coat 0.25), `lids`.
-- **Eye interior** (iris and sclera, one tile): matte Principled under the shell. Sclera has
-  subsurface 0.6 and darkens toward the fornix; the iris part is toned down in the shader
-  (saturation 0.72, value 0.80), darkened in a limbal ring, and bumped from its own fibres.
+- **Eye interior** (iris and sclera, one tile): matte Principled under the shell, the tile's
+  colour as it is (tone, limbal ring and fornix falloff are in the tile since the iris rework).
+  Sclera has subsurface 0.6; the iris part is bumped from its own fibres.
 - **Cornea**: the eye's outer shell is Glass, IOR 1.376, roughness 0, with a Transparent BSDF for
   shadow rays (Light Path → Is Shadow Ray) or the iris renders black. It covers the sclera too,
   so the whole eye is wet. The iris sits 3.4 mm behind the apex, so refraction is real.

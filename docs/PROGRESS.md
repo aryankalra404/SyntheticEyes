@@ -10,8 +10,8 @@ what the next session needs to know.
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
-| M3 Look | done on stand-in lids (Fable, 13 Nov): lashes, wet eye, skin, two lighting looks, nine stills; open items listed in the M3 entry (iris texture, brow hair weight, recheck after the lid solve) |
-| M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render with the face + eye inset framing (Opus, 13 Nov; inset size, lens and head follow are Fable's); final videos pending |
+| M3 Look | done (13 Nov) on solved lids and the reworked iris tiles; nine stills re-rendered. Left: brow hair weight on 02-06 |
+| M4 Motion | gaze engine, Timeline bake and video framing done (face from `cam_video` with a one-eye close-up from `cam_inset`); drafts render; **final videos not rendered** (about 3.6 h at 64 spp), and nobody has watched a draft at playback speed yet |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -20,6 +20,49 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, late — after the lid solve and the iris pass: shader reset, video framing, drafts (Fable)
+Picked up the two "For Fable" lists (iris entry and video framing entry below).
+
+**Iris shader corrections removed** (`eye_textured` in `tools/build_scene.py`): `IRIS_SATURATION`,
+`IRIS_VALUE`, `LIMBAL_DARK` and the fornix term are gone; the eye tile goes in as it is, so the
+scene shows what the judges get when they wrap it. Nine stills re-rendered on the solved lids
+(`outputs/stills/`, sheet too) and looked at: browns are dark and warm, hazel / green / blue have
+a soft limbal ring and no flat collarette patch, and every set's lid now rests about 4 mm above
+the pupil centre, so tex_09's outer upper lashes show again.
+
+**Video framing** (the band of both eyes over the forehead read as a second pair of eyes):
+- `cam_inset` (new, `build_test_cameras`): the `cam_test_eye` view of the subject's left eye from
+  12.5 cm (45 mm wide), `eye` look, f/40, **parented to the head bone**, so the eye stays in frame
+  through head turns and the inset shows the eye moving in the head.
+- `cam_video` (new): the face camera for videos, 72 mm from the `cam_test_face` position. The
+  head is 15 % smaller than in the test shot, which keeps a turning head clear of the inset.
+- `wrapper/eyes.py`: `INSET` is now a 317 px square 12 px in from the top and right edges (that
+  corner holds only backdrop and the side of the scalp); the eye is about 1.9 times its size in
+  the face frame. `--camera both` renders `cam_video` and `cam_inset` (at inset size);
+  `--camera eyes` alone is still `cam_eyes`.
+- Looked at composited Cycles frames: `right` 1 and 110 (head turned toward the inset corner:
+  it covers scalp only), `left` 120, `generate` 150 (eye roll with raised brows).
+- Timing at 64 spp: face 12.3 s, inset 2.7 s, about **15 s per composited frame, 3.6 h for the
+  861 frames**; 128 spp would be about twice that (not measured).
+
+**Draft mode** (`draft_materials` in `wrapper/eyes.py`): EEVEE rendered the cornea shell and tear
+line as mirrors, raytraced refraction did not help, so drafts swap those materials (in memory
+only) for Fresnel gloss over transparency and render hair as strips. Looked at a draft eye and
+face: the iris shows, lashes are thin. The tear line is a bright line in drafts.
+
+**Regenerated on the final scene**: `renders/` (10 clockwise frames, Cycles 128 spp, `face` look),
+`metadata.json`, `outputs/direction_check.json` and its renders, and the three draft videos with
+the new framing (`outputs/videos/`, EEVEE, not committed: they are placeholders).
+
+**Left**
+- **Final videos**: `--input left|right|generate` with `--samples 64` (or the default 128).
+  Someone should press play on a draft first; no session has seen one move.
+- Brow hair is still heavy on sets 02-06 in the eye stills.
+- The short dark dash at the outer end of the subject's right lower lid in `cam_eyes` frames
+  (tear line at a grazing angle) is still there; `cam_eyes` is no longer in the default video.
+- README: the `--camera` and `--samples` rows are updated; "How it works" still needs the lid
+  solve, the guard and the M3 look, and the five TODO lines are open (M5).
 
 ### Fri 13 Nov 2026, late — M4 video framing: face with an eye inset (Opus)
 `wrapper/eyes.py` only. Videos now default to `--camera both`: each Timeline frame is rendered

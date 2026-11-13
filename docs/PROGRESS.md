@@ -10,7 +10,7 @@ what the next session needs to know.
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
-| M3 Look | mechanical parts built by Opus (13 Nov): test shots, texture hookup, lashes, brow hair, tear-line geometry; stills script and all look work left for Fable (`docs/BRIEF_M3.md`, "Status 13 Nov, night") |
+| M3 Look | mechanical parts built by Opus (13 Nov): test shots, texture hookup, lashes, brow hair, tear-line geometry; stills script built; all look work left for Fable (`docs/BRIEF_M3.md`, "Status 13 Nov, night") |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
@@ -36,7 +36,10 @@ stand-in and what Fable must judge. New: `tools/carry_hair.py`, `tools/look_shot
 Looked at: the four test shots, the blink strip (0, 0.5, 1.0), a lower-margin crop.
 Found on the way: the lash meshes store each hair's root ring last, so rings are now chained
 through the faces and the root is the end lower along the skin normal (nearest-end flipped the
-lower lashes). Section 6 (stills per set on its identity) is not done; plan in the brief.
+lower lashes). 27 lashes rooted more than 1.5 mm from the skin are dropped (one rendered as a
+spike in every eye shot). Section 6: `tools/render_stills.py` renders a face still and an eye
+close-up per set on its paired identity (9 sets, about 1 min each), all looked at; they are
+plain-default placeholders until Fable's look work. `validate.py` "one still per set" now passes.
 
 ### Fri 13 Nov 2026, night — M2 scanned skin relief in every set (Fable)
 The owner approved using the Infinite head scan's relief (CC BY 3.0, credit required). Its

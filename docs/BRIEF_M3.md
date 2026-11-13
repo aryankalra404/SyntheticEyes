@@ -32,8 +32,9 @@ default Principled Hair BSDF with direct colour; lighting, HDRI and AgX are M1's
 still M1's stand-ins.
 
 **Fable must judge / fix**
-- Lashes: a few strays (one long upper lash standing up near the inner third, outer-corner
-  lashes hanging across the sclera); the lower set is long and dense for the MakeHuman set.
+- Lashes: 27 strays rooted more than 1.5 mm from the skin are dropped (`ROOT_MAX` in
+  `carry_hair.py`; one stood up as a spike in every eye shot). A tuft at the outer corner still
+  hangs down, visible at blink 1.0; the lower set is long and dense for the MakeHuman set.
   Try `mindfront_eyelashes_02…05`, or trim lower lashes by length in `carry_hair.py`.
 - At blink 1.0 the lower lashes disappear under the closing upper lid (stand-in blink overlaps
   the lower lid). Recheck with the solved lids.
@@ -41,11 +42,13 @@ still M1's stand-ins.
   brow may read too heavy. Consider flattening the normal offset or thinning.
 - Tear line: built and following the keys, but invisible at the test-shot size with this
   material; needs wetness/shading work and a close look.
-- Section 6 not done: no per-set stills script yet. Plan: export each set's `gnm_identity`
-  with `export_gnm.py --gender --ethnicity --identity-seed`, build a scene per identity with
-  `build_scene.py --npz <id>.npz --out outputs/tmp/m3/scenes/... --no-bake --texture NN` (hair
-  and tear line rebuild from that identity), then `look_shots.py --texture NN --still`, which
-  already writes `outputs/stills/tex_NN.png` and `outputs/stills/eye/tex_NN_eye.png`.
+- Section 6 is built: `python3 tools/render_stills.py` exports each set's `gnm_identity` with
+  `export_gnm.py` (→ `assets/gnm/id_<gender>_<ethnicity>_<seed>.npz`, cached), builds a scene for
+  it with `build_scene.py --npz ... --no-bake --texture NN` (`outputs/tmp/m3/scenes/`, rebuilt when
+  the builder or the hair binding changes), and renders `outputs/stills/tex_NN.png` and
+  `outputs/stills/eye/tex_NN_eye.png` through `look_shots.py --still`, plus
+  `outputs/stills/eye/sheet.png`. About 1 min per set. All 9 sets looked at. Rerun it after
+  every look change; the stills in the repo are plain-default placeholders.
 
 ---
 

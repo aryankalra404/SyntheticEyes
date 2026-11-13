@@ -699,7 +699,7 @@ def build_test_cameras(D):
     scene = bpy.context.scene
     out = {}
     for name, target, lens, dist, az, el in (
-            ("cam_test_face", mid + Vector((0, -0.01, -0.03)), 85.0, 0.50, 0.0, 0.0),
+            ("cam_test_face", mid + Vector((0, -0.01, -0.04)), 85.0, 0.56, 0.0, 0.0),
             ("cam_test_eye", eyeL, 100.0, 0.11, 30.0, 5.0)):
         cd = bpy.data.cameras.new(name)
         cd.lens, cd.sensor_width, cd.sensor_fit = lens, 36.0, "HORIZONTAL"

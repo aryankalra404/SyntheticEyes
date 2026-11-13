@@ -41,6 +41,7 @@ SETS = {
     "brows_08": "eyebrows01/eyebrows/mindfront_eyebrows_08",
 }
 PER_ROOT = {"lashes"}
+ROOT_MAX = 0.0015      # m; lashes rooted further from the wrapped skin are dropped
 
 
 def strand_rings(V, F):
@@ -173,7 +174,15 @@ def main():
         count = np.array([len(c) for c, _ in hairs], dtype=np.int32)
         start = np.concatenate([[0], np.cumsum(count)[:-1]])
         if name in PER_ROOT:
-            rtri, rb, _, _ = bind(pts[start], Vw, T, tree)
+            rtri, rb, _, rd = bind(pts[start], Vw, T, tree)
+            keep = rd <= ROOT_MAX
+            if (~keep).any():
+                # a root far from the skin is a stray in the source set; it renders as a spike
+                print(f"[hair] {name}: dropped {int((~keep).sum())} hairs rooted more than "
+                      f"{ROOT_MAX * 1e3:.1f} mm from the skin")
+                pt_keep = np.repeat(keep, count)
+                pts, rad, count, rtri, rb = pts[pt_keep], rad[pt_keep], count[keep], rtri[keep], rb[keep]
+                start = np.concatenate([[0], np.cumsum(count)[:-1]])
             tri = np.repeat(rtri, count, axis=0)
             bary = np.repeat(rb, count, axis=0)
             A, B, C = Vw[tri[:, 0]], Vw[tri[:, 1]], Vw[tri[:, 2]]

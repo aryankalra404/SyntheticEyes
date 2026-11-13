@@ -907,10 +907,11 @@ def build_globe_guard(D, head, rig, followers):
 
 # A camera carries its own look as custom properties; wrapper/eyes.py apply_look() switches the
 # lights and the world when that camera renders. `face`: the constant light for whole-face shots
-# and the 10 clockwise renders. `eye`: dark background and one small key from the side, for the
+# and the 10 clockwise renders: a soft key, and a rim from behind on the side away from it.
+# `eye`: dark background and one small key from the side, for the
 # eye close-up and the eye inset in the videos (those cameras also have a shallow depth of field).
 LOOKS = {
-    "face": dict(lights="key", env=0.24, backdrop=(0.028, 0.028, 0.030)),
+    "face": dict(lights="key,rim", env=0.24, backdrop=(0.028, 0.028, 0.030)),
     "eye": dict(lights="key_eye", env=0.14, backdrop=(0.0, 0.0, 0.0)),
 }
 
@@ -963,6 +964,17 @@ def build_cameras_and_light(mid, eye_l, hdri):
     key.location = mid + offset(-38.0, 32.0, 0.80)
     aim(key, mid)
     scene.collection.objects.link(key)
+
+    # rim: behind the head, a little above, on the side away from the key (image right). It sits
+    # 150 deg round from the camera, so it reaches only surfaces that face more than 60 deg away
+    # from the camera: a thin edge on the jaw, cheek, scalp and ear, nothing on the front of the face.
+    ld = bpy.data.lights.new("rim", "AREA")
+    ld.shape, ld.size, ld.size_y, ld.energy = "RECTANGLE", 0.20, 0.70, 40.0   # 40: tex_01 edge peaks at 247/255
+    rim = bpy.data.objects.new("rim", ld)
+    centre = mid + Vector((0, 0.07, 0.02))      # middle of the head, behind the eyes
+    rim.location = centre + offset(150.0, 12.0, 0.90)
+    aim(rim, centre)
+    scene.collection.objects.link(rim)
 
     # eye key: small and hard enough that every wet surface glints, from the nose side
     ld = bpy.data.lights.new("key_eye", "AREA")

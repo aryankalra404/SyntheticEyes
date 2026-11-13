@@ -61,9 +61,11 @@ Dockerfile
 ```
 BLENDER=/Applications/Blender.app/Contents/MacOS/Blender
 
-# rebuild the scene from scratch (solve_lids writes assets/gnm/lids.npz, which build_scene reads)
+# rebuild the scene from scratch, on the head paired with the hero set tex_09, so the videos show
+# the same head as the hero still (tools/render_stills.py exports the identity .npz; lids for an
+# identity are solved inside the build, solve_lids.py writes assets/gnm/lids.npz for the template)
 python3 tools/solve_lids.py
-$BLENDER -b -P tools/build_scene.py
+$BLENDER -b --factory-startup -P tools/build_scene.py -- --npz assets/gnm/id_male_white_9.npz
 
 # what evaluators run
 $BLENDER -b scene.blend -P wrapper/eyes.py -- --input left --texture 03

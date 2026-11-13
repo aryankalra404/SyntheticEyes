@@ -6,6 +6,7 @@ Run inside Blender on scene.blend (paths are relative to the repo root, wherever
     blender -b scene.blend -P wrapper/eyes.py -- --input left  [--seed 0] [--quality draft]
     blender -b scene.blend -P wrapper/eyes.py -- --input generate --seed 7 --camera face
     blender -b scene.blend -P wrapper/eyes.py -- --input right --samples 64 --limit 10
+    blender -b scene.blend -P wrapper/eyes.py -- --input left --samples 64 --frames 40 110 240
     blender -b scene.blend -P wrapper/eyes.py -- --check-directions [--render]
 
 Videos are 1024x1024 at 30 fps. The default --camera move films them with cam_move, one camera
@@ -122,17 +123,18 @@ def render(path, camera="face"):
 def apply_look(cam):
     """Switch lights and world to the look the camera carries (set by tools/build_scene.py).
 
-    Whole-face cameras use the constant soft light; eye cameras a dark background and a small
-    side key. Custom properties on the camera: look_lights (names, comma separated), look_env
-    (HDRI strength), look_backdrop (colour the camera sees behind the head). A camera without
-    them leaves the scene as it is.
+    cam_face (the 10 clockwise renders) uses the constant soft light; the video and still
+    cameras the `eye` look, one hard raking light on black. Custom properties on the camera:
+    look_lights (names, comma separated: lights, and props such as the flag that shades the
+    nose, which carry `look_prop`), look_env (HDRI strength), look_backdrop (colour the camera
+    sees behind the head). A camera without them leaves the scene as it is.
     """
     if "look_lights" not in cam:
         return
     scene = bpy.context.scene
     on = set(str(cam["look_lights"]).split(","))
     for ob in scene.objects:
-        if ob.type == "LIGHT":
+        if ob.type == "LIGHT" or ob.get("look_prop"):
             ob.hide_render = ob.name not in on
     nodes = scene.world.node_tree.nodes if scene.world and scene.world.use_nodes else {}
     if "env_light" in nodes:
@@ -240,6 +242,7 @@ def use_texture(nn):
 
     slots = {"skin": {"tex_albedo": ("skin.1001.png", True), "tex_normal": ("skin_normal.1001.png", False),
                       "tex_rough": ("skin_rough.1001.png", False)},
+             "vellus_hair": {"tex_albedo": ("skin.1001.png", True)},   # fine hair takes the skin's colour
              "eye_interior.L": {"tex_eye": ("eye.1002.png", True)},
              "eye_interior.R": {"tex_eye": ("eye.1004.png", True)}}
     for mat_name, nodes in slots.items():
@@ -589,13 +592,36 @@ def key_move(track, mode, fps=30, r=None):
     return glides
 
 
-def video(mode, seed, fps, camera, limit=None):
-    """Bake the gaze track to the Timeline, film it (the camera move, or face or eyes), encode."""
+def render_frames(cam, frames, out_dir):
+    """Render single Timeline frames from cam into out_dir/####.png; seconds for each."""
+    scene = bpy.context.scene
+    scene.camera = cam
+    apply_look(cam)
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGB"
+    out = []
+    for f in frames:
+        scene.frame_set(f)
+        scene.render.filepath = str(out_dir / f"{f:04d}.png")
+        t0 = time.perf_counter()
+        bpy.ops.render.render(write_still=True)
+        out.append(time.perf_counter() - t0)
+        print(f"[eyes] {cam.name} frame {f} ({(f - 1) / scene.render.fps:.2f} s): {out[-1]:.1f} s")
+    return out
+
+
+def video(mode, seed, fps, camera, limit=None, frames=None):
+    """Bake the gaze track to the Timeline, film it (the camera move, or face or eyes), encode.
+    With frames, only those Timeline frames are rendered, as stills, and nothing is encoded."""
     scene = bpy.context.scene
     track = generate(mode, seed=seed)
     n = rig().bake(track, fps=fps)
     if camera == "move":
         key_move(track, mode, fps)
+    if frames:
+        out_dir = REPO / "outputs" / "frames" / mode / f"{camera}_stills"
+        render_frames(bpy.data.objects[VIDEO_CAMERAS[camera]], [f for f in frames if 1 <= f <= n], out_dir)
+        return
     if limit:
         scene.frame_end = scene.frame_start + min(limit, n) - 1
     root = REPO / "outputs" / "frames" / mode
@@ -633,6 +659,9 @@ def parse_args(argv):
     ap.add_argument("--texture", type=int, default=None, help="use textures/tex_NN")
     ap.add_argument("--render", action="store_true", help="with --check-directions, also render PNGs")
     ap.add_argument("--limit", type=int, default=None, help="render only the first N video frames")
+    ap.add_argument("--frames", type=int, nargs="+", default=None,
+                    help="videos: render only these Timeline frames, as stills, into "
+                         "outputs/frames/<input>/<camera>_stills/ (no video is encoded)")
     ap.add_argument("--out", type=Path, default=None, help="output PNG for --move")
     ap.add_argument("--cpu", action="store_true")
     return ap.parse_args(argv)
@@ -657,7 +686,7 @@ def main(argv):
         move(*args.move)
         render(args.out or REPO / "outputs" / "move.png", args.camera or "face")
     else:
-        video(args.input, args.seed, args.fps, args.camera or "move", args.limit)
+        video(args.input, args.seed, args.fps, args.camera or "move", args.limit, args.frames)
 
 
 if __name__ == "__main__" and "--" in sys.argv:

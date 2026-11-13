@@ -9,8 +9,10 @@
         -> outputs/stills/tex_03.png (whole face) and outputs/stills/eye/tex_03_eye.png
            (tools/render_stills.py runs this for every set on its paired identity)
 
-Shots come from the scene's cameras (tools/build_scene.py): cam_test_face, whole face from
-forehead to chin, straight on; cam_test_eye, the subject's left eye from 30 deg to that side.
+Shots come from the scene's cameras (tools/build_scene.py), both in the `eye` look (one hard
+raking light on black): cam_test_face, mid forehead to chin, straight on, the bare scalp out of
+frame; cam_test_eye, the subject's left eye in the videos' eye framing (from the nose side, the
+temple against black).
 Gaze: centre is the fixation point 35 cm ahead (as eyes.reset()); side20 turns both eyes 20 deg
 toward image right, head still. Lids follow the gaze through rig.py as in the videos.
 """

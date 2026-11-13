@@ -10,10 +10,11 @@ For each set, from `gnm_identity` in its set.json (gender, ethnicity, seed):
   2. tools/build_scene.py --npz builds a scene for that head, --no-bake, the set loaded
      -> outputs/tmp/m3/scenes/<same name>.blend. Lashes, brow hair, tear line, cameras and lid
      shapes are all rebuilt from that identity's vertices.
-  3. tools/look_shots.py --still renders, gaze centre, the M3 test cameras:
-     outputs/stills/tex_NN.png (whole face) and outputs/stills/eye/tex_NN_eye.png
+  3. tools/look_shots.py --still renders, gaze centre, the two still cameras in the `eye` look:
+     outputs/stills/tex_NN.png (the face, no scalp) and outputs/stills/eye/tex_NN_eye.png
 Then outputs/stills/eye/sheet.png puts all of them side by side.
-Scenes are rebuilt when tools/build_scene.py, tools/lashes.py or tools/carry_hair.py's output is newer.
+Scenes are rebuilt when tools/build_scene.py, tools/lashes.py, tools/vellus.py or tools/carry_hair.py's
+output is newer.
 """
 
 from __future__ import annotations
@@ -51,7 +52,8 @@ def still(nn):
         run([GNM_PY, "tools/export_gnm.py", "--identity-seed", ident["seed"], "--gender", ident["gender"],
              "--ethnicity", ident["ethnicity"], "--out", npz])
     blend = SCENES / f"{tag}.blend"
-    deps = [REPO / "tools/build_scene.py", REPO / "tools/lashes.py", REPO / "assets/gnm/hair_binding.npz", npz]
+    deps = [REPO / "tools/build_scene.py", REPO / "tools/lashes.py", REPO / "tools/vellus.py",
+            REPO / "assets/gnm/hair_binding.npz", npz]
     if not blend.exists() or blend.stat().st_mtime < max(p.stat().st_mtime for p in deps):
         run([BLENDER, "-b", "--factory-startup", "-P", "tools/build_scene.py", "--",
              "--npz", npz, "--out", blend, "--no-bake", "--texture", int(nn)])

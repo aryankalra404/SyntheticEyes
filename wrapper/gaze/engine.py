@@ -8,8 +8,9 @@ Sign conventions (image space, as the render camera sees the face):
 
 Channels (all sampled on the same clock, degrees unless noted):
     gaze_yaw, gaze_pitch     where the eyes point, in the world / camera frame
-    gaze_dist                fixation distance in metres (drives vergence)
-    head_yaw, head_pitch, head_roll
+    gaze_dist                fixation distance in metres (drives vergence); shortens under a
+                             blink, which is how the eyes turn toward the nose behind the lids
+    head_yaw, head_pitch, head_roll    include an idle sway the eyes counter-rotate against
     eye_yaw, eye_pitch       eye-in-head = gaze - head; use eye_pitch for lid follow
     blink_L, blink_R         0 open .. 1 closed (subject's left / right eye)
     brow_L, brow_R           0 .. 1 brow raise
@@ -60,7 +61,10 @@ class GazeParams:
     head_gain_from: float = 10.0           # deg
     head_gain_to: float = 30.0             # deg
     head_roll_coupling: float = -0.10      # roll per degree of head yaw
-    head_sway_deg: tuple = (0.35, 0.25, 0.20)
+    # Idle sway, rms deg in yaw, pitch, roll; band-limited noise. The eyes counter-rotate (eye =
+    # gaze - head), so the gaze holds its target through it.
+    head_sway_deg: tuple = (0.30, 0.30, 0.15)
+    head_sway_band: tuple = (0.10, 0.50)   # Hz
     # Blinks
     blink_close: float = 0.075             # s
     blink_hold: float = 0.030
@@ -70,11 +74,17 @@ class GazeParams:
     blink_guard: float = 0.35              # s kept blink-free at each end of the clip
     blink_evoked_from: float = 10.0        # deg; chance rises with gaze shift size
     blink_eye_dip: float = 1.5             # deg the eye rolls down under a closed lid
+    blink_eye_nasal: float = 1.0           # deg each eye turns toward the nose under a closed lid
+    eye_half_ipd: float = 0.0309           # m, GNM eye centre to midline; turns that into vergence
+    blink_partial_rate: float = 0.22       # share of blinks after the first that stop short ...
+    blink_partial_amp: tuple = (0.65, 0.75)  # ... at this closure (about one blink in six overall)
     # Vergence, brows, pupil
     verg_latency: float = 0.16
     verg_tau: float = 0.20
     brow_from_pitch: tuple = (6.0, 24.0, 0.45)   # start deg, full deg, amount
     brow_tau: float = 0.09
+    brow_side_amp: float = 0.15            # per brow event one side is up to this much weaker ...
+    brow_side_lag: tuple = (0.020, 0.040)  # ... and one side starts this much later (s)
     # Effort of a large gaze shift: the brows lift and the lower lids tense as the eyes go, then
     # both relax while the eyes hold on the new target
     shift_from: float = 10.0               # deg; smaller shifts carry no effort
@@ -84,7 +94,10 @@ class GazeParams:
     shift_rise: float = 0.20               # s from the saccade onset to the peak
     shift_relax: float = 0.55              # s, time constant of the relaxation during the hold
     pupil_tau: float = 0.40
-    hippus: float = 0.07
+    pupil_range: float = 0.80              # the pupil channel spans about -0.4 .. +0.4
+    hippus: float = 0.024                  # rms of the slow wander, 3 % of pupil_range ...
+    hippus_band: tuple = (0.30, 1.00)      # ... in this band, Hz
+    near_gain: float = 0.25                # constriction per dioptre of accommodation (near triad)
 
 
 # ---- script elements -------------------------------------------------------------------------
@@ -386,7 +399,7 @@ def simulate(script, seed=0, params=GazeParams()):
     # -- 3. head: delayed smooth follow plus idle sway ----------------------------------------
     head_yaw = _follow(head_cmd[:, 0], p.head_freq, dt)
     head_pitch = _follow(head_cmd[:, 1], p.head_freq, dt)
-    sway = [_smooth_noise(rng, t, 0.08, 0.45) * a for a in p.head_sway_deg]
+    sway = [_smooth_noise(rng, t, *p.head_sway_band) * a for a in p.head_sway_deg]
     ramp = np.clip(t / 0.5, 0.0, 1.0)                        # start the clip exactly at rest
     head_yaw = head_yaw + sway[0] * ramp
     head_pitch = head_pitch + sway[1] * ramp
@@ -413,6 +426,13 @@ def simulate(script, seed=0, params=GazeParams()):
         if all(abs(tb - k) > p.blink_min_gap for k, _ in kept):
             kept.append((tb, float(rng.uniform(0.85, 1.0))))
     kept.sort()
+    # Partial blinks: some blinks after the first stop short. Own generator, so adding this
+    # left every other draw of the track where it was.
+    rng_part = np.random.default_rng([int(seed), 1])
+    for i, (tb0, amp) in enumerate(kept):
+        roll, a = rng_part.uniform(), rng_part.uniform(*p.blink_partial_amp)
+        if i > 0 and roll < p.blink_partial_rate:
+            kept[i] = (tb0, a)
     blink_L, blink_R = np.zeros(n), np.zeros(n)
     for tb0, amp in kept:
         j = rng.uniform(0.88, 1.12)
@@ -424,7 +444,10 @@ def simulate(script, seed=0, params=GazeParams()):
                              np.where(x < c + h, 1.0, 1.0 - minjerk((x - c - h) / o)))
             shape = np.where((x < 0) | (x > c + h + o), 0.0, shape)
             np.maximum(arr, a * shape, out=arr)
-    gaze[:, 1] -= p.blink_eye_dip * np.maximum(blink_L, blink_R)
+    # Under the closing lid the eyes roll down and in (toward the nose), back as it opens. Down
+    # goes into gaze pitch here; in is a vergence change, so it goes into gaze_dist in step 6.
+    lid = np.maximum(blink_L, blink_R)
+    gaze[:, 1] -= p.blink_eye_dip * lid
 
     # -- 5. eye-in-head, clamped to the oculomotor range --------------------------------------
     eye_yaw = np.clip(gaze[:, 0] - head_yaw, -p.eye_yaw_max, p.eye_yaw_max)
@@ -432,49 +455,68 @@ def simulate(script, seed=0, params=GazeParams()):
     gaze_yaw, gaze_pitch = head_yaw + eye_yaw, head_pitch + eye_pitch
 
     # -- 6. vergence distance -----------------------------------------------------------------
-    gaze_dist = 1.0 / _lowpass(dist_cmd, p.verg_tau, dt)
+    fix_dist = 1.0 / _lowpass(dist_cmd, p.verg_tau, dt)     # what the eyes fixate (accommodation)
+    half = np.arctan(p.eye_half_ipd / fix_dist) + math.radians(p.blink_eye_nasal) * lid
+    gaze_dist = p.eye_half_ipd / np.tan(half)                # plus the nasal turn under a blink
 
     # -- 7. brows and lids --------------------------------------------------------------------
     b0, b1, bamt = p.brow_from_pitch
     brow_base = bamt * np.clip((eye_pitch - b0) / (b1 - b0), 0.0, 1.0)
-    brow_L, brow_R = brow_base.copy(), brow_base.copy()
+    # The pitch-driven raise leans to one side for the whole clip; every brow event (a large
+    # shift's effort, a scripted Brow) gets its own side difference in amplitude and timing.
+    lean = rng.uniform(0.86, 0.96)
+    if rng.uniform() < 0.5:
+        brow_L, brow_R = brow_base * lean, brow_base.copy()
+    else:
+        brow_L, brow_R = brow_base.copy(), brow_base * lean
+    rng_brow = np.random.default_rng([int(seed), 2])
+
+    def sides():
+        """(gain, delay) for L and R: one side weaker, one side later, drawn per event."""
+        weak = 1.0 - rng_brow.uniform(0.0, p.brow_side_amp)
+        lag = rng_brow.uniform(*p.brow_side_lag)
+        gain = (weak, 1.0) if rng_brow.uniform() < 0.5 else (1.0, weak)
+        delay = (lag, 0.0) if rng_brow.uniform() < 0.5 else (0.0, lag)
+        return tuple(zip(gain, delay))
+
+    def effort_curve(x, a):
+        rise = 0.5 * (1 - np.cos(math.pi * np.clip(x / p.shift_rise, 0.0, 1.0)))
+        relax = np.exp(-np.maximum(x - p.shift_rise, 0.0) / p.shift_relax)
+        return np.where(x < 0, 0.0, a * rise * relax)
+
     widen, squint = np.zeros(n), np.zeros(n)
     effort = np.zeros(n)
     for onset, amp in shifts:
         a = np.clip((amp - p.shift_from) / (p.shift_full - p.shift_from), 0.0, 1.0)
         if a <= 0.0:
             continue
-        x = t - onset
-        rise = 0.5 * (1 - np.cos(math.pi * np.clip(x / p.shift_rise, 0.0, 1.0)))
-        relax = np.exp(-np.maximum(x - p.shift_rise, 0.0) / p.shift_relax)
-        effort = np.maximum(effort, np.where(x < 0, 0.0, a * rise * relax))
-    brow_L = np.maximum(brow_L, p.shift_brow * effort)
-    brow_R = np.maximum(brow_R, p.shift_brow * effort)
+        effort = np.maximum(effort, effort_curve(t - onset, a))
+        (gl, dl), (gr, dr) = sides()
+        brow_L = np.maximum(brow_L, p.shift_brow * gl * effort_curve(t - onset - dl, a))
+        brow_R = np.maximum(brow_R, p.shift_brow * gr * effort_curve(t - onset - dr, a))
     squint = np.maximum(squint, p.shift_squint * effort)
     for e in script.events:
         if isinstance(e, Brow):
-            env = e.amp * _envelope(t, e.t, e.dur)
-            if e.side in ("L", "both"):
-                brow_L = np.maximum(brow_L, env)
-            if e.side in ("R", "both"):
-                brow_R = np.maximum(brow_R, env)
+            (gl, dl), (gr, dr) = sides()
+            if e.side == "both":
+                brow_L = np.maximum(brow_L, e.amp * gl * _envelope(t, e.t + dl, e.dur))
+                brow_R = np.maximum(brow_R, e.amp * gr * _envelope(t, e.t + dr, e.dur))
+            elif e.side == "L":
+                brow_L = np.maximum(brow_L, e.amp * _envelope(t, e.t, e.dur))
+            else:
+                brow_R = np.maximum(brow_R, e.amp * _envelope(t, e.t, e.dur))
         elif isinstance(e, Lids):
             env = _envelope(t, e.t, e.dur, attack=0.14, release=0.3)
             widen = np.maximum(widen, e.widen * env)
             squint = np.maximum(squint, e.squint * env)
-    lean = rng.uniform(0.86, 0.96)
-    if rng.uniform() < 0.5:
-        brow_L = brow_L * lean
-    else:
-        brow_R = brow_R * lean
     brow_L = np.clip(_lowpass(brow_L, p.brow_tau, dt), 0.0, 1.0)
     brow_R = np.clip(_lowpass(brow_R, p.brow_tau, dt), 0.0, 1.0)
     widen = np.clip(_lowpass(np.maximum(widen, 0.3 * np.maximum(brow_L, brow_R)), 0.06, dt), 0, 1)
     squint = np.clip(_lowpass(squint, 0.08, dt), 0.0, 1.0)
 
-    # -- 8. pupil: near response plus slow hippus ---------------------------------------------
-    near = -0.25 * np.clip(1.0 / gaze_dist - 1.0 / 0.6, -1.0, 2.0)
-    pupil = _lowpass(near, p.pupil_tau, dt) + p.hippus * _smooth_noise(rng, t, 0.15, 0.6)
+    # -- 8. pupil: near response (constricts as the eyes converge) plus a slow wander ----------
+    near = -p.near_gain * np.clip(1.0 / fix_dist - 1.0 / 0.6, -1.0, 2.0)
+    pupil = _lowpass(near, p.pupil_tau, dt) + p.hippus * _smooth_noise(rng, t, *p.hippus_band)
 
     channels = dict(
         gaze_yaw=gaze_yaw, gaze_pitch=gaze_pitch, gaze_dist=gaze_dist,

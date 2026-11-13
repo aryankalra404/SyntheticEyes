@@ -5,7 +5,13 @@ Run inside Blender on scene.blend (paths are relative to the repo root, wherever
     blender -b scene.blend -P wrapper/eyes.py -- --clockwise
     blender -b scene.blend -P wrapper/eyes.py -- --input left  [--seed 0] [--quality draft]
     blender -b scene.blend -P wrapper/eyes.py -- --input generate --seed 7 --camera face
+    blender -b scene.blend -P wrapper/eyes.py -- --input right --samples 64 --limit 10
     blender -b scene.blend -P wrapper/eyes.py -- --check-directions [--render]
+
+Videos are 1024x1024 at 30 fps. The default --camera both renders every frame twice: the whole
+face from cam_test_face, and the band from the brows to below the lower lids from cam_eyes
+(rendered as a border crop, so only that band costs time), then pastes the band into the face
+frame as an inset (INSET below). --camera face or eyes renders one camera alone.
 
 Or as a module from Blender's Python, with the repo root on sys.path:
 
@@ -37,6 +43,7 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 import bpy  # noqa: E402
+import numpy as np  # noqa: E402
 from mathutils import Matrix  # noqa: E402
 
 from wrapper.gaze import generate  # noqa: E402
@@ -45,6 +52,14 @@ from wrapper.rig import Rig  # noqa: E402
 FIX_PLANE = 0.35      # m in front of the eye midpoint
 FIX_RANGE = 0.05      # m at |h| or |v| = 1
 CAMERAS = {"face": "cam_face", "eyes": "cam_eyes"}
+VIDEO_CAMERAS = {"face": "cam_test_face", "eyes": "cam_eyes"}   # face: forehead to chin, 85 mm
+VIDEO_SIZE = 1024
+
+# Eye close-up inset for --camera both. crop: the part of the cam_eyes frame shown, as fractions
+# of its width and height from the top left (x0, y0, x1, y1). width: inset width as a fraction of
+# the video frame; its height follows from the crop's aspect. top: distance from the top edge, as
+# a fraction of the frame. The inset is centred horizontally, over the scalp, above the brows.
+INSET = dict(crop=(0.10, 0.31, 0.90, 0.62), width=0.56, top=0.014, border=2, border_grey=0.55)
 
 _rig = None
 
@@ -151,16 +166,19 @@ def project(P, p):
 
 # ---- render setup ---------------------------------------------------------------------------
 
-def setup_render(quality="final", cpu=False):
+def setup_render(quality="final", cpu=False, samples=None):
+    """Engine, resolution and samples. samples overrides the draft 32 / the scene's Cycles count."""
     scene = bpy.context.scene
     scene.render.resolution_x = scene.render.resolution_y = 1024
     if quality == "draft":
         scene.render.engine = "BLENDER_EEVEE_NEXT"
         scene.render.resolution_percentage = 50
-        scene.eevee.taa_render_samples = 32
-        return "EEVEE"
+        scene.eevee.taa_render_samples = samples or 32
+        return f"EEVEE {scene.eevee.taa_render_samples} spp"
     scene.render.engine = "CYCLES"
     scene.render.resolution_percentage = 100
+    if samples:
+        scene.cycles.samples = samples
     device = "CPU"
     if not cpu:
         try:
@@ -174,7 +192,7 @@ def setup_render(quality="final", cpu=False):
         except (KeyError, TypeError, ValueError):
             pass
     scene.cycles.device = device
-    return f"Cycles {device}"
+    return f"Cycles {device} {scene.cycles.samples} spp"
 
 
 def use_texture(nn):
@@ -332,26 +350,137 @@ def encode_mp4(frames, fps, out):
             bpy.context.window.scene = src
 
 
+def load_rgb(path):
+    """PNG -> (H, W, 3) float array, top row first, display-referred values as stored."""
+    img = bpy.data.images.load(str(path))
+    try:
+        w, h = img.size
+        a = np.empty(w * h * 4, np.float32)
+        img.pixels.foreach_get(a)
+    finally:
+        bpy.data.images.remove(img)
+    return a.reshape(h, w, 4)[::-1, :, :3]
+
+
+def save_rgb(a, path):
+    """(H, W, 3) float array, top row first -> 8-bit PNG, written as is (no view transform)."""
+    h, w = a.shape[:2]
+    img = bpy.data.images.new("_composite", w, h, alpha=False)
+    try:
+        rgba = np.ones((h, w, 4), np.float32)
+        rgba[..., :3] = np.clip(a[::-1], 0.0, 1.0)
+        img.pixels.foreach_set(rgba.ravel())
+        img.filepath_raw = str(path)
+        img.file_format = "PNG"
+        img.save()
+    finally:
+        bpy.data.images.remove(img)
+
+
+def resize(a, w, h):
+    """Bilinear resample of an (H, W, C) array to (h, w, C), pixel centres aligned."""
+    H, W = a.shape[:2]
+    if (W, H) == (w, h):
+        return a
+    ys = np.clip((np.arange(h) + 0.5) * H / h - 0.5, 0.0, H - 1.0)
+    xs = np.clip((np.arange(w) + 0.5) * W / w - 0.5, 0.0, W - 1.0)
+    y0, x0 = ys.astype(int), xs.astype(int)
+    y1, x1 = np.minimum(y0 + 1, H - 1), np.minimum(x0 + 1, W - 1)
+    fy, fx = (ys - y0)[:, None, None], (xs - x0)[None, :, None]
+    top = a[y0][:, x0] * (1.0 - fx) + a[y0][:, x1] * fx
+    bot = a[y1][:, x0] * (1.0 - fx) + a[y1][:, x1] * fx
+    return top * (1.0 - fy) + bot * fy
+
+
+def inset_box(size=VIDEO_SIZE):
+    """(left, top, width, height) of the eye inset in the video frame, in pixels."""
+    x0, y0, x1, y1 = INSET["crop"]
+    w = round(INSET["width"] * size)
+    h = round(w * (y1 - y0) / (x1 - x0))      # cam_eyes renders square
+    return (size - w) // 2, round(INSET["top"] * size), w, h
+
+
+def render_pass(cam, out_dir, crop=None, res=None):
+    """Render the Timeline from cam into out_dir/####.png with the camera's look.
+
+    crop (x0, y0, x1, y1 from the top left, fractions) renders only that part of the frame
+    (render border, cropped); res sets the square resolution before the quality percentage.
+    """
+    scene, r = bpy.context.scene, bpy.context.scene.render
+    keep = dict(resolution_x=r.resolution_x, resolution_y=r.resolution_y, use_border=r.use_border,
+                use_crop_to_border=r.use_crop_to_border, border_min_x=r.border_min_x,
+                border_max_x=r.border_max_x, border_min_y=r.border_min_y, border_max_y=r.border_max_y)
+    scene.camera = cam
+    apply_look(cam)
+    out_dir.mkdir(parents=True)
+    try:
+        if res:
+            r.resolution_x = r.resolution_y = res
+        if crop:
+            x0, y0, x1, y1 = crop
+            r.use_border = r.use_crop_to_border = True
+            r.border_min_x, r.border_max_x = x0, x1
+            r.border_min_y, r.border_max_y = 1.0 - y1, 1.0 - y0   # Blender's border is bottom-up
+        r.image_settings.file_format = "PNG"
+        r.image_settings.color_mode = "RGB"
+        r.filepath = str(out_dir / "####")
+        t0 = time.perf_counter()
+        bpy.ops.render.render(animation=True)
+        sec = time.perf_counter() - t0
+    finally:
+        for k, v in keep.items():
+            setattr(r, k, v)
+    frames = sorted(out_dir.glob("*.png"))
+    print(f"[eyes] {cam.name}: {len(frames)} frames in {sec:.0f} s "
+          f"({sec / max(len(frames), 1):.2f} s/frame)")
+    return frames, sec
+
+
+def composite(face, eyes, out_dir):
+    """Video frames at VIDEO_SIZE: the face with the eye band inset, or either camera alone."""
+    out_dir.mkdir(parents=True)
+    left, top, w, h = inset_box()
+    b, grey = INSET["border"], INSET["border_grey"]
+    frames = []
+    for i in range(len(face or eyes)):
+        if face is None:
+            frame = resize(load_rgb(eyes[i]), VIDEO_SIZE, VIDEO_SIZE)
+        else:
+            frame = resize(load_rgb(face[i]), VIDEO_SIZE, VIDEO_SIZE).copy()
+            if eyes is not None:
+                frame[top - b:top + h + b, left - b:left + w + b] = grey
+                frame[top:top + h, left:left + w] = resize(load_rgb(eyes[i]), w, h)
+        path = out_dir / f"{i + 1:04d}.png"
+        save_rgb(frame, path)
+        frames.append(path)
+    return frames
+
+
 def video(mode, seed, fps, camera, limit=None):
+    """Bake the gaze track to the Timeline, render it from camera (face, eyes or both), encode."""
     scene = bpy.context.scene
     track = generate(mode, seed=seed)
     n = rig().bake(track, fps=fps)
     if limit:
         scene.frame_end = scene.frame_start + min(limit, n) - 1
-    scene.camera = bpy.data.objects[CAMERAS[camera]]
-    apply_look(scene.camera)
-    frames_dir = REPO / "outputs" / "frames" / mode
-    if frames_dir.exists():
-        shutil.rmtree(frames_dir)
-    frames_dir.mkdir(parents=True)
-    scene.render.image_settings.file_format = "PNG"
-    scene.render.filepath = str(frames_dir / "####")
+    root = REPO / "outputs" / "frames" / mode
+    if root.exists():
+        shutil.rmtree(root)
     t0 = time.perf_counter()
-    bpy.ops.render.render(animation=True)
-    frames = sorted(frames_dir.glob("*.png"))
+    face = eyes = None
+    if camera in ("face", "both"):
+        face, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["face"]], root / "face")
+    if camera in ("eyes", "both"):
+        crop = res = None
+        if camera == "both":
+            crop = INSET["crop"]
+            res = round(inset_box()[2] / (crop[2] - crop[0]))   # crop renders at inset size
+        eyes, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["eyes"]], root / "eyes", crop, res)
+    t1 = time.perf_counter()
+    frames = composite(face, eyes, root / "video")
     sec = time.perf_counter() - t0
-    print(f"[eyes] rendered {len(frames)} frames of `{mode}` seed {seed} in {sec:.0f} s "
-          f"({sec / max(len(frames), 1):.2f} s/frame)")
+    print(f"[eyes] composited {len(frames)} frames in {time.perf_counter() - t1:.1f} s; `{mode}` "
+          f"seed {seed}, camera {camera}: {sec:.0f} s in all, {sec / max(len(frames), 1):.2f} s/frame")
     out = REPO / "outputs" / "videos" / f"{mode}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
     encode_mp4(frames, fps, out)
@@ -370,7 +499,11 @@ def parse_args(argv):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--quality", choices=("final", "draft"), default="final")
-    ap.add_argument("--camera", choices=tuple(CAMERAS), default=None)
+    ap.add_argument("--camera", choices=(*CAMERAS, "both"), default=None,
+                    help="videos: both (default; face with an eye inset), face or eyes; "
+                         "stills: face (default) or eyes")
+    ap.add_argument("--samples", type=int, default=None,
+                    help="render samples (Cycles; EEVEE with --quality draft)")
     ap.add_argument("--texture", type=int, default=None, help="use textures/tex_NN")
     ap.add_argument("--render", action="store_true", help="with --check-directions, also render PNGs")
     ap.add_argument("--limit", type=int, default=None, help="render only the first N video frames")
@@ -381,7 +514,9 @@ def parse_args(argv):
 
 def main(argv):
     args = parse_args(argv)
-    engine = setup_render(args.quality, args.cpu)
+    if args.camera == "both" and not args.input:
+        raise SystemExit("eyes.py: --camera both is for videos (--input)")
+    engine = setup_render(args.quality, args.cpu, args.samples)
     if args.texture is not None:
         use_texture(args.texture)
     print(f"[eyes] Blender {bpy.app.version_string}, {engine}, lid shapes "
@@ -396,7 +531,7 @@ def main(argv):
         move(*args.move)
         render(args.out or REPO / "outputs" / "move.png", args.camera or "face")
     else:
-        video(args.input, args.seed, args.fps, args.camera or "eyes", args.limit)
+        video(args.input, args.seed, args.fps, args.camera or "both", args.limit)
 
 
 if __name__ == "__main__" and "--" in sys.argv:

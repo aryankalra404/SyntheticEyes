@@ -97,10 +97,33 @@ def render(path, camera="face"):
     """Render a still to path (PNG) from cam_face (default) or cam_eyes."""
     scene = bpy.context.scene
     scene.camera = bpy.data.objects[CAMERAS.get(camera, camera)]
+    apply_look(scene.camera)
     scene.render.filepath = str(Path(path).resolve())
     scene.render.image_settings.file_format = "PNG"
     bpy.ops.render.render(write_still=True)
     return path
+
+
+def apply_look(cam):
+    """Switch lights and world to the look the camera carries (set by tools/build_scene.py).
+
+    Whole-face cameras use the constant soft light; eye cameras a dark background and a small
+    side key. Custom properties on the camera: look_lights (names, comma separated), look_env
+    (HDRI strength), look_backdrop (colour the camera sees behind the head). A camera without
+    them leaves the scene as it is.
+    """
+    if "look_lights" not in cam:
+        return
+    scene = bpy.context.scene
+    on = set(str(cam["look_lights"]).split(","))
+    for ob in scene.objects:
+        if ob.type == "LIGHT":
+            ob.hide_render = ob.name not in on
+    nodes = scene.world.node_tree.nodes if scene.world and scene.world.use_nodes else {}
+    if "env_light" in nodes:
+        nodes["env_light"].inputs["Strength"].default_value = float(cam["look_env"])
+    if "backdrop" in nodes:
+        nodes["backdrop"].inputs["Color"].default_value = (*cam["look_backdrop"], 1.0)
 
 
 # ---- camera ---------------------------------------------------------------------------------
@@ -316,6 +339,7 @@ def video(mode, seed, fps, camera, limit=None):
     if limit:
         scene.frame_end = scene.frame_start + min(limit, n) - 1
     scene.camera = bpy.data.objects[CAMERAS[camera]]
+    apply_look(scene.camera)
     frames_dir = REPO / "outputs" / "frames" / mode
     if frames_dir.exists():
         shutil.rmtree(frames_dir)

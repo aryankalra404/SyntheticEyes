@@ -50,6 +50,10 @@ REST_PUPIL = -1.2                       # GNM pupils_000; about a 3.5 mm pupil
 REST_LID_OPEN = 0.5                     # picked by looking at the cam_eyes reset frame
 TILE_MATERIALS = ("skin", "eye_interior.L", "cornea.L", "eye_interior.R", "cornea.R",
                   "teeth", "tongue")
+IRIS_SATURATION = 0.72                   # shader-side tone on the iris part of the eye tile
+IRIS_VALUE = 0.80
+LIMBAL_DARK = 0.55                       # how much the limbal ring darkens the base colour
+SKIN_SSS = 0.0                           # skin subsurface scale in metres (--sss), 0 = off
 BONES = {"neck": "neck", "head": "head", "left_eye": "eye.L", "right_eye": "eye.R"}
 
 
@@ -69,6 +73,7 @@ def parse_args():
     ap.add_argument("--no-bake", action="store_true", help="skip baking `generate` onto the Timeline")
     ap.add_argument("--texture", type=int, default=1, help="texture set textures/tex_NN loaded by default")
     ap.add_argument("--hair", type=Path, default=REPO / "assets/gnm/hair_binding.npz")
+    ap.add_argument("--sss", type=float, default=SKIN_SSS, help="skin subsurface scale in metres, 0 = off")
     return ap.parse_args(argv)
 
 
@@ -350,23 +355,122 @@ def image_node(nt, name, uv, colour=True):
     return n
 
 
-def skin_textured():
-    """Plain Principled with the set's albedo, tangent normal (OpenGL) and roughness maps."""
+def attr(nt, name):
+    n = nt.nodes.new("ShaderNodeAttribute")
+    n.attribute_type = "GEOMETRY"
+    n.attribute_name = name
+    return n.outputs["Fac"]
+
+
+def mnode(nt, op, a, b=None, clamp=False):
+    n = nt.nodes.new("ShaderNodeMath")
+    n.operation = op
+    n.use_clamp = clamp
+    for i, v in enumerate((a, b)):
+        if v is None:
+            continue
+        if isinstance(v, (int, float)):
+            n.inputs[i].default_value = v
+        else:
+            nt.links.new(v, n.inputs[i])
+    return n.outputs[0]
+
+
+PINK = (0.42, 0.12, 0.10)        # wet tissue inside the lids and at the inner corner (linear)
+
+
+def skin_textured(sss_scale=None):
+    """Skin: the set's albedo, tangent normal (OpenGL) and roughness maps on a Principled BSDF
+    with subsurface, plus four per-vertex masks written by build_masks():
+      wet   lid margin and the pocket behind the lids: low roughness under a clear coat
+      pink  the same pocket and the inner corner: wet red tissue instead of the albedo's skin fill
+      lips  smoother, with a thin coat
+      lids  thin skin round the eye: a touch more subsurface
+    """
     mat = principled("skin", (0.5, 0.5, 0.5))
     nt = mat.node_tree
     bsdf = nt.nodes["Principled BSDF"]
     uv = nt.nodes.new("ShaderNodeUVMap")
     uv.uv_map = "UDIM"
+    wet, pink, lips, lids = (attr(nt, k) for k in ("wet", "pink", "lips", "lids"))
+
     alb = image_node(nt, "tex_albedo", uv)
-    nt.links.new(alb.outputs["Color"], bsdf.inputs["Base Color"])
+    col = nt.nodes.new("ShaderNodeMix")
+    col.data_type = "RGBA"
+    nt.links.new(mnode(nt, "MULTIPLY", pink, 0.85), col.inputs["Factor"])
+    nt.links.new(alb.outputs["Color"], col.inputs["A"])
+    col.inputs["B"].default_value = (*PINK, 1.0)
+    nt.links.new(col.outputs["Result"], bsdf.inputs["Base Color"])
+
     nrm = image_node(nt, "tex_normal", uv, colour=False)
     nm = nt.nodes.new("ShaderNodeNormalMap")
     nm.uv_map = "UDIM"
     nt.links.new(nrm.outputs["Color"], nm.inputs["Color"])
     nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+
     rough = image_node(nt, "tex_rough", uv, colour=False)
-    nt.links.new(rough.outputs["Color"], bsdf.inputs["Roughness"])
+    r = mnode(nt, "MULTIPLY", rough.outputs["Color"], mnode(nt, "SUBTRACT", 1.0, mnode(nt, "MULTIPLY", lips, 0.3)))
+    r = mnode(nt, "MULTIPLY", r, mnode(nt, "SUBTRACT", 1.0, mnode(nt, "MULTIPLY", wet, 0.75)))
+    nt.links.new(r, bsdf.inputs["Roughness"])
+    coat = mnode(nt, "ADD", wet, mnode(nt, "MULTIPLY", lips, 0.25), clamp=True)
+    nt.links.new(coat, bsdf.inputs["Coat Weight"])
+    nt.links.new(mnode(nt, "SUBTRACT", 0.28, mnode(nt, "MULTIPLY", wet, 0.25)), bsdf.inputs["Coat Roughness"])
+    bsdf.inputs["Coat IOR"].default_value = 1.38
+    # the wet film is not flat: a fine ripple on the coat alone breaks the highlight into glints
+    tc = nt.nodes.new("ShaderNodeTexCoord")
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 2200.0       # object space is metres: about 0.5 mm features
+    noise.inputs["Detail"].default_value = 2.0
+    nt.links.new(tc.outputs["Object"], noise.inputs["Vector"])
+    ripple = nt.nodes.new("ShaderNodeBump")
+    ripple.inputs["Distance"].default_value = 0.00012
+    nt.links.new(mnode(nt, "MULTIPLY", wet, 0.7), ripple.inputs["Strength"])
+    nt.links.new(noise.outputs["Fac"], ripple.inputs["Height"])
+    nt.links.new(nm.outputs["Normal"], ripple.inputs["Normal"])
+    nt.links.new(ripple.outputs["Normal"], bsdf.inputs["Coat Normal"])
+
+    scale = SKIN_SSS if sss_scale is None else sss_scale
+    if scale > 0:
+        bsdf.subsurface_method = "RANDOM_WALK_SKIN"
+        bsdf.inputs["Subsurface Weight"].default_value = 1.0
+        bsdf.inputs["Subsurface Radius"].default_value = (1.0, 0.35, 0.18)
+        bsdf.inputs["Subsurface IOR"].default_value = 1.4
+        bsdf.inputs["Subsurface Anisotropy"].default_value = 0.8
+        nt.links.new(mnode(nt, "MULTIPLY", mnode(nt, "ADD", 1.0, mnode(nt, "MULTIPLY", lids, 0.5)), scale),
+                     bsdf.inputs["Subsurface Scale"])
     return mat
+
+
+def build_masks(D, ob):
+    """Per-vertex float attributes wet, pink, lips, lids on the head mesh (see skin_textured).
+    They are topology, not UV: the same on every identity, and they follow the lids."""
+    V, n = D.V, len(D.V)
+    sock, skin, eye = D.mask("eye_sockets"), D.mask("skin"), D.mask("eyes")
+    nbr = [[] for _ in range(n)]
+    for q in D.d["quads"]:
+        for i in range(4):
+            nbr[int(q[i])].append(int(q[(i + 1) % 4]))
+            nbr[int(q[(i + 1) % 4])].append(int(q[i]))
+
+    def soften(w, steps):
+        for _ in range(steps):
+            w = np.array([0.5 * w[i] + 0.5 * np.mean(w[nbr[i]]) if nbr[i] else w[i] for i in range(n)])
+        return w
+
+    wet, pink = sock.astype(np.float64), sock.astype(np.float64)
+    for side in ("L", "R"):
+        rims = lash_gen.lid_rims(V, D.d["quads"], sock, skin, eye, side)
+        inner = V[rims["upper"][0][0]]
+        for rim, _, o1 in rims.values():
+            k = np.clip(1.0 - np.linalg.norm(V[rim] - inner, axis=1) / 0.0045, 0.0, 1.0)   # caruncle
+            wet[o1] = 0.45
+            pink[rim] = 0.5 + 0.5 * k
+            pink[o1] = np.maximum(pink[o1], 0.08 + 0.55 * k)
+    lips = soften((D.mask("upper_lip") | D.mask("lower_lip")).astype(np.float64), 1)
+    lids = soften((D.mask("left_orbital_region") | D.mask("right_orbital_region")).astype(np.float64), 2)
+    for name, w in (("wet", wet), ("pink", pink), ("lips", lips), ("lids", lids)):
+        a = ob.data.attributes.new(name, "FLOAT", "POINT")
+        a.data.foreach_set("value", w.astype(np.float32))
 
 
 def eye_textured(name):
@@ -380,7 +484,6 @@ def eye_textured(name):
     uv = nt.nodes.new("ShaderNodeUVMap")
     uv.uv_map = "UDIM"
     tex = image_node(nt, "tex_eye", uv)
-    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     # radius from the tile centre: iris inside the limbus (0.188, assets/gnm/eye_uv.json), sclera outside
     sep = nt.nodes.new("ShaderNodeSeparateXYZ")
     nt.links.new(uv.outputs["UV"], sep.inputs[0])
@@ -399,6 +502,49 @@ def eye_textured(name):
     sclera.inputs["From Min"].default_value = 0.175
     sclera.inputs["From Max"].default_value = 0.205
     nt.links.new(dist.outputs["Value"], sclera.inputs["Value"])
+    r = dist.outputs["Value"]
+    # iris: a real iris is darker and greyer than paint, and sits in the shade of the limbus
+    hsv = nt.nodes.new("ShaderNodeHueSaturation")
+    hsv.inputs["Saturation"].default_value = IRIS_SATURATION
+    hsv.inputs["Value"].default_value = IRIS_VALUE
+    nt.links.new(tex.outputs["Color"], hsv.inputs["Color"])
+    toned = nt.nodes.new("ShaderNodeMix")
+    toned.data_type = "RGBA"
+    nt.links.new(sclera.outputs["Result"], toned.inputs["Factor"])
+    nt.links.new(hsv.outputs["Color"], toned.inputs["A"])
+    nt.links.new(tex.outputs["Color"], toned.inputs["B"])
+    # limbal ring: darkest just inside the limbus, fading both ways
+    ring_in = nt.nodes.new("ShaderNodeMapRange")
+    ring_in.interpolation_type = "SMOOTHSTEP"
+    ring_in.inputs["From Min"].default_value = 0.135
+    ring_in.inputs["From Max"].default_value = 0.183
+    nt.links.new(r, ring_in.inputs["Value"])
+    ring_out = nt.nodes.new("ShaderNodeMapRange")
+    ring_out.interpolation_type = "SMOOTHSTEP"
+    ring_out.inputs["From Min"].default_value = 0.183
+    ring_out.inputs["From Max"].default_value = 0.215
+    ring_out.inputs["To Min"].default_value = 1.0
+    ring_out.inputs["To Max"].default_value = 0.0
+    nt.links.new(r, ring_out.inputs["Value"])
+    ring = mnode(nt, "MULTIPLY", ring_in.outputs["Result"], ring_out.outputs["Result"])
+    # sclera: greyer and darker toward the fornix, away from the lit front
+    far = nt.nodes.new("ShaderNodeMapRange")
+    far.interpolation_type = "SMOOTHSTEP"
+    far.inputs["From Min"].default_value = 0.20
+    far.inputs["From Max"].default_value = 0.40
+    nt.links.new(r, far.inputs["Value"])
+    gain = mnode(nt, "SUBTRACT", mnode(nt, "SUBTRACT", 1.0, mnode(nt, "MULTIPLY", ring, LIMBAL_DARK)),
+                 mnode(nt, "MULTIPLY", far.outputs["Result"], 0.3))
+    shade = nt.nodes.new("ShaderNodeMix")
+    shade.data_type = "RGBA"
+    shade.blend_type = "MULTIPLY"
+    shade.inputs["Factor"].default_value = 1.0
+    nt.links.new(toned.outputs["Result"], shade.inputs["A"])
+    grey = nt.nodes.new("ShaderNodeCombineColor")
+    for i in range(3):
+        nt.links.new(gain, grey.inputs[i])
+    nt.links.new(grey.outputs["Color"], shade.inputs["B"])
+    nt.links.new(shade.outputs["Result"], bsdf.inputs["Base Color"])
     sss = nt.nodes.new("ShaderNodeMath")
     sss.operation = "MULTIPLY"
     sss.inputs[1].default_value = 0.6
@@ -423,9 +569,9 @@ def eye_textured(name):
     return mat
 
 
-def build_materials(ob):
+def build_materials(ob, sss=None):
     mats = {
-        "skin": skin_textured(),
+        "skin": skin_textured(sss),
         "eye_interior.L": eye_textured("eye_interior.L"),
         "cornea.L": cornea("cornea.L"),
         "eye_interior.R": eye_textured("eye_interior.R"),
@@ -615,82 +761,70 @@ def build_hair(D, deltas, head, rig, path):
     return made
 
 
-TEAR_RISE = 0.00035     # m the strip climbs the globe above the lid-globe contact line
-TEAR_SINK = 0.0001      # m the middle row is pulled toward the eye centre (concave meniscus)
+TEAR_RISE = 0.00060     # m the meniscus climbs the globe above the lid contact line
+TEAR_LID = 0.5          # how far across the lid margin (back edge 0, lash edge 1) it starts
+TEAR_ROWS = 5
 
 
-def lower_margin(D, side):
-    """Ordered lower-lid margin, inner to outer corner: the socket rim (ring 0, where the socket
-    meets the lid's outer skin) and the next ring in (ring 1, where the lid meets the globe)."""
-    V, Q = D.V, D.d["quads"]
-    sign = 1.0 if side == "L" else -1.0
-    sock = D.mask("eye_sockets") & (np.sign(V[:, 0]) == sign)
-    eye = D.mask("eyes")
-    skin = D.mask("skin")
-    nbr = [set() for _ in range(len(V))]
-    for q in Q:
-        for i in range(4):
-            a, b = int(q[i]), int(q[(i + 1) % 4])
-            nbr[a].add(b)
-            nbr[b].add(a)
-    S = np.where(sock)[0]
-    rim = [v for v in S if any(not sock[u] and skin[u] and not eye[u] for u in nbr[v])]
-    rim_set = set(rim)
-    p = D.pupil(side)
-    # ring-1 partner: the socket neighbour of each rim vertex that is not on the rim, nearest to it
-    r1 = []
-    for v in rim:
-        c = [u for u in nbr[v] if sock[u] and u not in rim_set]
-        r1.append(min(c, key=lambda u: np.linalg.norm(V[u] - V[v])))
-    rim, r1 = np.array(rim), np.array(r1)
-    xs = V[rim, 0]
-    inner, outer = rim[np.argmin(np.abs(xs))], rim[np.argmax(np.abs(xs))]
-    a, b = V[inner], V[outer]
-    line_y = a[1] + (V[rim, 0] - a[0]) / (b[0] - a[0]) * (b[1] - a[1])
-    low = (V[rim, 1] <= line_y + 1e-9) | np.isin(rim, [inner, outer])
-    rim, r1 = rim[low], r1[low]
-    order = np.argsort(np.abs(V[rim, 0] - V[inner, 0]))     # inner corner to outer corner
-    return rim[order], r1[order]
+def tear_material():
+    """Clear water: sharp Fresnel reflection, refraction at IOR 1.34, no shadow of its own."""
+    mat = bpy.data.materials.new("tear_line")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.remove(nt.nodes["Principled BSDF"])
+    gl = nt.nodes.new("ShaderNodeBsdfGlass")
+    gl.inputs["IOR"].default_value = 1.34
+    gl.inputs["Roughness"].default_value = 0.0
+    lp = nt.nodes.new("ShaderNodeLightPath")
+    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(lp.outputs["Is Shadow Ray"], mix.inputs[0])
+    nt.links.new(gl.outputs[0], mix.inputs[1])
+    nt.links.new(tr.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
+    return mat
 
 
 def build_tear_lines(D, deltas, head, rig):
+    """The tear meniscus: a concave fillet of water in the angle between the lower lid margin and
+    the globe, inner corner to outer corner. Row 0 lies part-way across the lid margin, the last
+    row on the eye's outer shell TEAR_RISE above the contact line; rows between follow a curve
+    pulled into the corner. Rebuilt on every head key, so it follows the lid."""
     made = []
+    sock, skin, eye = D.mask("eye_sockets"), D.mask("skin"), D.mask("eyes")
     for side in ("L", "R"):
-        rim, r1 = lower_margin(D, side)
+        rim, _, o1 = lash_gen.lid_rims(D.V, D.d["quads"], sock, skin, eye, side)["lower"]
         J = D.joint(side)
-        sclera = D.mask("left_eye" if side == "L" else "right_eye") & D.mask("scleras")
-        R = float(np.median(np.linalg.norm(D.V[sclera] - J, axis=1)))
+        shell = D.mask("left_eye" if side == "L" else "right_eye") & D.mask("eye_exteriors")
+        R = float(np.median(np.linalg.norm(D.V[shell] - J, axis=1))) + 0.00002
         n = len(rim)
         taper = np.sqrt(np.sin(np.linspace(0, np.pi, n)))[:, None]
 
-        def rows(V, rim=rim, r1=r1, J=J, R=R, taper=taper):
-            lid = 0.5 * (V[rim] + V[r1])
-            u = V[r1] - J
+        def rows(V, rim=rim, o1=o1, J=J, R=R, taper=taper):
+            lid = V[rim] + TEAR_LID * taper * (V[o1] - V[rim])
+            u = V[rim] - J
             u /= np.linalg.norm(u, axis=1, keepdims=True)
             up = np.array([0.0, 1.0, 0.0]) - u[:, 1:2] * u            # GNM up, tangent to the globe
             up /= np.linalg.norm(up, axis=1, keepdims=True)
             g = u * R + up * TEAR_RISE * taper
-            glob = J + g / np.linalg.norm(g, axis=1, keepdims=True) * (R + 0.00003)
-            mid = 0.5 * (lid + glob)
-            mid -= (mid - J) / np.linalg.norm(mid - J, axis=1, keepdims=True) * TEAR_SINK * taper
-            return np.concatenate([lid, mid, glob])
+            glob = J + g / np.linalg.norm(g, axis=1, keepdims=True) * R
+            corner = J + u * R                                        # where lid and globe meet
+            out = []
+            for t in np.linspace(0.0, 1.0, TEAR_ROWS):
+                out.append((1 - t) ** 2 * lid + 2 * t * (1 - t) * (0.6 * corner + 0.2 * (lid + glob))
+                           + t ** 2 * glob)
+            return np.concatenate(out)
 
         base = to_blender(rows(D.V))
         faces = [(r * n + i, r * n + i + 1, (r + 1) * n + i + 1, (r + 1) * n + i)
-                 for r in range(2) for i in range(n - 1)]
+                 for r in range(TEAR_ROWS - 1) for i in range(n - 1)]
         shapes = follower_shapes(rows, base, D, deltas)
-        vids = np.concatenate([np.stack([rim, r1], 1)] * 3)
+        vids = np.concatenate([np.stack([rim, o1], 1)] * TEAR_ROWS)
         w = np.full(vids.shape, 0.5)
         ob = follower(f"tear_line.{side}", base, [], faces, shapes, bone_weights(D, vids, w), head, rig)
         ob.data.polygons.foreach_set("use_smooth", np.ones(len(faces), dtype=bool))
-        mat = bpy.data.materials.get("tear_line")
-        if mat is None:
-            mat = principled("tear_line", (1.0, 1.0, 1.0), rough=0.0)
-            b = mat.node_tree.nodes["Principled BSDF"]
-            b.inputs["Transmission Weight"].default_value = 1.0
-            b.inputs["IOR"].default_value = 1.34
-        ob.data.materials.append(mat)
-        print(f"[build] tear_line.{side}: {n} margin points, globe radius {R * 1000:.2f} mm, "
+        ob.data.materials.append(bpy.data.materials.get("tear_line") or tear_material())
+        print(f"[build] tear_line.{side}: {n} margin points, shell radius {R * 1000:.2f} mm, "
               f"{len(shapes)} driven keys")
         made.append(ob)
     return made
@@ -698,7 +832,40 @@ def build_tear_lines(D, deltas, head, rig):
 
 # ---- cameras, light, render settings --------------------------------------------------------
 
-def build_cameras_and_light(mid, hdri):
+# A camera carries its own look as custom properties; wrapper/eyes.py apply_look() switches the
+# lights and the world when that camera renders. `face`: the constant light for whole-face shots
+# and the 10 clockwise renders. `eye`: dark background and one small key from the side, for the
+# eye close-up and the eye inset in the videos (those cameras also have a shallow depth of field).
+LOOKS = {
+    "face": dict(lights="key", env=0.45, backdrop=(0.028, 0.028, 0.030)),
+    "eye": dict(lights="key_eye", env=0.10, backdrop=(0.0, 0.0, 0.0)),
+}
+
+
+def set_look(cam, look, focus=None, fstop=None):
+    cam["look"] = look
+    cam["look_lights"] = LOOKS[look]["lights"]
+    cam["look_env"] = LOOKS[look]["env"]
+    cam["look_backdrop"] = list(LOOKS[look]["backdrop"])
+    if focus:
+        cam.data.dof.use_dof = True
+        cam.data.dof.focus_distance = focus
+        cam.data.dof.aperture_fstop = fstop
+        cam.data.dof.aperture_blades = 0
+
+
+def aim(ob, target):
+    ob.rotation_euler = (target - ob.location).to_track_quat("-Z", "Y").to_euler()
+
+
+def offset(az, el, dist):
+    """Blender-space offset from a point on the face: az > 0 toward the subject's left (+X,
+    image right), el up, dist metres out in front (-Y)."""
+    a, e = math.radians(az), math.radians(el)
+    return dist * Vector((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)))
+
+
+def build_cameras_and_light(mid, eye_l, hdri):
     scene = bpy.context.scene
     cams = {}
     for name, lens in (("cam_face", 50.0), ("cam_eyes", 105.0)):
@@ -711,20 +878,35 @@ def build_cameras_and_light(mid, hdri):
         cam.rotation_euler = (math.pi / 2, 0, 0)
         scene.collection.objects.link(cam)
         cams[name] = cam
+    set_look(cams["cam_face"], "face")
+    set_look(cams["cam_eyes"], "eye", focus=0.40 - 0.0125, fstop=11.0)
     scene.camera = cams["cam_face"]
 
+    # face key: a large soft source up and to image left, so a window-shaped catchlight sits in
+    # the upper left of each cornea
     ld = bpy.data.lights.new("key", "AREA")
-    ld.shape, ld.size, ld.energy = "DISK", 0.35, 5.0
+    ld.shape, ld.size, ld.size_y, ld.energy = "RECTANGLE", 0.45, 0.60, 38.0
     key = bpy.data.objects.new("key", ld)
-    key.location = mid + Vector((-0.30, -0.45, 0.28))
-    key.rotation_euler = (mid - key.location).to_track_quat("-Z", "Y").to_euler()
+    key.location = mid + offset(-38.0, 32.0, 0.80)
+    aim(key, mid)
     scene.collection.objects.link(key)
 
+    # eye key: small and hard enough that every wet surface glints, from the nose side
+    ld = bpy.data.lights.new("key_eye", "AREA")
+    ld.shape, ld.size, ld.size_y, ld.energy = "RECTANGLE", 0.10, 0.15, 1.3
+    key = bpy.data.objects.new("key_eye", ld)
+    key.location = eye_l + offset(-22.0, 18.0, 0.45)
+    aim(key, eye_l)
+    key.hide_render = True
+    scene.collection.objects.link(key)
+
+    # world: the HDRI lights the scene and shows in reflections; the camera sees a plain backdrop
     world = bpy.data.worlds.new("world")
     world.use_nodes = True
     nt = world.node_tree
     bg = nt.nodes["Background"]
-    bg.inputs["Strength"].default_value = 0.6
+    bg.name = "env_light"
+    bg.inputs["Strength"].default_value = LOOKS["face"]["env"]
     if hdri.exists():
         img = bpy.data.images.load(str(hdri))
         img.pack()  # the HDRI lives in assets/third_party (git-ignored); pack so the .blend stands alone
@@ -740,6 +922,15 @@ def build_cameras_and_light(mid, hdri):
     else:
         print(f"[build] WARNING: {hdri} missing, grey world instead")
         bg.inputs["Color"].default_value = (0.18, 0.18, 0.18, 1)
+    back = nt.nodes.new("ShaderNodeBackground")
+    back.name = "backdrop"
+    back.inputs["Color"].default_value = (*LOOKS["face"]["backdrop"], 1.0)
+    lp = nt.nodes.new("ShaderNodeLightPath")
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(lp.outputs["Is Camera Ray"], mix.inputs[0])
+    nt.links.new(bg.outputs[0], mix.inputs[1])
+    nt.links.new(back.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], nt.nodes["World Output"].inputs["Surface"])
     scene.world = world
     return cams
 
@@ -758,11 +949,12 @@ def build_test_cameras(D):
         cd.lens, cd.sensor_width, cd.sensor_fit = lens, 36.0, "HORIZONTAL"
         cd.clip_start, cd.clip_end = 0.005, 10.0
         cam = bpy.data.objects.new(name, cd)
-        a, e = math.radians(az), math.radians(el)
-        cam.location = target + dist * Vector((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)))
-        cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
+        cam.location = target + offset(az, el, dist)
+        aim(cam, target)
         scene.collection.objects.link(cam)
         out[name] = cam
+    set_look(out["cam_test_face"], "face")
+    set_look(out["cam_test_eye"], "eye", focus=0.11 + 0.0005, fstop=40.0)
     return out
 
 
@@ -799,18 +991,20 @@ def main():
     rig = build_rig(D, ob)
     deltas, solved = shape_deltas(D, args.lids)
     build_shape_keys(ob, deltas, to_blender(D.V))
-    build_materials(ob)
+    build_masks(D, ob)
+    build_materials(ob, args.sss)
 
     eyes = to_blender(D.joints[2:4])
     mid = Vector(eyes.mean(axis=0))
-    build_cameras_and_light(mid, args.hdri)
+    build_cameras_and_light(mid, Vector(to_blender(D.pupil("L"))), args.hdri)
     build_test_cameras(D)
     build_hair(D, deltas, ob, rig, args.hair)
     build_tear_lines(D, deltas, ob, rig)
     scene.cycles_curves.shape = "THICK"     # hair curves as round tubes
 
-    from wrapper.eyes import use_texture
+    from wrapper.eyes import apply_look, use_texture
     use_texture(args.texture)
+    apply_look(scene.camera)
 
     # Everything wrapper/rig.py needs at run time.
     rig["eye_rest_L"] = list(eyes[0])

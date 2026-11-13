@@ -696,6 +696,31 @@ def grow_lashes(D):
     return {f"lashes_{k}": np.concatenate([p[i] for p in parts]) for i, k in enumerate(keys)}
 
 
+# The carried Mindfront brows render as a dark slab at eye close-up range: too many, too thick and
+# standing off the skin. Thin them so single hairs separate and the brow painted in the albedo
+# shows between them.
+BROW_KEEP = 0.6         # fraction of strands kept (fixed seed, per brow set)
+BROW_RADIUS = 0.5       # x the carried strand radius (48 um at the root before)
+BROW_LIFT = 0.5         # x the height above the skin of each point past the first two
+BROW_SEED = 2026
+
+
+def thin_brows(H, name):
+    """Drop strands, halve radius and lay the strands down nearer the skin, all deterministic."""
+    count = H[f"{name}_count"]
+    keep = np.random.default_rng([BROW_SEED, int(name[-2:])]).random(len(count)) < BROW_KEEP
+    start = np.concatenate([[0], np.cumsum(count)[:-1]])
+    pts = np.concatenate([np.arange(s, s + c) for s, c in zip(start[keep], count[keep])])
+    off = H[f"{name}_off"][pts].copy()
+    up = off[:, 2] > 0              # root and the point at the skin stay where they are
+    off[up, 2] *= BROW_LIFT
+    H[f"{name}_off"] = off
+    H[f"{name}_tri"] = H[f"{name}_tri"][pts]
+    H[f"{name}_bary"] = H[f"{name}_bary"][pts]
+    H[f"{name}_radius"] = H[f"{name}_radius"][pts] * BROW_RADIUS
+    H[f"{name}_count"] = count[keep]
+
+
 def build_hair(D, deltas, head, rig, path):
     """Eyelashes (grown here) and the three carried Mindfront brow sets as driven hair objects."""
     H = grow_lashes(D)
@@ -704,6 +729,8 @@ def build_hair(D, deltas, head, rig, path):
         B = np.load(path, allow_pickle=False)
         H.update({k: B[k] for k in B.files if k.startswith("brows_")})
         names += ["brows_01", "brows_05", "brows_08"]
+        for name in names[1:]:
+            thin_brows(H, name)
     else:
         print(f"[build] {path.name} not found (run tools/carry_hair.py): no brow hair")
     ng = hair_node_group()

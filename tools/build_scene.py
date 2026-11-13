@@ -30,8 +30,11 @@ What goes into the file:
   key and a shallow depth of field, for cam_eyes and cam_test_eye. AgX.
 - the `generate` motion, seed 0, baked as keyframes, so pressing play shows the expression
 
-Lid shapes come from assets/gnm/lids.npz when tools/solve_lids.py has written it. Until then
-STAND-IN shapes are built here (see lid_standins).
+Lid shapes come from assets/gnm/lids.npz (tools/solve_lids.py). A head other than the one that
+file was solved on (--npz with an identity) has its lids solved here, in the same way. Without
+the file STAND-IN shapes are built (see lid_standins).
+- the globe guard: a Shrinkwrap modifier per eye that keeps lid skin, lashes and the tear line
+  outside the eyeball in poses no lid key was solved for (see build_globe_guard)
 
 GNM is +Y up / +Z forward; Blender is +Z up / -Y forward: (x, y, z) -> (x, -z, y).
 """
@@ -49,10 +52,11 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tools"))
 import lashes as lash_gen  # noqa: E402  (pure numpy)
+import solve_lids  # noqa: E402  (pure numpy)
 
 BLINK_CLOSE = {"L": 1.40, "R": 1.35}  # M0 spike: scale of the averaged wink that shuts the lid
 REST_PUPIL = -1.2                       # GNM pupils_000; about a 3.5 mm pupil
-REST_LID_OPEN = 0.5                     # picked by looking at the cam_eyes reset frame
+REST_LID_OPEN = 1.0                     # cam_eyes reset frame: lid 4.0 mm above the pupil centre, top of the iris just under it
 TILE_MATERIALS = ("skin", "eye_interior.L", "cornea.L", "eye_interior.R", "cornea.R",
                   "teeth", "tongue")
 IRIS_SATURATION = 0.72                   # shader-side tone on the iris part of the eye tile
@@ -78,6 +82,7 @@ def parse_args():
     ap.add_argument("--no-bake", action="store_true", help="skip baking `generate` onto the Timeline")
     ap.add_argument("--texture", type=int, default=9, help="texture set textures/tex_NN loaded by default (09 is the hero set)")
     ap.add_argument("--hair", type=Path, default=REPO / "assets/gnm/hair_binding.npz")
+    ap.add_argument("--no-guard", action="store_true", help="leave out the globe guard (to compare)")
     ap.add_argument("--sss", type=float, default=SKIN_SSS, help="skin subsurface scale in metres, 0 = off")
     return ap.parse_args(argv)
 
@@ -88,6 +93,7 @@ class Data:
     def __init__(self, path):
         d = np.load(path, allow_pickle=False)
         self.d = d
+        self.path = Path(path)
         self.V = d["vertices"].astype(np.float64)
         self.names = [str(n) for n in d["vertex_group_names"]]
         self.masks = d["vertex_group_masks"]
@@ -186,10 +192,16 @@ def shape_deltas(D, lids_path):
     solved = lids_path.exists()
     if solved:
         L = np.load(lids_path, allow_pickle=False)
-        for k in sorted(L.files):
-            if k.startswith("delta_"):
-                keys[k[len("delta_"):]] = L[k].astype(np.float64)
-        print(f"[build] lid shapes from {lids_path.name}: {sorted(keys)}")
+        sha = solve_lids.Head(D.d).sha()
+        if "source_sha" in L.files and str(L["source_sha"][0]) != sha:
+            # the file was solved on another head (the template); lids must fit this one's globe
+            print(f"[build] {lids_path.name} is for another head: solving lids for {D.path.name}")
+            keys, _ = solve_lids.solve(D.d, REST_LID_OPEN, verbose=False)
+        else:
+            for k in sorted(L.files):
+                if k.startswith("delta_"):
+                    keys[k[len("delta_"):]] = L[k].astype(np.float64)
+            print(f"[build] lid shapes from {lids_path.name}: {sorted(keys)}")
     else:
         print(f"[build] {lids_path.name} not found: using STAND-IN lid shapes")
         for side in ("L", "R"):
@@ -848,6 +860,64 @@ def build_tear_lines(D, deltas, head, rig):
     return made
 
 
+GUARD_OFFSET = 0.00012  # m of skin kept over the globe
+GUARD_REACH = 0.030     # m from the eye joint
+
+
+def build_globe_guard(D, head, rig, followers):
+    """Keep lid skin outside the globe in every pose, not only the ones a lid key was solved for.
+
+    A shape key is solved for one eye direction, and keys add up in straight lines; the cornea
+    bulge travels under the lid with yaw, and under a closing lid with pitch, where no key knows
+    about it (0.9 mm through the template's own lid at 30 deg yaw). So each eye gets a hidden copy
+    of its outer shell on the eye bone, and the head a Shrinkwrap modifier per eye (nearest
+    surface point, "outside" mode) on the lid skin and the lid margin: a vertex is moved only
+    while it is inside the globe, and then to GUARD_OFFSET above it. No Python runs; it evaluates
+    on the Timeline like the armature does. The pocket behind the margin is left alone (it lies
+    under the shell by design). The lash carrier and the tear lines get the same modifier, so a
+    lash or the meniscus cannot end up inside the cornea either."""
+    made = []
+    sock = D.mask("eye_sockets")
+    for side, eye in (("L", "left_eye"), ("R", "right_eye")):
+        shell = D.mask(eye) & D.mask("eye_exteriors")
+        idx = np.where(shell)[0]
+        slot = -np.ones(len(D.V), dtype=int)
+        slot[idx] = np.arange(len(idx))
+        faces = [tuple(int(slot[v]) for v in q) for q in D.d["quads"] if shell[q].all()]
+        ob = follower(f"globe_guard.{side}", to_blender(D.V[idx]), [], faces, {},
+                      {f"eye.{side}": np.ones(len(idx))}, head, rig)
+        ob.hide_render = True
+        ob.display_type = "WIRE"
+        J = D.joint(side)
+        sign = 1.0 if side == "L" else -1.0
+        lid = (D.mask("skin") & ~sock & (np.sign(D.V[:, 0]) == sign)
+               & (np.linalg.norm(D.V - J, axis=1) < GUARD_REACH))
+        rims = lash_gen.lid_rims(D.V, D.d["quads"], sock, D.mask("skin"), D.mask("eyes"), side)
+        for rim, _, _ in rims.values():
+            lid[rim] = True
+        vg = head.vertex_groups.new(name=f"lid_guard.{side}")
+        vg.add(np.where(lid)[0].tolist(), 1.0, "REPLACE")
+        targets = [(head, vg.name)]
+        for f in followers:
+            co = np.array([v.co for v in f.data.vertices])
+            near = np.where(np.linalg.norm(co - to_blender(J), axis=1) < GUARD_REACH)[0]
+            if len(near):
+                fg = f.vertex_groups.new(name=f"lid_guard.{side}")
+                fg.add(near.tolist(), 1.0, "REPLACE")
+                targets.append((f, fg.name))
+        for target, group in targets:
+            mod = target.modifiers.new(f"globe_guard.{side}", "SHRINKWRAP")
+            mod.target = ob
+            mod.wrap_method = "NEAREST_SURFACEPOINT"
+            mod.wrap_mode = "OUTSIDE"
+            mod.offset = GUARD_OFFSET
+            mod.vertex_group = group
+        print(f"[build] globe_guard.{side}: {len(idx)} shell vertices, {int(lid.sum())} lid vertices, "
+              f"on {[t.name for t, _ in targets]}")
+        made.append(ob)
+    return made
+
+
 # ---- cameras, light, render settings --------------------------------------------------------
 
 # A camera carries its own look as custom properties; wrapper/eyes.py apply_look() switches the
@@ -1017,7 +1087,9 @@ def main():
     build_cameras_and_light(mid, Vector(to_blender(D.pupil("L"))), args.hdri)
     build_test_cameras(D)
     build_hair(D, deltas, ob, rig, args.hair)
-    build_tear_lines(D, deltas, ob, rig)
+    tears = build_tear_lines(D, deltas, ob, rig)
+    if not args.no_guard:
+        build_globe_guard(D, ob, rig, [bpy.data.objects["lashes_carrier"]] + tears)
     scene.cycles_curves.shape = "THICK"     # hair curves as round tubes
 
     from wrapper.eyes import apply_look, use_texture

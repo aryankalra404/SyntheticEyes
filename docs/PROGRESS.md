@@ -21,6 +21,42 @@ what the next session needs to know.
 
 ## Log
 
+### Fri 13 Nov 2026, late — M3 iris: the five make_iris items, eye tiles rebuilt (Opus)
+Did the five items from "Iris: what `tools/make_iris.py` needs" in the M3 entry and rebuilt the
+eye files of all nine sets with the new `python3 tools/build_textures.py --eyes-only`
+(eye.1002/1004, legacy eye_L/eye_R, set.json, preview.png; the texture sheet too). The skin
+maps were not touched: no `skin*` file shows in `git status`.
+
+1. **Collarette** blends over ±0.08 of the iris width and reaches outward along radial spokes
+   (`collarette_reach` 0.08-0.16 of the width), ragged along the fibres; the ridge is low and
+   follows the fibres. Pupillary and collarette hues are within 15° of the fibre hue.
+2. **Tone in the palettes.** All palettes are now final colours: the shader's linear-HSV
+   saturation × 0.72 and value × 0.80 are applied to the old values, and brown and dark brown are
+   set by hand darker and warmer (brown fibre 98,62,36, was 119,90,73 after the shader tone).
+   Fibres also wander a little (a second, longer warp), which took away the zoom-blur look.
+3. **Limbal ring** in UV in `make_eye`: from 72 % of the limbus radius to × 0.45 at the limbus,
+   fading 0.03 UV into the sclera, strength ±8 % around the eye. The palette's limbal colour
+   pull is softer (from t 0.75, × 0.7).
+4. **Crypts**: 40-80 rounded-diamond lozenges, 1.8-3.6 times longer along the radius than
+   across, a little longer outward, lognormal size; 70 % sit just outside the collarette
+   (exponential falloff), bigger and deeper there; lighter trabecular rims.
+5. **Sclera** × (1 − 0.3 · smoothstep(0.20, 0.40, R)), the shader's fornix falloff.
+
+**Looked at**: the six colours flat and at face size (`outputs/tmp/m2/iris_v4/sheet.png`), all
+nine sets' L and R tiles flat, and every set in the bare-head wrap test with two extra close
+shots (`outputs/tmp/m2/sets/tex_NN/wrap_eye_front.png`, `wrap_eye.png`). Hazel and green show a
+warmer / lighter inner zone that streaks out instead of an orange patch; crypts read as lozenges.
+In the wrap test the plain Principled (specular 0.5, no cornea) lays a grey sheen on dark
+irises (the pupil, albedo 6,5,5, renders mid-grey), so browns look lighter there than in the
+scene.
+
+**For Fable** (`tools/build_scene.py`, not edited here): the tile now carries the tone, the
+limbal ring and the fornix falloff, so in `eye_textured` set `IRIS_SATURATION = 1`,
+`IRIS_VALUE = 1`, `LIMBAL_DARK = 0`, **and drop the `far` × 0.3 term** (it is hard-coded in the
+`gain` expression, not behind a constant; leaving it darkens the sclera twice). Then rebuild
+`scene.blend` and rerun `tools/render_stills.py`, and check the eye stills against the M3 ones:
+browns should read darker and warmer, the rest about the same tone.
+
 ### Fri 13 Nov 2026 — M3 look: lashes, wet eye, skin, light (Fable)
 Tuned on `tex_09` (identity male_white_9) with the two fixed test shots after every change, then
 checked on all nine sets. Everything is in `tools/build_scene.py` unless named. `scene.blend`

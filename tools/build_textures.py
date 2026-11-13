@@ -4,6 +4,7 @@
     python3 tools/build_textures.py --sets 03 07    # some
     python3 tools/build_textures.py --sets 03 --skip-bake --skip-check
     python3 tools/build_textures.py --sheet-only    # outputs/stills/texture_sheet.png
+    python3 tools/build_textures.py --eyes-only     # eye tiles, set.json, preview.png only
 
 Per set, from the recipe table below:
   1. tools/transfer_skin.py (Blender) bakes the MakeHuman skin + strand eyebrows into tile 1001
@@ -158,6 +159,10 @@ def details(nn, r):
     for k, v in r["detail"].items():
         flags += [f"--{k.replace('_', '-')}"] + ([] if v is True else [v])
     run([sys.executable, "tools/detail_maps.py", "--seed", r["seed"], "--out", WORK / f"tex_{nn}/detail", *flags])
+    irises(nn, r)
+
+
+def irises(nn, r):
     run([sys.executable, "tools/make_iris.py", "--color", r["iris"], "--seed", r["seed"],
          "--out", WORK / f"tex_{nn}/iris"])
 
@@ -194,11 +199,20 @@ def assemble(nn, r):
     tc.write_png(out / "skin.1001.png", skin)
     for f in ("skin_normal.1001.png", "skin_rough.1001.png"):
         shutil.copyfile(w / "detail" / f, out / f)
+    leg = out / "legacy"
+    leg.mkdir(exist_ok=True)
+    shutil.copyfile(out / "skin.1001.png", leg / "skin.png")
+    assemble_eyes(nn, r)
+
+
+def assemble_eyes(nn, r):
+    """Eye tiles, their legacy copies and set.json only; the skin files are not touched."""
+    w, out = WORK / f"tex_{nn}", TEX / f"tex_{nn}"
     for f in ("eye.1002.png", "eye.1004.png"):
         shutil.copyfile(w / "iris" / f, out / f)
     leg = out / "legacy"
     leg.mkdir(exist_ok=True)
-    for src, dst in (("skin.1001.png", "skin.png"), ("eye.1002.png", "eye_L.png"), ("eye.1004.png", "eye_R.png")):
+    for src, dst in (("eye.1002.png", "eye_L.png"), ("eye.1004.png", "eye_R.png")):
         shutil.copyfile(out / src, leg / dst)
     iris = json.loads((w / "iris/iris.json").read_text())
     meta = {
@@ -230,7 +244,7 @@ def assemble(nn, r):
     (out / "set.json").write_text(json.dumps(meta, indent=1) + "\n")
 
 
-def check(nn):
+def check(nn, shots="wrap_front,wrap_three_quarter,profile,back"):
     w, out = WORK / f"tex_{nn}", TEX / f"tex_{nn}"
     cd = w / "wrapcheck"
     cd.mkdir(exist_ok=True)
@@ -241,7 +255,7 @@ def check(nn):
         tc.write_png(flat, np.full((64, 64, 3), 128, np.uint8))
     run([BLENDER, "-b", "--factory-startup", "-P", "tools/check_detail.py", "--",
          "--detail", cd, "--iris", out, "--skin", out / "skin.1001.png", "--wrap",
-         "--shots", "wrap_front,wrap_three_quarter,profile,back", "--out", w])
+         "--shots", shots, "--out", w])
     shutil.copyfile(w / "wrap_front.png", out / "preview.png")
 
 
@@ -275,8 +289,17 @@ def main():
     ap.add_argument("--skip-maps", action="store_true", help="reuse the detail maps and irises")
     ap.add_argument("--skip-check", action="store_true")
     ap.add_argument("--sheet-only", action="store_true")
+    ap.add_argument("--eyes-only", action="store_true",
+                    help="rebuild eye tiles, legacy eye files, set.json and preview.png; skin files untouched")
     args = ap.parse_args()
-    if not args.sheet_only:
+    if args.eyes_only:
+        for nn in args.sets:
+            irises(nn, SETS[nn])
+            assemble_eyes(nn, SETS[nn])
+            if not args.skip_check:
+                # front and three-quarter for preview.png and the sheet, plus two close views of the eye
+                check(nn, "wrap_front,wrap_three_quarter,eye_front,eye")
+    elif not args.sheet_only:
         for nn in args.sets:
             r = SETS[nn]
             if not args.skip_bake:

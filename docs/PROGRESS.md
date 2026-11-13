@@ -10,7 +10,7 @@ what the next session needs to know.
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
-| M3 Look | done (13 Nov) on solved lids and the reworked iris tiles; nine stills re-rendered. Left: brow hair weight on 02-06 |
+| M3 Look | done (13 Nov) on solved lids and the reworked iris tiles; nine stills re-rendered; brow hair thinned and a rim light added (13 Nov, late) |
 | M4 Motion | gaze engine, Timeline bake and video framing done (face from `cam_video` with a one-eye close-up from `cam_inset`); drafts render; **final videos not rendered** (about 3.6 h at 64 spp), and nobody has watched a draft at playback speed yet |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
@@ -20,6 +20,53 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — thinner brow hair, rim light, shift effort in left and right (Opus)
+Three look changes from the owner's list. Code: `tools/build_scene.py` (brows, rim),
+`wrapper/gaze/engine.py` (effort). `scene.blend`, the nine stills, the sheet and `renders/`
+regenerated and committed. `metadata.json` and `outputs/direction_check.json` came out identical.
+
+**Brow hair** (`thin_brows`, called from `build_hair`): each carried Mindfront set keeps 60 % of
+its strands (seed `[2026, set]`, so 01: 789 → 462, 05: 1267 → 776, 08: 1130 → 667), the radius
+is halved (48 → 24 um at the root), and every point that stands above the skin is brought down
+to half its height. Root and skin point stay. Looked at the 02 and 06 eye stills before and after,
+and at 02 with the hair hidden: most of the dark mass is the brow **painted into the albedo**,
+and with the hair on, the eye still now looks almost the same as with it hidden, plus single hairs
+along the lower edge and over the paint. If the brows still read as heavy, the next change is in
+the albedo (textures/), not the hair.
+
+**Rim light** (`rim` in `build_cameras_and_light`, `face` look is now `"key,rim"`): area
+0.20 × 0.70 m, 40 W, 0.9 m from the middle of the head (7 cm behind the eye midpoint) at 150 deg
+round from the camera toward image right and 12 deg up, aimed at the head. Checked with the rim
+alone (key off, HDRI 0) and a difference image: it lands only on the scalp edge, temple, jaw,
+cheek edge, ear (red SSS glow), neck and shoulder on image right. The front of the face is
+unchanged (06 cheek mean 41.3 with and without). Clipping: at 80 W tex_01 had 2,236 fully white
+pixels on the edge and shoulder, at 50 W 27, at **40 W none (peak 247)**. tex_06's edge still reads.
+Tried and dropped: 135 deg (too faint), 145 deg at 150 W (lit the whole side of the face and the
+top of the brow), 162 deg (both ears, no jaw). The `eye` look is unchanged (no rim).
+
+**Shift effort** (`GazeParams.shift_*`, step 7 of `simulate`): every `Look` whose total
+amplitude is over 10 deg adds effort, full from 24 deg. Effort rises over 0.20 s from the
+saccade onset (raised cosine), then decays with tau 0.55 s through the hold. Brow gets 0.31 × effort
+and squint 0.12 × effort, maxed with what was there, so after the low-pass and the one-sided lean
+they peak at **0.25 brow and 0.10 squint** (left and right, seeds 0 and 3). Both happen on the glance out and
+on the return. Shifts under 10 deg add nothing. `generate` keeps its larger scripted brows (0.6-0.7).
+No new random draws, so the rest of every track is unchanged. Plot: `python -m wrapper.gaze
+--mode left --seed 0 --plot <file>`. Tests: 25 pass (18 gaze plus the camera-move session's).
+
+**Looked at**: the 02, 06 eye before/after crops, 01 and 06 face stills before/after and the rim
+on its own, the new nine-still sheet, all ten clockwise frames, and four composited frames from
+each draft video. The three draft videos (`outputs/videos/`, EEVEE, **not committed**) were
+rendered with the committed `eyes.py`, so they still use the face plus `cam_inset` framing.
+`tools/validate.py` with `$BLENDER`: as before, only "README: no TODO left" fails.
+
+**For the next session**
+- Another session is changing the video framing (`cam_move`, `wrapper/camera_move.py`, edits to
+  `tools/build_scene.py` and `wrapper/eyes.py`). Those edits were uncommitted when this was
+  written. The committed `scene.blend` has `cam_inset` and `rim`, no `cam_move`. Whoever commits the
+  camera move must rebuild `scene.blend` after it; the rim and brow changes are already in
+  `build_scene.py` on `main`.
+- Final videos not rendered (owner).
 
 ### Fri 13 Nov 2026, late — after the lid solve and the iris pass: shader reset, video framing, drafts (Fable)
 Picked up the two "For Fable" lists (iris entry and video framing entry below).

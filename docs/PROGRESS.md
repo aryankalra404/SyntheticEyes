@@ -52,15 +52,17 @@ have it; the `.blend` an evaluator opens does not until the rebuild.
    lean (0.86–0.96, one side). One-sided `Brow` events are unchanged.
 5. **Pupil**: the slow wander (`hippus`) is now 0.024 rms, 3 % of the ±0.4 range, at 0.3–1 Hz
    (was 0.07 at 0.15–0.6). Measured 2.8 % over ten clips. Constriction with convergence: the
-   existing near response already does this and is larger than 5 % — 0.25 per dioptre, so looking
-   from 1.6 m to the camera at 0.4 m constricts by about 0.46 (57 % of the range). Left as it was
-   (gain now `near_gain`); a test checks the pupil constricts by more than 5 % of the range on
-   convergence. If the owner wants it "slight", set `near_gain` to about 0.02.
+   near response was 0.25 per dioptre (1.6 m → camera at 0.4 m constricted by 0.46, 57 % of the
+   range). On the owner's call it is now `near_gain` 0.065: the same shift constricts by 0.119,
+   **15 % of the range** (tested, 13–17 %). Seed 0 pupil now spans about −0.09 .. +0.13 in left and
+   right. The pupil reads the fixation distance *before* the blink's nasal dip (`fix_dist`), so
+   a blink leaves it alone: with `blink_eye_nasal` 0 or 1 the pupil channel is bit-identical in
+   all three modes (tested).
 6. **Brow lift and squint with large shifts**: already in (previous entry): left and right peak at
    0.25 brow and 0.10 squint, rising with the shift and relaxing in the hold. Now tested over five
    seeds per mode (peak 0.2–0.3, squint 0.07–0.13, under half the peak 1.2 s after the glance).
 
-Tests: 35 pass (10 new in `Natural`; the camera-move session's tests included).
+Tests: 38 pass (12 new in `Natural`; the camera-move session's tests included).
 Plots for all three modes at seed 0 looked at (`python -m wrapper.gaze --mode <m> --seed 0 --plot <f>`).
 
 **Draft videos** (seed 0, EEVEE, `--camera face`, 0.6–0.9 s/frame; in `outputs/videos/`, not

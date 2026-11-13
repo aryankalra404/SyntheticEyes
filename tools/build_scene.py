@@ -23,7 +23,8 @@ What goes into the file:
 - look: skin with subsurface, wet lid margins and pink inner corners; a refracting cornea shell
   over a matte iris and scattering sclera (see the material functions)
 - cam_face (40 cm, 50 mm) and cam_eyes (same spot, 105 mm), 1024x1024; M3 test cameras
-  cam_test_face (whole face, forehead to chin) and cam_test_eye (subject's left eye, three-quarter)
+  cam_test_face (whole face, forehead to chin) and cam_test_eye (subject's left eye, three-quarter);
+  video cameras cam_video (the face, a little looser) and cam_inset (the eye close-up, on the head bone)
 - two looks, chosen by the camera that renders (LOOKS, wrapper/eyes.py apply_look): `face`, the
   constant light (CC0 studio HDRI packed into the file plus one soft key, plain dark backdrop) for
   cam_face, cam_test_face and the 10 clockwise renders; `eye`, a dark background, one small side
@@ -46,7 +47,7 @@ from pathlib import Path
 
 import bpy
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
@@ -59,9 +60,6 @@ REST_PUPIL = -1.2                       # GNM pupils_000; about a 3.5 mm pupil
 REST_LID_OPEN = 1.0                     # cam_eyes reset frame: lid 4.0 mm above the pupil centre, top of the iris just under it
 TILE_MATERIALS = ("skin", "eye_interior.L", "cornea.L", "eye_interior.R", "cornea.R",
                   "teeth", "tongue")
-IRIS_SATURATION = 0.72                   # shader-side tone on the iris part of the eye tile
-IRIS_VALUE = 0.80
-LIMBAL_DARK = 0.55                       # how much the limbal ring darkens the base colour
 SKIN_SSS = 0.0025                         # skin subsurface scale in metres (--sss), 0 = off
 BONES = {"neck": "neck", "head": "head", "left_eye": "eye.L", "right_eye": "eye.R"}
 
@@ -524,49 +522,9 @@ def eye_textured(name):
     sclera.inputs["From Min"].default_value = 0.175
     sclera.inputs["From Max"].default_value = 0.205
     nt.links.new(dist.outputs["Value"], sclera.inputs["Value"])
-    r = dist.outputs["Value"]
-    # iris: a real iris is darker and greyer than paint, and sits in the shade of the limbus
-    hsv = nt.nodes.new("ShaderNodeHueSaturation")
-    hsv.inputs["Saturation"].default_value = IRIS_SATURATION
-    hsv.inputs["Value"].default_value = IRIS_VALUE
-    nt.links.new(tex.outputs["Color"], hsv.inputs["Color"])
-    toned = nt.nodes.new("ShaderNodeMix")
-    toned.data_type = "RGBA"
-    nt.links.new(sclera.outputs["Result"], toned.inputs["Factor"])
-    nt.links.new(hsv.outputs["Color"], toned.inputs["A"])
-    nt.links.new(tex.outputs["Color"], toned.inputs["B"])
-    # limbal ring: darkest just inside the limbus, fading both ways
-    ring_in = nt.nodes.new("ShaderNodeMapRange")
-    ring_in.interpolation_type = "SMOOTHSTEP"
-    ring_in.inputs["From Min"].default_value = 0.135
-    ring_in.inputs["From Max"].default_value = 0.183
-    nt.links.new(r, ring_in.inputs["Value"])
-    ring_out = nt.nodes.new("ShaderNodeMapRange")
-    ring_out.interpolation_type = "SMOOTHSTEP"
-    ring_out.inputs["From Min"].default_value = 0.183
-    ring_out.inputs["From Max"].default_value = 0.215
-    ring_out.inputs["To Min"].default_value = 1.0
-    ring_out.inputs["To Max"].default_value = 0.0
-    nt.links.new(r, ring_out.inputs["Value"])
-    ring = mnode(nt, "MULTIPLY", ring_in.outputs["Result"], ring_out.outputs["Result"])
-    # sclera: greyer and darker toward the fornix, away from the lit front
-    far = nt.nodes.new("ShaderNodeMapRange")
-    far.interpolation_type = "SMOOTHSTEP"
-    far.inputs["From Min"].default_value = 0.20
-    far.inputs["From Max"].default_value = 0.40
-    nt.links.new(r, far.inputs["Value"])
-    gain = mnode(nt, "SUBTRACT", mnode(nt, "SUBTRACT", 1.0, mnode(nt, "MULTIPLY", ring, LIMBAL_DARK)),
-                 mnode(nt, "MULTIPLY", far.outputs["Result"], 0.3))
-    shade = nt.nodes.new("ShaderNodeMix")
-    shade.data_type = "RGBA"
-    shade.blend_type = "MULTIPLY"
-    shade.inputs["Factor"].default_value = 1.0
-    nt.links.new(toned.outputs["Result"], shade.inputs["A"])
-    grey = nt.nodes.new("ShaderNodeCombineColor")
-    for i in range(3):
-        nt.links.new(gain, grey.inputs[i])
-    nt.links.new(grey.outputs["Color"], shade.inputs["B"])
-    nt.links.new(shade.outputs["Result"], bsdf.inputs["Base Color"])
+    # The tile carries its own tone, limbal ring and fornix falloff (tools/make_iris.py), so the
+    # colour goes in as it is: the scene shows what the judges get when they wrap the tile.
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     sss = nt.nodes.new("ShaderNodeMath")
     sss.operation = "MULTIPLY"
     sss.inputs[1].default_value = 0.6
@@ -1023,7 +981,10 @@ def build_cameras_and_light(mid, eye_l, hdri):
     return cams
 
 
-def build_test_cameras(D):
+INSET_DIST = 0.125      # m from the pupil to cam_inset: a 45 mm wide view
+
+
+def build_test_cameras(D, rig):
     """The two fixed M3 test shots. face: forehead to chin, straight on. eye: the subject's left
     eye (+X, image right) from 30 deg to that side and 5 deg up, about the "Eye Piece" crop."""
     eyeL = Vector(to_blender(D.pupil("L")))
@@ -1032,6 +993,7 @@ def build_test_cameras(D):
     out = {}
     for name, target, lens, dist, az, el in (
             ("cam_test_face", mid + Vector((0, -0.01, -0.04)), 85.0, 0.56, 0.0, 0.0),
+            ("cam_video", mid + Vector((0, -0.01, -0.04)), 72.0, 0.56, 0.0, 0.0),
             ("cam_test_eye", eyeL, 100.0, 0.11, 30.0, 5.0)):
         cd = bpy.data.cameras.new(name)
         cd.lens, cd.sensor_width, cd.sensor_fit = lens, 36.0, "HORIZONTAL"
@@ -1042,7 +1004,27 @@ def build_test_cameras(D):
         scene.collection.objects.link(cam)
         out[name] = cam
     set_look(out["cam_test_face"], "face")
+    set_look(out["cam_video"], "face")   # the videos' face: looser, so a turning head stays clear of the inset
     set_look(out["cam_test_eye"], "eye", focus=0.11 + 0.0005, fstop=40.0)
+
+    # cam_inset: the eye close-up that wrapper/eyes.py pastes into the videos. The same view as
+    # cam_test_eye from a little further back (room for the lids and lashes to move), riding on
+    # the head bone, so the eye stays in frame when the head turns and what shows is the eye
+    # moving in the head.
+    cd = bpy.data.cameras.new("cam_inset")
+    cd.lens, cd.sensor_width, cd.sensor_fit = 100.0, 36.0, "HORIZONTAL"
+    cd.clip_start, cd.clip_end = 0.005, 10.0
+    cam = bpy.data.objects.new("cam_inset", cd)
+    cam.location = eyeL + offset(30.0, 5.0, INSET_DIST)
+    aim(cam, eyeL)
+    scene.collection.objects.link(cam)
+    bone = rig.data.bones["head"]
+    cam.parent, cam.parent_type, cam.parent_bone = rig, "BONE", "head"
+    # a bone parent is the bone's tail frame; cancel it at rest so the transform above stays world
+    cam.matrix_parent_inverse = (rig.matrix_world @ bone.matrix_local
+                                 @ Matrix.Translation((0.0, bone.length, 0.0))).inverted()
+    set_look(cam, "eye", focus=INSET_DIST + 0.0005, fstop=40.0)
+    out["cam_inset"] = cam
     return out
 
 
@@ -1085,7 +1067,7 @@ def main():
     eyes = to_blender(D.joints[2:4])
     mid = Vector(eyes.mean(axis=0))
     build_cameras_and_light(mid, Vector(to_blender(D.pupil("L"))), args.hdri)
-    build_test_cameras(D)
+    build_test_cameras(D, rig)
     build_hair(D, deltas, ob, rig, args.hair)
     tears = build_tear_lines(D, deltas, ob, rig)
     if not args.no_guard:

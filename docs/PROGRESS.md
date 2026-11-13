@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done (13 Nov) on solved lids and the reworked iris tiles; nine stills re-rendered; brow hair thinned and a rim light added (13 Nov, late) |
-| M4 Motion | gaze engine, Timeline bake and video framing done (face from `cam_video` with a one-eye close-up from `cam_inset`); drafts render; **final videos not rendered** (about 3.6 h at 64 spp), and nobody has watched a draft at playback speed yet |
+| M4 Motion | gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 4.8 h at 64 spp), and nobody has watched a draft at playback speed yet |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -20,6 +20,111 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, night — M4 one moving camera for the videos (Opus)
+The face-plus-inset video is gone. Videos are filmed by one camera, `cam_move`, that holds a
+framing, glides to the next, holds, glides to the last and holds to the end. Code:
+`tools/build_scene.py` (cameras only), `wrapper/eyes.py` (video path), new
+`wrapper/camera_move.py` (when to glide, pure numpy) and `tests/test_camera_move.py` (8 tests).
+`scene.blend` rebuilt (it also carries the sway / partial-blink motion of the entry below now).
+No material, light or texture touched.
+
+**Framings** (cameras in `scene.blend`, each with `move_dist` and `move_fstop`; all filmed with the `eye` look)
+- `eye`: `cam_move_eye`, 100 mm, 15 cm from the subject's left pupil, 24 deg toward the nose side,
+  6 deg above (panel D of `outputs/tmp/m4/angles_sheet.png`), f/45. On the head bone, like the old
+  `cam_inset`, which it replaces.
+- `eyes`: `cam_move_eyes`, straight on, 100 mm, 11 cm wide at the pupils, centred 1.2 cm below the
+  eye centres: just above the brows to the cheeks and the base of the nose. 12 cm showed half a
+  forehead and the lips; 11 cm still keeps both outer eye corners in through the 12 deg head turns
+  of left / right. f/45.
+- `face`: `cam_video` as it was (72 mm, 0.56 m), f/40.
+- Focus follows the left pupil every frame (along the view axis; the pupil rides on the eye bone).
+  The stop goes f/45 at the eye and both eyes to f/40 at the face. Note on the brief's "open the
+  stop as the camera pulls back": pulling back already deepens the field (at f/45 the face is
+  sharp from the nose tip to the ears within one pixel), so the stop opens only to f/40; f/38 is
+  the widest that keeps the ears inside a one-pixel blur circle with focus on the pupil.
+
+**Order and timing** (`wrapper/camera_move.py`)
+- left, right: both eyes (the first gaze shift is seen here), face, eye. generate: eye, both eyes, face.
+- The camera moves only inside fixations. Busy = every saccade in the track's list (30 ms before
+  onset to 60 ms after the end, for the glissade), every blink (closure above 0.01, padded 30 ms)
+  and gaze faster than 12 deg/s for 40 ms or longer (the eye-roll sweep). Microsaccades and drift
+  are part of a fixation.
+- Fixations in these tracks last 0.5 to 1 s, and the only 1.5 s one is at the end of the clip. So
+  a glide is a fixed amount of motion (1.5 s to or from the eye framing, 1 s between both eyes and
+  face) spread over up to three consecutive fixations; each piece is eased to a stop (smoothstep)
+  and the camera stands still through the saccade or blink between pieces. Pieces shorter than
+  0.3 s are not used.
+- Placement is a joint search over both glides; cost = distance of each hold from its nominal
+  (3 s / 3 s for left and right, 2 s / 2 s for generate; the first hold counts double), missing
+  motion, pauses, and a last hold under 1.5 s. 3 + 1 + 3 + 1.5 s does not fit a 9 s clip, so in
+  left and right the face hold gives way: the both-eyes shot is the one the rubric's "both eyes
+  move left" is judged on. Left / right also wait until the first gaze shift of 5 deg or more has
+  landed plus 0.5 s.
+- Seed 0 (s, pieces of motion; the camera holds between them):
+
+  | | first glide | second glide | holds |
+  |---|---|---|---|
+  | left | eyes → face 2.50-2.94, 3.58-4.14 | face → eye 5.70-6.55, 6.66-7.30 | 2.5 / 1.6 / 1.7 |
+  | right | eyes → face 2.53-2.94, 3.50-4.04 | face → eye 5.60-6.27, 6.39-7.05, 7.17-7.47 | 2.5 / 1.6 / 1.5 |
+  | generate | eye → eyes 1.77-2.26, 2.96-3.29, 3.67-4.33 | eyes → face 6.30-6.71, 7.42-8.01 | 1.8 / 2.0 / 2.7 |
+- Every glide plans for seeds 0-39 in all three modes.
+
+**Camera path** (`wrapper/eyes.py`, `_blend` and `_camera_matrix`)
+- Camera position and look-at point are interpolated separately; the orientation is built from
+  the look-at with world up every frame, never blended between end orientations. Roll is 0.00 deg
+  on every frame of all three videos (it was up to about 20 deg in the face-to-eye glide when the
+  end orientations were blended).
+- Look-at point moves straight; the camera's direction from it turns on the sphere; distance, lens
+  and stop change geometrically, so the frame width does too.
+- Staggered so the camera never sweeps close past the nose: a glide that pulls back (eye to both
+  eyes) moves out over the first half of its progress, then across over the second, and backs
+  out 40 % past its end distance before coming in as it turns. A glide that pushes in (face to
+  eye) turns at face distance and comes in last.
+- In the eye framing the camera's position and look-at point ride on the head bone; the follow is
+  blended out (generate) or in (left, right) over the glide next to it.
+- All five channels (location, rotation, lens, focus distance, f-stop) are keyed on every frame,
+  linear in-betweens, and each piece is snapped inward to whole frames, so motion blur never
+  samples a moving camera outside a fixation.
+
+**CLI**: `--camera move` is the default for videos; `--camera face` (`cam_video`) and
+`--camera eyes` (`cam_eyes`) still film with one fixed camera; `--camera both`, `INSET`, the
+compositor and `cam_inset` are removed. Draft frames are still rendered at 50 % and scaled up.
+README `--camera` row updated.
+
+**Looked at**: strips of 10 EEVEE frames through every glide of all three videos (after each
+change: the first version rolled about 20 deg in the face-to-eye glide and swept past the nose
+going from eye to both eyes; both fixed and looked at again), twelve frames across each final
+draft (every framing in every video, mid-glide frames read as faces), and Cycles 64 spp frames
+of each framing from `left` and `generate` (eye: lashes sharp, nose soft; both eyes: both eyes
+sharp; face: sharp from the nose to the ear). The drafts decode in Blender as 1024², 30 fps,
+9.00 / 9.00 / 10.70 s. Drafts are in `outputs/videos/` (not committed). Nobody has watched them at
+playback speed in a player.
+
+**Seconds per frame, Cycles 64 spp**, 1024², Metal on the M4, nothing else on the GPU, Blender
+start-up and kernel load excluded:
+
+| framing | s/frame | frames per video (left / right / generate, glides split at halfway) |
+|---|---|---|
+| both eyes (`cam_move_eyes`) | 24.7-27.5 | 112 / 109 / 133 |
+| eye (`cam_move_eye`) | 19.0-19.1 | 79 / 72 / 95 |
+| face (`cam_video` framing, `eye` look) | 12.6-13.7 | 79 / 89 / 93 |
+
+  About **1.5 + 1.5 + 1.8 = 4.8 h** for the three final videos at 64 spp (the face-plus-inset
+  videos were about 3.6 h). The close framings cost more per frame than the face, mostly skin
+  filling the frame.
+
+**Checks**: `python -m unittest discover tests` 38 pass (8 new); `tools/validate.py --blender`
+passes everything but "README: no TODO left" (5 lines), as before; directions unchanged
+(left -13.8 / -14.2 px, right +14.2 / +13.8, up -14.0, down +14.0).
+
+**Left**
+- Final videos not rendered. `--input left|right|generate --samples 64`.
+- The `LOOKS` comment in `build_scene.py` still mentions "the eye inset in the videos"; it sits in
+  the look code, so I left it for whoever touches the look next.
+- Nobody has watched the drafts at playback speed in a player; frames were read as stills.
+  Worth a look: the pauses inside a glide (the camera stops for each saccade) and whether
+  1.6 s on the face in left / right is enough.
 
 ### Fri 13 Nov 2026, night — less puppet-like motion: sway, blink eye roll, partial blinks, brow asymmetry, pupil (Opus)
 Six items from the owner's list. Code: `wrapper/gaze/engine.py` only (plus `tests/test_gaze.py`).

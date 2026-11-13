@@ -9,9 +9,9 @@ Run inside Blender on scene.blend (paths are relative to the repo root, wherever
     blender -b scene.blend -P wrapper/eyes.py -- --check-directions [--render]
 
 Videos are 1024x1024 at 30 fps. The default --camera both renders every frame twice: the whole
-face from cam_test_face, and the band from the brows to below the lower lids from cam_eyes
-(rendered as a border crop, so only that band costs time), then pastes the band into the face
-frame as an inset (INSET below). --camera face or eyes renders one camera alone.
+face from cam_video, and a close-up of the subject's left eye from cam_inset (a camera that
+rides on the head, rendered at inset size, so it costs little), then pastes the close-up into a
+top corner of the face frame (INSET below). --camera face or eyes renders one camera alone.
 
 Or as a module from Blender's Python, with the repo root on sys.path:
 
@@ -52,14 +52,16 @@ from wrapper.rig import Rig  # noqa: E402
 FIX_PLANE = 0.35      # m in front of the eye midpoint
 FIX_RANGE = 0.05      # m at |h| or |v| = 1
 CAMERAS = {"face": "cam_face", "eyes": "cam_eyes"}
-VIDEO_CAMERAS = {"face": "cam_test_face", "eyes": "cam_eyes"}   # face: forehead to chin, 85 mm
+VIDEO_CAMERAS = {"face": "cam_video", "eyes": "cam_eyes",       # face: whole head, 72 mm
+                 "inset": "cam_inset"}                           # one eye, three-quarter, on the head
 VIDEO_SIZE = 1024
 
-# Eye close-up inset for --camera both. crop: the part of the cam_eyes frame shown, as fractions
-# of its width and height from the top left (x0, y0, x1, y1). width: inset width as a fraction of
-# the video frame; its height follows from the crop's aspect. top: distance from the top edge, as
-# a fraction of the frame. The inset is centred horizontally, over the scalp, above the brows.
-INSET = dict(crop=(0.10, 0.31, 0.90, 0.62), width=0.56, top=0.014, border=2, border_grey=0.55)
+# Eye close-up inset for --camera both: the square cam_inset frame, `size` of the video frame
+# wide, `margin` in from the top and right edges. That corner holds only backdrop and the side
+# of the scalp, so no face texture is hidden, and it is the side the pictured eye is on. One eye
+# at this size is about 1.8 times its size in the face frame; a band with both eyes read as a
+# second pair of eyes stacked on the forehead.
+INSET = dict(size=0.31, margin=0.012, border=2, border_grey=0.55)
 
 _rig = None
 
@@ -166,6 +168,30 @@ def project(P, p):
 
 # ---- render setup ---------------------------------------------------------------------------
 
+def draft_materials():
+    """EEVEE shows the refracting cornea shell and the tear line as mirrors, hiding the iris. For
+    drafts only (in memory, never saved) they become Fresnel gloss over plain transparency, and
+    hair renders as flat strips instead of thick strands. Final renders are untouched."""
+    for mat in bpy.data.materials:
+        if not mat.use_nodes or not (mat.name.startswith("cornea") or mat.name == "tear_line"):
+            continue
+        nt = mat.node_tree
+        nt.nodes.clear()
+        out = nt.nodes.new("ShaderNodeOutputMaterial")
+        clear = nt.nodes.new("ShaderNodeBsdfTransparent")
+        gloss = nt.nodes.new("ShaderNodeBsdfGlossy")
+        gloss.inputs["Roughness"].default_value = 0.02
+        fresnel = nt.nodes.new("ShaderNodeFresnel")
+        fresnel.inputs["IOR"].default_value = 1.376
+        mix = nt.nodes.new("ShaderNodeMixShader")
+        nt.links.new(fresnel.outputs[0], mix.inputs[0])
+        nt.links.new(clear.outputs[0], mix.inputs[1])
+        nt.links.new(gloss.outputs[0], mix.inputs[2])
+        nt.links.new(mix.outputs[0], out.inputs["Surface"])
+        mat.surface_render_method = "BLENDED"
+    bpy.context.scene.render.hair_type = "STRIP"
+
+
 def setup_render(quality="final", cpu=False, samples=None):
     """Engine, resolution and samples. samples overrides the draft 32 / the scene's Cycles count."""
     scene = bpy.context.scene
@@ -174,6 +200,7 @@ def setup_render(quality="final", cpu=False, samples=None):
         scene.render.engine = "BLENDER_EEVEE_NEXT"
         scene.render.resolution_percentage = 50
         scene.eevee.taa_render_samples = samples or 32
+        draft_materials()
         return f"EEVEE {scene.eevee.taa_render_samples} spp"
     scene.render.engine = "CYCLES"
     scene.render.resolution_percentage = 100
@@ -394,10 +421,8 @@ def resize(a, w, h):
 
 def inset_box(size=VIDEO_SIZE):
     """(left, top, width, height) of the eye inset in the video frame, in pixels."""
-    x0, y0, x1, y1 = INSET["crop"]
-    w = round(INSET["width"] * size)
-    h = round(w * (y1 - y0) / (x1 - x0))      # cam_eyes renders square
-    return (size - w) // 2, round(INSET["top"] * size), w, h
+    w, m = round(INSET["size"] * size), round(INSET["margin"] * size)
+    return size - w - m, m, w, w
 
 
 def render_pass(cam, out_dir, crop=None, res=None):
@@ -437,7 +462,7 @@ def render_pass(cam, out_dir, crop=None, res=None):
 
 
 def composite(face, eyes, out_dir):
-    """Video frames at VIDEO_SIZE: the face with the eye band inset, or either camera alone."""
+    """Video frames at VIDEO_SIZE: the face with the eye inset, or either camera alone."""
     out_dir.mkdir(parents=True)
     left, top, w, h = inset_box()
     b, grey = INSET["border"], INSET["border_grey"]
@@ -471,11 +496,11 @@ def video(mode, seed, fps, camera, limit=None):
     if camera in ("face", "both"):
         face, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["face"]], root / "face")
     if camera in ("eyes", "both"):
-        crop = res = None
-        if camera == "both":
-            crop = INSET["crop"]
-            res = round(inset_box()[2] / (crop[2] - crop[0]))   # crop renders at inset size
-        eyes, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["eyes"]], root / "eyes", crop, res)
+        if camera == "both":                    # the close-up, rendered at inset size
+            eyes, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["inset"]], root / "eyes",
+                                  res=inset_box()[2])
+        else:
+            eyes, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["eyes"]], root / "eyes")
     t1 = time.perf_counter()
     frames = composite(face, eyes, root / "video")
     sec = time.perf_counter() - t0

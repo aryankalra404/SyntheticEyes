@@ -71,7 +71,8 @@ blender -b scene.blend -P wrapper/eyes.py -- --check-directions --render
 | `--seed N` | seed for the motion (default 0); same seed, same frames |
 | `--quality final\|draft` | `final`: Cycles, 1024² (default). `draft`: EEVEE, 512², much faster |
 | `--texture NN` | use `textures/tex_NN` instead of the built-in materials |
-| `--camera face\|eyes` | `cam_face` (50 mm, whole face) or `cam_eyes` (105 mm, eye region). Videos default to `eyes`, stills to `face` |
+| `--camera face\|eyes\|both` | Stills: `cam_face` (50 mm, whole face, the default) or `cam_eyes` (105 mm, eye region). Videos default to `both`: the whole face (`cam_video`, 72 mm) with a close-up of one eye (`cam_inset`, which rides on the head) pasted into the top right corner; `face` or `eyes` renders one camera alone |
+| `--samples N` | Cycles samples per pixel (default: as saved in `scene.blend`, 128), or EEVEE samples with `--quality draft` |
 | `--fps N` | video frame rate (default 30) |
 | `--limit N` | render only the first N video frames (for quick looks) |
 | `--cpu` | force Cycles onto the CPU (default uses Metal on Apple GPUs when present) |

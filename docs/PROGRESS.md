@@ -21,6 +21,59 @@ what the next session needs to know.
 
 ## Log
 
+### Fri 13 Nov 2026, night — less puppet-like motion: sway, blink eye roll, partial blinks, brow asymmetry, pupil (Opus)
+Six items from the owner's list. Code: `wrapper/gaze/engine.py` only (plus `tests/test_gaze.py`).
+`rig.py`, `eyes.py` and `build_scene.py` untouched (another session has them).
+
+**`scene.blend` needs a rebuild** (`$BLENDER -b -P tools/build_scene.py`) so the Timeline it ships
+carries the new motion. `eyes.py --input` bakes the track itself, so videos rendered from it already
+have it; the `.blend` an evaluator opens does not until the rebuild.
+
+1. **Idle head sway** (`head_sway_deg` 0.30 / 0.30 / 0.15, `head_sway_band` 0.10–0.50 Hz, was
+   0.35 / 0.25 / 0.20 at 0.08–0.45). Measured over ten 20 s clips with no looks: 0.30 yaw, 0.28 pitch,
+   0.15 roll deg rms, over 85 % of the power in 0.08–0.55 Hz. Same number of random draws as before.
+   The eyes hold the target: with and without sway, gaze_yaw/pitch agree to 1e-9 in all three modes
+   and eye_yaw differs by exactly minus the sway (tested).
+2. **Eyes roll down and in under a blink**: down 1.5 deg (`blink_eye_dip`, already there) and now
+   1.0 deg toward the nose per eye (`blink_eye_nasal`), both scaled by the lid closure, so they go
+   as the lid closes and come back as it opens. The rig has no per-eye yaw channel, so the nasal
+   turn goes in as vergence: `gaze_dist` is shortened so each eye's half-angle grows by 1 deg
+   (`eye_half_ipd` 0.0309 m, GNM's eye centre to midline). In the plots the fixation distance now
+   dips under each blink (1.6 → 0.85 m when looking far, 0.40 → 0.33 m at the camera). The pupil's
+   near response reads the un-blinked distance. Channel docstring updated.
+3. **Partial blinks**: after the scheduling, every blink but the first rolls `blink_partial_rate`
+   0.22 and if it hits closes to 0.65–0.75. Own generator (`[seed, 1]`), so no other draw moved.
+   Over 3 modes × 30 seeds: 18 % of 375 blinks are partial (about one in six); the first blink of
+   left and right is never partial (tested). Seed 0: the third blink of left and right (0.67, on the
+   return to the viewer) and the third of generate.
+4. **Brow asymmetry per event**: each large-shift effort and each two-sided `Brow` gets its own draw
+   (`[seed, 2]` generator): one side up to 15 % weaker (`brow_side_amp`) and one side 20–40 ms later
+   (`brow_side_lag`), sides chosen independently. The pitch-driven raise keeps the old per-clip
+   lean (0.86–0.96, one side). One-sided `Brow` events are unchanged.
+5. **Pupil**: the slow wander (`hippus`) is now 0.024 rms, 3 % of the ±0.4 range, at 0.3–1 Hz
+   (was 0.07 at 0.15–0.6). Measured 2.8 % over ten clips. Constriction with convergence: the
+   existing near response already does this and is larger than 5 % — 0.25 per dioptre, so looking
+   from 1.6 m to the camera at 0.4 m constricts by about 0.46 (57 % of the range). Left as it was
+   (gain now `near_gain`); a test checks the pupil constricts by more than 5 % of the range on
+   convergence. If the owner wants it "slight", set `near_gain` to about 0.02.
+6. **Brow lift and squint with large shifts**: already in (previous entry): left and right peak at
+   0.25 brow and 0.10 squint, rising with the shift and relaxing in the hold. Now tested over five
+   seeds per mode (peak 0.2–0.3, squint 0.07–0.13, under half the peak 1.2 s after the glance).
+
+Tests: 35 pass (10 new in `Natural`; the camera-move session's tests included).
+Plots for all three modes at seed 0 looked at (`python -m wrapper.gaze --mode <m> --seed 0 --plot <f>`).
+
+**Draft videos** (seed 0, EEVEE, `--camera face`, 0.6–0.9 s/frame; in `outputs/videos/`, not
+committed, replacing the earlier drafts there). The default `--camera move` stops with
+`KeyError: cam_move`: the working-tree `eyes.py` (camera-move session, uncommitted) needs a
+`scene.blend` rebuilt by its `build_scene.py`, so these drafts use the fixed face camera.
+Looked at in `left`: the head turn (f30–60: eyes lead to image-left, head follows over about
+0.6 s, brows lift a little), the full blink at 4.16 s (closed f128–130, open by f133) and the
+partial one at 5.20 s (f159–162: the lid stops at a slit with the iris showing while the eyes
+return to the viewer). Spot frames of `right` and `generate` (turn, eye roll with wide lids,
+look down) are as before. The nasal and downward roll happens behind the closed lid and is not
+visible at this framing, which is expected. Nobody has watched them at playback speed.
+
 ### Fri 13 Nov 2026, night — thinner brow hair, rim light, shift effort in left and right (Opus)
 Three look changes from the owner's list. Code: `tools/build_scene.py` (brows, rim),
 `wrapper/gaze/engine.py` (effort). `scene.blend`, the nine stills, the sheet and `renders/`

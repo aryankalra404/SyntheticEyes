@@ -42,6 +42,8 @@ from mathutils import Vector
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "tools"))
+import lashes as lash_gen  # noqa: E402  (pure numpy)
 
 BLINK_CLOSE = {"L": 1.40, "R": 1.35}  # M0 spike: scale of the averaged wink that shuts the lid
 REST_PUPIL = -1.2                       # GNM pupils_000; about a 3.5 mm pupil
@@ -315,29 +317,24 @@ def eye_interior(name):
 
 
 def cornea(name):
-    """Clear shell: Fresnel-weighted gloss for the catchlight, transparent to shadow rays."""
+    """The eye's outer shell: clear, refracting, mirror-smooth (the tear film), so the iris sits
+    at depth behind a bulge and the catchlight is sharp. Shadow rays pass straight through, or the
+    iris and sclera under it would render black."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
     nt.nodes.remove(nt.nodes["Principled BSDF"])
     out = nt.nodes["Material Output"]
-    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
-    gl = nt.nodes.new("ShaderNodeBsdfGlossy")
-    gl.inputs["Roughness"].default_value = 0.02
-    fr = nt.nodes.new("ShaderNodeFresnel")
-    fr.inputs["IOR"].default_value = 1.376
-    mix = nt.nodes.new("ShaderNodeMixShader")
-    nt.links.new(fr.outputs[0], mix.inputs[0])
-    nt.links.new(tr.outputs[0], mix.inputs[1])
-    nt.links.new(gl.outputs[0], mix.inputs[2])
+    gl = nt.nodes.new("ShaderNodeBsdfGlass")
+    gl.inputs["IOR"].default_value = 1.376
+    gl.inputs["Roughness"].default_value = 0.0
     lp = nt.nodes.new("ShaderNodeLightPath")
-    tr2 = nt.nodes.new("ShaderNodeBsdfTransparent")
-    mix2 = nt.nodes.new("ShaderNodeMixShader")
-    nt.links.new(lp.outputs["Is Shadow Ray"], mix2.inputs[0])
-    nt.links.new(mix.outputs[0], mix2.inputs[1])
-    nt.links.new(tr2.outputs[0], mix2.inputs[2])
-    nt.links.new(mix2.outputs[0], out.inputs["Surface"])
-    mat.surface_render_method = "BLENDED"
+    tr = nt.nodes.new("ShaderNodeBsdfTransparent")
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(lp.outputs["Is Shadow Ray"], mix.inputs[0])
+    nt.links.new(gl.outputs[0], mix.inputs[1])
+    nt.links.new(tr.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
     return mat
 
 
@@ -373,16 +370,56 @@ def skin_textured():
 
 
 def eye_textured(name):
-    """Eye interior: the set's eye tile as base colour. Specular 0.1 and roughness 0.6 as in M1's
-    debug eye (under the cornea a full Principled sheen washes the iris out, see PROGRESS M2)."""
-    mat = principled(name, (0.7, 0.7, 0.7), rough=0.6)
+    """Eye interior under the clear shell: the set's eye tile as base colour, matte (the shell
+    carries the gloss). The sclera scatters a little (it is not paper); the iris gets relief from
+    its own fibres so the side light catches them."""
+    mat = principled(name, (0.7, 0.7, 0.7), rough=0.55)
     nt = mat.node_tree
     bsdf = nt.nodes["Principled BSDF"]
-    bsdf.inputs["Specular IOR Level"].default_value = 0.1
+    bsdf.inputs["Specular IOR Level"].default_value = 0.15
     uv = nt.nodes.new("ShaderNodeUVMap")
     uv.uv_map = "UDIM"
     tex = image_node(nt, "tex_eye", uv)
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    # radius from the tile centre: iris inside the limbus (0.188, assets/gnm/eye_uv.json), sclera outside
+    sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+    nt.links.new(uv.outputs["UV"], sep.inputs[0])
+    fu = nt.nodes.new("ShaderNodeMath")
+    fu.operation = "FRACT"
+    nt.links.new(sep.outputs["X"], fu.inputs[0])
+    comb = nt.nodes.new("ShaderNodeCombineXYZ")
+    nt.links.new(fu.outputs[0], comb.inputs["X"])
+    nt.links.new(sep.outputs["Y"], comb.inputs["Y"])
+    dist = nt.nodes.new("ShaderNodeVectorMath")
+    dist.operation = "DISTANCE"
+    dist.inputs[1].default_value = (0.5, 0.5, 0.0)
+    nt.links.new(comb.outputs[0], dist.inputs[0])
+    sclera = nt.nodes.new("ShaderNodeMapRange")
+    sclera.interpolation_type = "SMOOTHSTEP"
+    sclera.inputs["From Min"].default_value = 0.175
+    sclera.inputs["From Max"].default_value = 0.205
+    nt.links.new(dist.outputs["Value"], sclera.inputs["Value"])
+    sss = nt.nodes.new("ShaderNodeMath")
+    sss.operation = "MULTIPLY"
+    sss.inputs[1].default_value = 0.6
+    nt.links.new(sclera.outputs["Result"], sss.inputs[0])
+    nt.links.new(sss.outputs[0], bsdf.inputs["Subsurface Weight"])
+    bsdf.subsurface_method = "RANDOM_WALK"
+    bsdf.inputs["Subsurface Radius"].default_value = (1.0, 0.45, 0.3)
+    bsdf.inputs["Subsurface Scale"].default_value = 0.0015
+    iris = nt.nodes.new("ShaderNodeMath")
+    iris.operation = "SUBTRACT"
+    iris.inputs[0].default_value = 1.0
+    nt.links.new(sclera.outputs["Result"], iris.inputs[1])
+    amt = nt.nodes.new("ShaderNodeMath")
+    amt.operation = "MULTIPLY"
+    amt.inputs[1].default_value = 0.6
+    nt.links.new(iris.outputs[0], amt.inputs[0])
+    bump = nt.nodes.new("ShaderNodeBump")
+    bump.inputs["Distance"].default_value = 0.00025
+    nt.links.new(amt.outputs[0], bump.inputs["Strength"])
+    nt.links.new(tex.outputs["Color"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     return mat
 
 
@@ -509,7 +546,7 @@ def hair_node_group():
 
 
 def hair_material(name, colour):
-    """Plain Principled Hair BSDF, direct colouring; M3 tunes it."""
+    """Principled Hair BSDF, direct colouring: fine dark hair with a soft sheen, not wire."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -517,21 +554,37 @@ def hair_material(name, colour):
     h = nt.nodes.new("ShaderNodeBsdfHairPrincipled")
     h.parametrization = "COLOR"
     h.inputs["Color"].default_value = (*colour, 1.0)
+    h.inputs["Roughness"].default_value = 0.35
+    h.inputs["Radial Roughness"].default_value = 0.55
+    h.inputs["Random Roughness"].default_value = 0.3
     nt.links.new(h.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
     return mat
 
 
+def grow_lashes(D):
+    """Lashes for both eyes on this head's own lid margins (tools/lashes.py), as binding arrays."""
+    T = D.d["triangles"][D.d["triangle_udim_tiles"] == 1001]
+    parts = [lash_gen.grow(D.V, D.d["quads"], T, D.mask("eye_sockets"), D.mask("skin"), D.mask("eyes"),
+                           D.joint(side), side)[:5] for side in ("L", "R")]
+    keys = ("tri", "bary", "off", "radius", "count")
+    return {f"lashes_{k}": np.concatenate([p[i] for p in parts]) for i, k in enumerate(keys)}
+
+
 def build_hair(D, deltas, head, rig, path):
-    """Eyelashes and the three Mindfront brow sets as driven hair objects."""
-    if not path.exists():
-        print(f"[build] {path.name} not found (run tools/carry_hair.py): no lashes or brow hair")
-        return []
-    H = np.load(path, allow_pickle=False)
+    """Eyelashes (grown here) and the three carried Mindfront brow sets as driven hair objects."""
+    H = grow_lashes(D)
+    names = ["lashes"]
+    if path.exists():
+        B = np.load(path, allow_pickle=False)
+        H.update({k: B[k] for k in B.files if k.startswith("brows_")})
+        names += ["brows_01", "brows_05", "brows_08"]
+    else:
+        print(f"[build] {path.name} not found (run tools/carry_hair.py): no brow hair")
     ng = hair_node_group()
-    mats = {"lashes": hair_material("lash_hair", (0.012, 0.009, 0.007)),
+    mats = {"lashes": hair_material("lash_hair", (0.016, 0.011, 0.008)),
             "brows": hair_material("brow_hair", (0.045, 0.028, 0.018))}
     made = []
-    for name in ("lashes", "brows_01", "brows_05", "brows_08"):
+    for name in names:
         tri, bary, off = H[f"{name}_tri"], H[f"{name}_bary"], H[f"{name}_off"]
         count = H[f"{name}_count"]
         pts_fn = lambda V, tri=tri, bary=bary, off=off: hair_points(V, tri, bary, off)

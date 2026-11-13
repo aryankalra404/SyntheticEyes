@@ -75,6 +75,14 @@ class GazeParams:
     verg_tau: float = 0.20
     brow_from_pitch: tuple = (6.0, 24.0, 0.45)   # start deg, full deg, amount
     brow_tau: float = 0.09
+    # Effort of a large gaze shift: the brows lift and the lower lids tense as the eyes go, then
+    # both relax while the eyes hold on the new target
+    shift_from: float = 10.0               # deg; smaller shifts carry no effort
+    shift_full: float = 24.0               # deg; full effort from here on
+    shift_brow: float = 0.31               # peaks near 0.25 after the brow low-pass and lean
+    shift_squint: float = 0.12             # peaks near 0.10 after the lid low-pass
+    shift_rise: float = 0.20               # s from the saccade onset to the peak
+    shift_relax: float = 0.55              # s, time constant of the relaxation during the hold
     pupil_tau: float = 0.40
     hippus: float = 0.07
 
@@ -283,6 +291,7 @@ def simulate(script, seed=0, params=GazeParams()):
     blinks = []                                              # (t0, amp)
     busy = []                                                # intervals with no microsaccades
     quiet = []                                               # intervals with no spontaneous blink
+    shifts = []                                              # (onset, amplitude) of every Look
 
     def head_share(target, override):
         if override is not None:
@@ -341,6 +350,7 @@ def simulate(script, seed=0, params=GazeParams()):
             else:
                 onset, dur, amp = add_saccade(ev.t, target)
             amp = amp_total
+            shifts.append((onset, amp_total))
             want = ev.blink
             if want is None:
                 chance = np.clip((amp - p.blink_evoked_from) / 22.0, 0.0, 0.85)
@@ -429,6 +439,18 @@ def simulate(script, seed=0, params=GazeParams()):
     brow_base = bamt * np.clip((eye_pitch - b0) / (b1 - b0), 0.0, 1.0)
     brow_L, brow_R = brow_base.copy(), brow_base.copy()
     widen, squint = np.zeros(n), np.zeros(n)
+    effort = np.zeros(n)
+    for onset, amp in shifts:
+        a = np.clip((amp - p.shift_from) / (p.shift_full - p.shift_from), 0.0, 1.0)
+        if a <= 0.0:
+            continue
+        x = t - onset
+        rise = 0.5 * (1 - np.cos(math.pi * np.clip(x / p.shift_rise, 0.0, 1.0)))
+        relax = np.exp(-np.maximum(x - p.shift_rise, 0.0) / p.shift_relax)
+        effort = np.maximum(effort, np.where(x < 0, 0.0, a * rise * relax))
+    brow_L = np.maximum(brow_L, p.shift_brow * effort)
+    brow_R = np.maximum(brow_R, p.shift_brow * effort)
+    squint = np.maximum(squint, p.shift_squint * effort)
     for e in script.events:
         if isinstance(e, Brow):
             env = e.amp * _envelope(t, e.t, e.dur)

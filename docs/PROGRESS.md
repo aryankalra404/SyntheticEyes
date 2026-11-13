@@ -10,7 +10,7 @@ what the next session needs to know.
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
-| M3 Look | mechanical parts built by Opus (13 Nov): test shots, texture hookup, lashes, brow hair, tear-line geometry; stills script built; all look work left for Fable (`docs/BRIEF_M3.md`, "Status 13 Nov, night") |
+| M3 Look | done on stand-in lids (Fable, 13 Nov): lashes, wet eye, skin, two lighting looks, nine stills; open items listed in the M3 entry (iris texture, brow hair weight, recheck after the lid solve) |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
@@ -20,6 +20,100 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026 — M3 look: lashes, wet eye, skin, light (Fable)
+Tuned on `tex_09` (identity male_white_9) with the two fixed test shots after every change, then
+checked on all nine sets. Everything is in `tools/build_scene.py` unless named. `scene.blend`
+rebuilt (9.4 MB); it now loads `tex_09` by default (`--texture` default 9, the hero set).
+
+**Lashes** (`tools/lashes.py`, new). Mindfront set 02 was carried and rendered, and all five
+sets were plotted side by side: every one is drawn as mascara clumps for MakeHuman's lid, and
+through the registration the roots land up to 1 mm off GNM's lid edge, so upper lashes stand off
+the lid and a tuft hangs at the outer corner. Trimming would not fix where they root. Lashes are
+now grown per head on GNM's own lid margin: the socket rim is the back edge of the margin, the
+first ring of outer skin (0.6-0.9 mm further out) is the front edge, and lashes root there.
+135 upper (8.5 mm at the longest) and 62 lower (4.5 mm) per eye, 7 points each, radius 48 to
+8 µm, jittered length, curl and fan, 22 % short ones, loose groups of two or three. Each lash is
+bound to the triangle under its root, so it turns with the lid exactly as before. A lash that
+would pass through skin (hooded lids: sets 02, 05, 08, 09) is uncurled in 5° steps until it
+clears; on those sets the outer upper lashes run under the fold and show less.
+`tools/carry_hair.py` carries brows only now.
+
+**Eye.** Cornea shell is Glass IOR 1.376, roughness 0, transparent to shadow rays; the iris is
+3.4 mm behind the apex in GNM, so the refraction is real and the catchlight sits on the cornea.
+Eye interior: sclera subsurface 0.6 and darker toward the fornix; iris bumped from its own
+fibres. Three shader-side corrections stand in for texture work (see "Iris" below):
+`IRIS_SATURATION` 0.72, `IRIS_VALUE` 0.80, `LIMBAL_DARK` 0.55.
+
+**Wetness.** Per-vertex masks on the head (`build_masks`): `wet` (lid margin and the pocket
+behind it: roughness × 0.25, clear coat with a 0.5 mm ripple so the highlight breaks into
+glints), `pink` (pocket and inner corner in wet red instead of the albedo's skin fill, strongest
+within 4.5 mm of the inner corner). The tear line was invisible because its globe row sat 0.07 mm
+under the eye's outer shell; it is now a 5-row concave fillet from three-quarters across the lid
+margin to 0.75 mm up the shell, Glass IOR 1.34 plus 10 % mirror (Fresnel alone is too faint to
+read at 1024 px; this is the one non-physical number).
+
+**Skin.** Random-walk (skin) subsurface, weight 1, radius (1, 0.35, 0.18), scale 2.5 mm (4 mm
+blurred the lid edge and pores), × 1.5 on the orbital skin. Lips: roughness × 0.7, coat 0.25.
+
+**Light.** Two looks carried by the camera as custom properties and applied by
+`wrapper/eyes.py apply_look()` (new; called from `render()` and `video()`): `face` for cam_face,
+cam_test_face and the clockwise renders (HDRI 0.24, 45 × 60 cm key 17 W up and to image left,
+plain dark-grey backdrop instead of the HDRI's window); `eye` for cam_eyes and cam_test_eye
+(HDRI 0.14, black backdrop, 10 × 15 cm key 1.3 W from the nose side, depth of field: f/40 on the
+100 mm test camera at 11 cm, f/11 on cam_eyes). AgX. Darkest set (06) is not crushed, lightest
+(01, 09) not clipped.
+
+**Found on the way: a step down the forehead midline.** It looked like a seam on set 06 and
+survived removing the normal map, roughness, subsurface and the albedo. Cause: the stand-in lid
+shapes (`lid_standins`) used the wink's whole displacement field as their mask, cut hard at
+x = 0, so `lid_open` at its rest value 0.5 moved the left half of the forehead 0.46 mm and the
+right half 0.31 mm, and `lid_up` / `lid_down` moved it up to 3.7 mm with the gaze. The mask now
+fades out between 18 and 30 mm from the pupil. **The lid solve must keep lid shapes off the
+forehead too.**
+
+**Looked at**: both test shots at centre and 20° after each step (`outputs/tmp/m3/`), the eye
+shot against "Eye Piece" at 0:11, the nine face stills and nine eye stills (`outputs/stills/`,
+`outputs/stills/eye/sheet.png`), blink 0 / 0.5 / 1.0 on tex_09 (nothing pokes through, the
+scanned-closed lids do not smear, upper lashes sweep down along the closure), and `scene.blend`
+through `eyes.py --move` on both wrapper cameras. Unit tests pass (18).
+
+**Render time** (M4, Metal, 1024², denoised). Subsurface is the cost: 10 s before it.
+
+| Camera | 128 spp | 64 spp |
+|---|---|---|
+| cam_test_face / cam_face | 24 s / 16 s | 13 s / about 9 s |
+| cam_test_eye / cam_eyes | 38 s / 37 s | 19 s / about 19 s |
+
+About 900 video frames: eye camera 9.3 h at 128 spp, 4.7 h at 64; face camera 4 h at 128, about
+2.2 h at 64; face plus eye inset 13 h at 128, about 7 h at 64. 64 spp was compared with 128 on
+the eye shot and shows no visible difference in a still; check one moving second before
+committing the videos to it. The two "about" figures for the wrapper cameras at 64 spp are scaled
+from the test cameras, not measured.
+
+**Iris: what `tools/make_iris.py` needs** (not done; textures were not rebuilt). With refraction
+and the shader corrections the iris holds up in the close-up, but on a bare eye the tile still
+looks painted:
+1. Collarette: it is one flat colour from the pupil to 0.38 of the iris radius with a hard
+   jagged edge. Blend it over ±8 % of the radius, let it reach outward as radial streaks, and
+   keep its hue within about 15° of the outer zone.
+2. Bake the shader's tone into the palettes (saturation × 0.72, value × 0.80), then set
+   `IRIS_SATURATION` and `IRIS_VALUE` to 1. Brown (02, 03, 05, 06) should also be darker and
+   warmer than the light tan it is; it reads grey-brown at face distance.
+3. Limbal ring: start darkening at 72 % of the iris radius, reach × 0.45 at the limbus, and
+   fade 0.03 UV into the sclera; then set `LIMBAL_DARK` to 0.
+4. Crypts: now equal round dots in a ring at 60-70 % radius. Make them lozenges stretched
+   along the radius, varied in size, densest just outside the collarette.
+5. Sclera: bake the shader's falloff (30 % darker by UV radius 0.40).
+
+**Left / known**
+- Brow hair (carried Mindfront strands) is a heavy dark slab on 02-06 in the eye stills; thin
+  it or drop the offset from the skin. tex_09 has none (its brows are in the colour map).
+- Albedo tone patches at the top of the forehead on 02 and 04 (soft, from M2's bake); no hard
+  seam on any frontal still. Behind the ears and the back of the neck are not in these stills.
+- Wrap test and grey check were not rerun: the maps did not change.
+- Recheck lashes and tear line at blink 1.0 once the solved lids are in.
+- cam_eyes at f/11 is only mildly shallow; M4 picks the final inset framing and stop.
 
 ### Fri 13 Nov 2026, night — texture fixes and M3 mechanical parts (Opus)
 **Texture sets**: `tools/build_textures.py` has an optional per-set `tone` (saturation about

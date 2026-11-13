@@ -123,19 +123,31 @@ Work in polar coordinates around the tile centre, then warp to the disc.
 
 ## Shading recipe (Cycles)
 
-- **Skin**: Principled BSDF, subsurface on with a red-dominant radius at millimetre scale,
-  roughness from map (shinier on nose, forehead, lips), pore normal map, slight coat on lips
-- **Sclera and iris**: diffuse with light subsurface on the sclera; iris slightly concave
-- **Cornea**: clear refractive shell, IOR about 1.376, roughness 0. Mix in a Transparent
-  BSDF for shadow rays (Light Path → Is Shadow Ray) or the iris renders black.
-- **Tear line**: thin glossy strip of geometry along the lower lid margin
-- **Lashes**: MakeHuman eyelash cards, bound to the head with Surface Deform so they follow
-  the lid shape keys
-- **Lighting**: indoor HDRI for fill and reflections, one large soft key for the catchlight.
-  Lighting stays constant across the 10 clockwise renders.
+As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
+
+- **Skin**: Principled BSDF, random-walk (skin) subsurface at weight 1, radius (1, 0.35, 0.18),
+  scale 2.5 mm, 1.5× on the thin skin round the eyes. Albedo, tangent normal and roughness from
+  the set. Four per-vertex masks on the head mesh steer it: `wet` (lid margin and the pocket
+  behind the lids: roughness × 0.25 under a clear coat with a fine ripple, which breaks the
+  highlight into glints), `pink` (the same pocket and the inner corner: red wet tissue instead
+  of the skin fill in the albedo), `lips` (roughness × 0.7, coat 0.25), `lids`.
+- **Eye interior** (iris and sclera, one tile): matte Principled under the shell. Sclera has
+  subsurface 0.6 and darkens toward the fornix; the iris part is toned down in the shader
+  (saturation 0.72, value 0.80), darkened in a limbal ring, and bumped from its own fibres.
+- **Cornea**: the eye's outer shell is Glass, IOR 1.376, roughness 0, with a Transparent BSDF for
+  shadow rays (Light Path → Is Shadow Ray) or the iris renders black. It covers the sclera too,
+  so the whole eye is wet. The iris sits 3.4 mm behind the apex, so refraction is real.
+- **Tear line**: a concave strip of water (Glass IOR 1.34 plus a tenth of mirror) in the angle
+  between the lower lid margin and the globe, 0.75 mm up the globe.
+- **Lashes**: grown per head on the front edge of the lid margin (`tools/lashes.py`), 135 upper
+  and 62 lower per eye, Principled Hair. Brow hair is the carried Mindfront strands.
+- **Lighting**, two looks picked by the camera (`LOOKS`, `wrapper/eyes.py apply_look`):
+  `face` = HDRI at 0.24 plus a 45 × 60 cm key up and to image left, plain dark backdrop; used for
+  whole-face shots and the 10 clockwise renders, constant. `eye` = HDRI at 0.14, black backdrop,
+  a 10 × 15 cm key from the nose side, shallow depth of field; for the eye close-up and inset.
 - **Camera**: 40 cm from the eye midpoint, about 50 mm lens on a 36 mm sensor, 1024×1024.
   A second close-up camera on the eyes for the demo video.
-- **Colour**: AgX or Filmic view transform, not Standard
+- **Colour**: AgX view transform
 
 ## Calibrated control (`eyes.move`)
 
@@ -241,7 +253,7 @@ What this means for us:
 | Asset | Use | Licence |
 |---|---|---|
 | Google GNM Head v3 | head mesh, rig, UVs | Apache-2.0 |
-| MakeHuman Skins 01/02, Eyebrows 01, Eyelashes 01 | skin source, brows, lashes | CC0 |
+| MakeHuman Skins 01/02, Eyebrows 01 | skin source, brow hair | CC0 |
 | MakeHuman system assets, base mesh | registration target, default eyebrows/lashes | CC0 |
 | Poly Haven `brown_photostudio_02` 2K HDR | lighting | CC0 |
 

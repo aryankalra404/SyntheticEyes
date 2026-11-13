@@ -3,6 +3,14 @@
 Run on the Mac, in this repo, with Fable. Needs M1's `scene.blend` and `tools/build_scene.py`,
 and at least one texture set from M2. Paste everything below the line.
 
+## Status 13 Nov (Fable): look done on stand-in lids
+
+Lashes (grown on GNM's lid margin, `tools/lashes.py`), refracting cornea, wet margins, tear line,
+pink inner corner, skin subsurface and the two lighting looks are built and looked at on all nine
+sets. What changed, the render cost and what is left (iris texture, brow hair weight, recheck
+after the lid solve) are in the M3 entry of `docs/PROGRESS.md`. The section below is the earlier
+handover, kept for the record; its "Fable must judge" list is closed.
+
 ## Status 13 Nov, night (Opus): mechanical parts built, look not started
 
 **Built** (rebuild: `python3 tools/carry_hair.py`, then `$BLENDER -b --factory-startup -P tools/build_scene.py`)

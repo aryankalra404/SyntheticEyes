@@ -71,7 +71,7 @@ blender -b scene.blend -P wrapper/eyes.py -- --check-directions --render
 | `--seed N` | seed for the motion (default 0); same seed, same frames |
 | `--quality final\|draft` | `final`: Cycles, 1024² (default). `draft`: EEVEE, 512², much faster |
 | `--texture NN` | use `textures/tex_NN` instead of the built-in materials |
-| `--camera face\|eyes\|both` | Stills: `cam_face` (50 mm, whole face, the default) or `cam_eyes` (105 mm, eye region). Videos default to `both`: the whole face (`cam_video`, 72 mm) with a close-up of one eye (`cam_inset`, which rides on the head) pasted into the top right corner; `face` or `eyes` renders one camera alone |
+| `--camera face\|eyes\|move` | Stills: `cam_face` (50 mm, whole face, the default) or `cam_eyes` (105 mm, eye region). Videos default to `move`: one level camera (`cam_move`, dark `eye` look) that holds a framing, glides to the next and holds again. It moves only while the eyes hold still: a glide (1.5 s of motion to or from the eye close-up, 1 s otherwise) that does not fit one fixation stops for each saccade or blink and carries on in the next fixation. `left` and `right`: both eyes (the first gaze shift is seen here), then the whole face, then the subject's left eye close up; `generate`: the eye, both eyes, the face. In the eye framing the camera rides on the head. `face` (`cam_video`, 72 mm) or `eyes` (`cam_eyes`) films with one fixed camera |
 | `--samples N` | Cycles samples per pixel (default: as saved in `scene.blend`, 128), or EEVEE samples with `--quality draft` |
 | `--fps N` | video frame rate (default 30) |
 | `--limit N` | render only the first N video frames (for quick looks) |

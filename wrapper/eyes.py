@@ -8,10 +8,11 @@ Run inside Blender on scene.blend (paths are relative to the repo root, wherever
     blender -b scene.blend -P wrapper/eyes.py -- --input right --samples 64 --limit 10
     blender -b scene.blend -P wrapper/eyes.py -- --check-directions [--render]
 
-Videos are 1024x1024 at 30 fps. The default --camera both renders every frame twice: the whole
-face from cam_video, and a close-up of the subject's left eye from cam_inset (a camera that
-rides on the head, rendered at inset size, so it costs little), then pastes the close-up into a
-top corner of the face frame (INSET below). --camera face or eyes renders one camera alone.
+Videos are 1024x1024 at 30 fps. The default --camera move films them with cam_move, one camera
+that holds a framing, glides to the next inside a fixation, holds, glides to the last and holds
+to the end (wrapper/camera_move.py): left and right go both eyes, face, one eye; generate goes
+one eye, both eyes, face. In the one-eye framing the camera rides on the head. The whole move
+uses the `eye` look. --camera face (cam_video) or eyes (cam_eyes) films with one fixed camera.
 
 Or as a module from Blender's Python, with the repo root on sys.path:
 
@@ -44,8 +45,9 @@ if str(REPO) not in sys.path:
 
 import bpy  # noqa: E402
 import numpy as np  # noqa: E402
-from mathutils import Matrix  # noqa: E402
+from mathutils import Matrix, Vector  # noqa: E402
 
+from wrapper import camera_move  # noqa: E402
 from wrapper.gaze import generate  # noqa: E402
 from wrapper.rig import Rig  # noqa: E402
 
@@ -53,15 +55,11 @@ FIX_PLANE = 0.35      # m in front of the eye midpoint
 FIX_RANGE = 0.05      # m at |h| or |v| = 1
 CAMERAS = {"face": "cam_face", "eyes": "cam_eyes"}
 VIDEO_CAMERAS = {"face": "cam_video", "eyes": "cam_eyes",       # face: whole head, 72 mm
-                 "inset": "cam_inset"}                           # one eye, three-quarter, on the head
+                 "move": "cam_move"}                             # the glide between framings
+# cam_move's framings (tools/build_scene.py), named as in wrapper/camera_move.py
+MOVE_FRAMINGS = {"eye": "cam_move_eye", "eyes": "cam_move_eyes", "face": "cam_video"}
 VIDEO_SIZE = 1024
-
-# Eye close-up inset for --camera both: the square cam_inset frame, `size` of the video frame
-# wide, `margin` in from the top and right edges. That corner holds only backdrop and the side
-# of the scalp, so no face texture is hidden, and it is the side the pictured eye is on. One eye
-# at this size is about 1.8 times its size in the face frame; a band with both eyes read as a
-# second pair of eyes stacked on the forehead.
-INSET = dict(size=0.31, margin=0.012, border=2, border_grey=0.55)
+BULGE = 0.40            # a pulling-back glide backs out this much past its end distance (_blend)
 
 _rig = None
 
@@ -419,12 +417,6 @@ def resize(a, w, h):
     return top * (1.0 - fy) + bot * fy
 
 
-def inset_box(size=VIDEO_SIZE):
-    """(left, top, width, height) of the eye inset in the video frame, in pixels."""
-    w, m = round(INSET["size"] * size), round(INSET["margin"] * size)
-    return size - w - m, m, w, w
-
-
 def render_pass(cam, out_dir, crop=None, res=None):
     """Render the Timeline from cam into out_dir/####.png with the camera's look.
 
@@ -461,51 +453,160 @@ def render_pass(cam, out_dir, crop=None, res=None):
     return frames, sec
 
 
-def composite(face, eyes, out_dir):
-    """Video frames at VIDEO_SIZE: the face with the eye inset, or either camera alone."""
+def upscale(frames, out_dir):
+    """Draft frames (rendered at 50 %) brought to VIDEO_SIZE; full-size frames pass through."""
+    if not frames or load_rgb(frames[0]).shape[0] == VIDEO_SIZE:
+        return frames
     out_dir.mkdir(parents=True)
-    left, top, w, h = inset_box()
-    b, grey = INSET["border"], INSET["border_grey"]
-    frames = []
-    for i in range(len(face or eyes)):
-        if face is None:
-            frame = resize(load_rgb(eyes[i]), VIDEO_SIZE, VIDEO_SIZE)
-        else:
-            frame = resize(load_rgb(face[i]), VIDEO_SIZE, VIDEO_SIZE).copy()
-            if eyes is not None:
-                frame[top - b:top + h + b, left - b:left + w + b] = grey
-                frame[top:top + h, left:left + w] = resize(load_rgb(eyes[i]), w, h)
+    out = []
+    for i, f in enumerate(frames):
         path = out_dir / f"{i + 1:04d}.png"
-        save_rgb(frame, path)
-        frames.append(path)
-    return frames
+        save_rgb(resize(load_rgb(f), VIDEO_SIZE, VIDEO_SIZE), path)
+        out.append(path)
+    return out
+
+
+# ---- the camera move ------------------------------------------------------------------------
+
+def _framing(cam, M):
+    """A framing from a camera's world matrix M: the point it looks at (move_dist ahead), the
+    unit direction from there back to the camera, the distance, lens and stop. Only position
+    and look-at are taken from M; the orientation is rebuilt level (_camera_matrix)."""
+    back = M.to_3x3().col[2].normalized()
+    d = float(cam["move_dist"])
+    return dict(T=M.translation - back * d, back=back, d=d, lens=float(cam.data.lens),
+                fstop=float(cam["move_fstop"]))
+
+
+def _phase(s, lo, hi):
+    """s remapped so it runs 0 -> 1 between lo and hi, eased at both ends."""
+    return float(camera_move.ease((s - lo) / (hi - lo)))
+
+
+def _blend(A, B, s):
+    """Between two framings at progress s (eased piece by piece over the glide).
+
+    The look-at point and the camera position are interpolated separately: the look-at point
+    moves straight, the camera moves on a path round it (its direction from the look-at point
+    turns on the sphere, its distance, the lens and the stop change geometrically, so the frame
+    width does too). The orientation is never interpolated; _camera_matrix builds it from the
+    look-at with world up, so the camera stays level. The two parts are staggered so
+    the camera never sweeps close past the face: a glide that pulls back moves out first and
+    then across (distance, lens and stop over s 0-0.5, point and direction over 0.5-1); it backs
+    out past its end distance (BULGE, scaled by the turn) and comes in as it turns. A glide that
+    pushes in turns while it is far out and comes in last.
+    """
+    if s <= 0.0:
+        return A
+    if s >= 1.0:
+        return B
+    early, late = _phase(s, 0.0, 0.5), _phase(s, 0.5, 1.0)
+    out_first = B["d"] * 36.0 / B["lens"] >= A["d"] * 36.0 / A["lens"]   # frame grows: pull back
+    sd, sx = (early, late) if out_first else (late, early)
+
+    def geo(k):
+        return math.exp((1.0 - sd) * math.log(A[k]) + sd * math.log(B[k]))
+
+    back = A["back"].slerp(B["back"], sx, A["back"].lerp(B["back"], sx))
+    d = geo("d")
+    if out_first:
+        turn = math.degrees(A["back"].angle(B["back"], 0.0))
+        d *= 1.0 + BULGE * sd * (1.0 - sx) * min(1.0, turn / 20.0)
+    return dict(T=A["T"].lerp(B["T"], sx), back=back.normalized(), d=d, lens=geo("lens"),
+                fstop=geo("fstop"))
+
+
+def _camera_matrix(F):
+    """World matrix of a camera at T + back * d looking at T, level: its x axis is horizontal
+    (world up, +Z, defines the roll), so the head is never tilted by the camera."""
+    C = F["T"] + F["back"] * F["d"]
+    z = (C - F["T"]).normalized()
+    x = Vector((0.0, 0.0, 1.0)).cross(z).normalized()
+    y = z.cross(x)
+    M = Matrix((x, y, z)).transposed().to_4x4()
+    M.translation = C
+    return M
+
+
+def key_move(track, mode, fps=30, r=None):
+    """Key cam_move on every Timeline frame for this gaze track (already baked on the rig).
+
+    Location, rotation, lens, focus distance and f-stop are keyed with linear in-betweens. Focus
+    sits on the subject's left pupil (along the view axis) throughout. In the eye framing the
+    camera's position and look-at point ride on the head bone (cam_move_eye's parent); the follow
+    is blended in or out over the glide next to it. Returns the glides from camera_move.plan.
+    """
+    r = r or rig()
+    scene = bpy.context.scene
+    cam = bpy.data.objects[VIDEO_CAMERAS["move"]]
+    cams = {k: bpy.data.objects[v] for k, v in MOVE_FRAMINGS.items()}
+    eye_rest = Matrix([cams["eye"]["rest_matrix"][i:i + 4] for i in range(0, 16, 4)])
+    fixed = {k: _framing(c, c.matrix_world.copy()) for k, c in cams.items() if k != "eye"}
+    fixed["eye_rest"] = _framing(cams["eye"], eye_rest)
+    rows, glides = camera_move.frames(track, mode, fps)
+
+    eye_bone = r.arm.pose.bones["eye.L"]
+    scene.frame_set(scene.frame_start)
+    bone_w = r.arm.matrix_world @ eye_bone.matrix
+    pupil_local = bone_w.inverted() @ r.pupil_world()["L"]   # the pupil rides on the eye bone
+
+    for ob in (cam, cam.data):
+        ob.animation_data_clear()
+    cam.rotation_mode = "QUATERNION"
+    prefs = bpy.context.preferences.edit
+    old = prefs.keyframe_new_interpolation_type
+    prefs.keyframe_new_interpolation_type = "LINEAR"
+    prev = None
+    try:
+        for row in rows:
+            f = scene.frame_start + row["frame"] - 1
+            scene.frame_set(f)
+            frs = dict(fixed)
+            frs["eye"] = _blend(fixed["eye_rest"], _framing(cams["eye"], cams["eye"].matrix_world),
+                                row["follow"])
+            F = _blend(frs[row["a"]], frs[row["b"]], row["s"])
+            M = _camera_matrix(F)
+            q = M.to_quaternion()
+            if prev is not None and q.dot(prev) < 0.0:
+                q.negate()
+            prev = q
+            cam.location, cam.rotation_quaternion = M.translation, q
+            pupil = r.arm.matrix_world @ eye_bone.matrix @ pupil_local
+            cam.data.lens = F["lens"]
+            cam.data.dof.use_dof = True
+            cam.data.dof.focus_distance = (pupil - M.translation).dot(-F["back"])
+            cam.data.dof.aperture_fstop = F["fstop"]
+            cam.keyframe_insert("location", frame=f)
+            cam.keyframe_insert("rotation_quaternion", frame=f)
+            for path in ("lens", "dof.focus_distance", "dof.aperture_fstop"):
+                cam.data.keyframe_insert(path, frame=f)
+    finally:
+        prefs.keyframe_new_interpolation_type = old
+    scene.frame_set(scene.frame_start)
+    print("[eyes] cam_move: " + "; ".join(
+        f"{a} -> {b} " + " ".join(f"{p0:.2f}-{p1:.2f}" for p0, p1 in pieces) + " s"
+        for _, _, a, b, pieces in glides))
+    return glides
 
 
 def video(mode, seed, fps, camera, limit=None):
-    """Bake the gaze track to the Timeline, render it from camera (face, eyes or both), encode."""
+    """Bake the gaze track to the Timeline, film it (the camera move, or face or eyes), encode."""
     scene = bpy.context.scene
     track = generate(mode, seed=seed)
     n = rig().bake(track, fps=fps)
+    if camera == "move":
+        key_move(track, mode, fps)
     if limit:
         scene.frame_end = scene.frame_start + min(limit, n) - 1
     root = REPO / "outputs" / "frames" / mode
     if root.exists():
         shutil.rmtree(root)
     t0 = time.perf_counter()
-    face = eyes = None
-    if camera in ("face", "both"):
-        face, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["face"]], root / "face")
-    if camera in ("eyes", "both"):
-        if camera == "both":                    # the close-up, rendered at inset size
-            eyes, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["inset"]], root / "eyes",
-                                  res=inset_box()[2])
-        else:
-            eyes, _ = render_pass(bpy.data.objects[VIDEO_CAMERAS["eyes"]], root / "eyes")
-    t1 = time.perf_counter()
-    frames = composite(face, eyes, root / "video")
+    frames, sec = render_pass(bpy.data.objects[VIDEO_CAMERAS[camera]], root / camera)
+    frames = upscale(frames, root / "video")
     sec = time.perf_counter() - t0
-    print(f"[eyes] composited {len(frames)} frames in {time.perf_counter() - t1:.1f} s; `{mode}` "
-          f"seed {seed}, camera {camera}: {sec:.0f} s in all, {sec / max(len(frames), 1):.2f} s/frame")
+    print(f"[eyes] `{mode}` seed {seed}, camera {camera}: {len(frames)} frames, {sec:.0f} s in all, "
+          f"{sec / max(len(frames), 1):.2f} s/frame")
     out = REPO / "outputs" / "videos" / f"{mode}.mp4"
     out.parent.mkdir(parents=True, exist_ok=True)
     encode_mp4(frames, fps, out)
@@ -524,9 +625,9 @@ def parse_args(argv):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--fps", type=int, default=30)
     ap.add_argument("--quality", choices=("final", "draft"), default="final")
-    ap.add_argument("--camera", choices=(*CAMERAS, "both"), default=None,
-                    help="videos: both (default; face with an eye inset), face or eyes; "
-                         "stills: face (default) or eyes")
+    ap.add_argument("--camera", choices=(*CAMERAS, "move"), default=None,
+                    help="videos: move (default; glides between one eye, both eyes and the face), "
+                         "face or eyes; stills: face (default) or eyes")
     ap.add_argument("--samples", type=int, default=None,
                     help="render samples (Cycles; EEVEE with --quality draft)")
     ap.add_argument("--texture", type=int, default=None, help="use textures/tex_NN")
@@ -539,8 +640,8 @@ def parse_args(argv):
 
 def main(argv):
     args = parse_args(argv)
-    if args.camera == "both" and not args.input:
-        raise SystemExit("eyes.py: --camera both is for videos (--input)")
+    if args.camera == "move" and not args.input:
+        raise SystemExit("eyes.py: --camera move is for videos (--input)")
     engine = setup_render(args.quality, args.cpu, args.samples)
     if args.texture is not None:
         use_texture(args.texture)
@@ -556,7 +657,7 @@ def main(argv):
         move(*args.move)
         render(args.out or REPO / "outputs" / "move.png", args.camera or "face")
     else:
-        video(args.input, args.seed, args.fps, args.camera or "both", args.limit)
+        video(args.input, args.seed, args.fps, args.camera or "move", args.limit)
 
 
 if __name__ == "__main__" and "--" in sys.argv:

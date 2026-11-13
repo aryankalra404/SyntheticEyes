@@ -24,12 +24,15 @@ What goes into the file:
   over a matte iris and scattering sclera (see the material functions)
 - cam_face (40 cm, 50 mm) and cam_eyes (same spot, 105 mm), 1024x1024; M3 test cameras
   cam_test_face (whole face, forehead to chin) and cam_test_eye (subject's left eye, three-quarter);
-  video cameras cam_video (the face, a little looser) and cam_inset (the eye close-up, on the head bone)
+  cam_video (the face, a little looser); the video camera cam_move, which glides between three
+  framings: cam_move_eye (the subject's left eye, on the head bone), cam_move_eyes (both eyes) and
+  cam_video (wrapper/camera_move.py says when, wrapper/eyes.py key_move keys it)
 - two looks, chosen by the camera that renders (LOOKS, wrapper/eyes.py apply_look): `face`, the
   constant light (CC0 studio HDRI packed into the file plus one soft key, plain dark backdrop) for
   cam_face, cam_test_face and the 10 clockwise renders; `eye`, a dark background, one small side
   key and a shallow depth of field, for cam_eyes and cam_test_eye. AgX.
-- the `generate` motion, seed 0, baked as keyframes, so pressing play shows the expression
+- the `generate` motion, seed 0, baked as keyframes with the cam_move glide for it, so pressing
+  play shows the expression
 
 Lid shapes come from assets/gnm/lids.npz (tools/solve_lids.py). A head other than the one that
 file was solved on (--npz with an identity) has its lids solved here, in the same way. Without
@@ -1020,9 +1023,6 @@ def build_cameras_and_light(mid, eye_l, hdri):
     return cams
 
 
-INSET_DIST = 0.125      # m from the pupil to cam_inset: a 45 mm wide view
-
-
 def build_test_cameras(D, rig):
     """The two fixed M3 test shots. face: forehead to chin, straight on. eye: the subject's left
     eye (+X, image right) from 30 deg to that side and 5 deg up, about the "Eye Piece" crop."""
@@ -1043,27 +1043,80 @@ def build_test_cameras(D, rig):
         scene.collection.objects.link(cam)
         out[name] = cam
     set_look(out["cam_test_face"], "face")
-    set_look(out["cam_video"], "face")   # the videos' face: looser, so a turning head stays clear of the inset
+    set_look(out["cam_video"], "face")   # the videos' face framing: looser, so a turning head stays in frame
     set_look(out["cam_test_eye"], "eye", focus=0.11 + 0.0005, fstop=40.0)
 
-    # cam_inset: the eye close-up that wrapper/eyes.py pastes into the videos. The same view as
-    # cam_test_eye from a little further back (room for the lids and lashes to move), riding on
-    # the head bone, so the eye stays in frame when the head turns and what shows is the eye
-    # moving in the head.
-    cd = bpy.data.cameras.new("cam_inset")
-    cd.lens, cd.sensor_width, cd.sensor_fit = 100.0, 36.0, "HORIZONTAL"
-    cd.clip_start, cd.clip_end = 0.005, 10.0
-    cam = bpy.data.objects.new("cam_inset", cd)
-    cam.location = eyeL + offset(30.0, 5.0, INSET_DIST)
+    out.update(build_move_cameras(D, rig, out["cam_video"]))
+    return out
+
+
+# The videos' camera glides between three framings (the order and timing are in
+# wrapper/camera_move.py). Each framing is a camera of its own, so it can be looked through or
+# rendered alone; it carries `move_dist` (metres to the point it frames, the centre of the
+# frame) and `move_fstop`. All are rendered with the `eye` look.
+# eye: the subject's left eye from 15 cm, 24 deg toward the nose side and 6 deg above, 100 mm
+# (54 mm wide at the pupil). f/45 keeps the lids and lashes sharp and lets the nose go soft.
+MOVE_EYE = dict(lens=100.0, dist=0.15, az=-24.0, el=6.0, fstop=45.0)
+# eyes: both eyes straight on, 100 mm, 11 cm wide at the pupils, centred 1.2 cm below the eye
+# centres: from just above the brows (they reach 2.3 cm above the eye centres) down to the
+# cheeks and the base of the nose. The width keeps both outer eye corners in frame through the
+# 12 deg head turns of left and right. f/45.
+MOVE_EYES = dict(lens=100.0, width=0.11, centre=(0.0, -0.012, -0.012), fstop=45.0)
+# face: cam_video as it is (72 mm, 0.56 m). Pulling back already deepens the field, so the stop
+# opens to f/40: with focus on the left pupil that keeps the nose tip and the ears inside a
+# one-pixel blur circle (f/38 is the widest that does).
+MOVE_FACE = dict(dist=0.56, fstop=40.0)
+
+
+def build_move_cameras(D, rig, cam_video):
+    eyeL = Vector(to_blender(D.pupil("L")))
+    mid = Vector(to_blender(D.joints[2:4]).mean(axis=0))
+    scene = bpy.context.scene
+    out = {}
+
+    def camera(name, lens):
+        cd = bpy.data.cameras.new(name)
+        cd.lens, cd.sensor_width, cd.sensor_fit = lens, 36.0, "HORIZONTAL"
+        cd.clip_start, cd.clip_end = 0.005, 10.0
+        cam = bpy.data.objects.new(name, cd)
+        scene.collection.objects.link(cam)
+        out[name] = cam
+        return cam
+
+    # eye framing, riding on the head bone so the eye stays put in frame when the head turns
+    e = MOVE_EYE
+    cam = camera("cam_move_eye", e["lens"])
+    cam.location = eyeL + offset(e["az"], e["el"], e["dist"])
     aim(cam, eyeL)
-    scene.collection.objects.link(cam)
+    scene.view_layers[0].update()
+    rest = cam.matrix_world.copy()
     bone = rig.data.bones["head"]
     cam.parent, cam.parent_type, cam.parent_bone = rig, "BONE", "head"
     # a bone parent is the bone's tail frame; cancel it at rest so the transform above stays world
     cam.matrix_parent_inverse = (rig.matrix_world @ bone.matrix_local
                                  @ Matrix.Translation((0.0, bone.length, 0.0))).inverted()
-    set_look(cam, "eye", focus=INSET_DIST + 0.0005, fstop=40.0)
-    out["cam_inset"] = cam
+    cam["rest_matrix"] = [c for row in rest for c in row]
+    set_look(cam, "eye", focus=e["dist"], fstop=e["fstop"])
+    cam["move_dist"], cam["move_fstop"] = e["dist"], e["fstop"]
+
+    # both eyes, straight on
+    e = MOVE_EYES
+    dist = e["width"] * e["lens"] / 36.0
+    cam = camera("cam_move_eyes", e["lens"])
+    target = mid + Vector(e["centre"])
+    cam.location = target + offset(0.0, 0.0, dist)
+    aim(cam, target)
+    set_look(cam, "eye", focus=dist, fstop=e["fstop"])
+    cam["move_dist"], cam["move_fstop"] = dist, e["fstop"]
+
+    cam_video["move_dist"], cam_video["move_fstop"] = MOVE_FACE["dist"], MOVE_FACE["fstop"]
+
+    # the moving camera itself: keyed per frame by wrapper/eyes.py key_move; at rest it sits on
+    # the face framing
+    cam = camera("cam_move", cam_video.data.lens)
+    cam.rotation_mode = "QUATERNION"
+    cam.matrix_world = cam_video.matrix_world.copy()
+    set_look(cam, "eye", focus=MOVE_FACE["dist"], fstop=MOVE_FACE["fstop"])
     return out
 
 
@@ -1132,8 +1185,11 @@ def main():
         from wrapper.gaze import generate
         from wrapper.rig import Rig
         track = generate("generate", seed=0)
-        n = Rig(rig, ob).bake(track, fps=scene.render.fps)
-        print(f"[build] baked `generate` seed 0: {n} frames")
+        r = Rig(rig, ob)
+        n = r.bake(track, fps=scene.render.fps)
+        from wrapper.eyes import key_move
+        key_move(track, "generate", scene.render.fps, r)
+        print(f"[build] baked `generate` seed 0 and its camera move: {n} frames")
     else:
         scene.frame_start, scene.frame_end = 1, 1
 

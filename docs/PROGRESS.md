@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done on stand-in lids (Fable, 13 Nov): lashes, wet eye, skin, two lighting looks, nine stills; open items listed in the M3 entry (iris texture, brow hair weight, recheck after the lid solve) |
-| M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
+| M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render with the face + eye inset framing (Opus, 13 Nov; inset size, lens and head follow are Fable's); final videos pending |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -20,6 +20,52 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Fri 13 Nov 2026, late — M4 video framing: face with an eye inset (Opus)
+`wrapper/eyes.py` only. Videos now default to `--camera both`: each Timeline frame is rendered
+from `cam_test_face` (85 mm, forehead to chin, `face` look) and from `cam_eyes` (`eye` look),
+the eye band is pasted into the face frame with numpy, and the 1024² frames go to Blender's own
+FFmpeg at 30 fps as before. `apply_look()` runs per camera. `--camera face` / `eyes` still render
+one camera alone (`face` for videos is now `cam_test_face`; stills and `--clockwise` keep
+`cam_face`). New `--samples N` (Cycles, or EEVEE with `--quality draft`). `--camera both` is
+refused for stills.
+
+How it renders: two passes over the Timeline (face, then eyes), then a composite pass. The eye
+pass uses a render border cropped to `INSET["crop"]`, at the resolution where the crop comes out
+at inset size, so only the band costs time. Frames land in `outputs/frames/<mode>/{face,eyes,video}/`
+(git-ignored). Draft renders at 50 % and is scaled up to 1024² in the composite. Composite keeps
+the rendered 8-bit values (means within 0.2/255 of the source PNGs).
+
+**Inset now** (`INSET` at the top of `eyes.py`): crop of cam_eyes x 0.10-0.90, y 0.31-0.62 (brows
+to below the lower lids), 573 × 222 px, centred, 14 px from the top, 2 px grey border, over the
+scalp. At that size the eyes are only **1.24 ×** their size in the face frame (interpupil 258 px
+in the face, 321 px in the inset), so it reads as a second lighting more than a close-up.
+
+**Timing** (M4 Metal, 1024², `--input left --samples 64 --limit 10`, includes Blender's
+start-up on frame 1): face 14.7 s/frame, eye inset 3.2 s/frame, composite 0.08 s/frame;
+**18.0 s per composited frame**. The three videos are 861 frames: about **4.3 h at 64 spp**.
+Draft (EEVEE 32): 0.52 s per composited frame, 2.5 min for `left`.
+
+**Looked at**: four frames from each draft video (`left`, `right`, `generate` seed 0; 9.0, 9.0,
+10.7 s; decode as 1024², 30 fps), and the Cycles frame 10 of `left`. Draft EEVEE corneas look
+like mirrored glass; that is EEVEE refraction, Cycles is right. `outputs/videos/*.mp4` are
+these drafts; not committed. Final videos not rendered. Unit tests pass (18); `tools/validate.py`
+passes except the README TODO lines it already flagged.
+
+**For Fable** (yours to judge; all in `INSET` and in `tools/build_scene.py`, which I did not touch):
+- **An eye leaves the inset when the head turns.** cam_eyes is fixed in the world and the crop is
+  fixed in its frame, so in `right` (frames 60-120) and `left` (around 120) one eye is cut by the
+  inset edge. Fix in `build_scene.py`: make cam_eyes follow the head (child of the head bone, or a
+  Copy Transforms on it), so the inset holds the eyes still and shows eye-in-head motion. The other
+  way is to centre the crop on the projected eye midpoint every frame in `eyes.py`, but the crop
+  has only ±0.10 of the frame to move in.
+- **Size and position.** 1.24 × is weak. A real close-up needs a longer lens on cam_eyes (about
+  180-200 mm frames both eyes at roughly 2 ×) or one eye in the inset. Over the scalp is the only
+  place that hides no face texture; the bottom of the inset sits about 10 px above the face's
+  brows, so a brow raise can touch it.
+- **Lens and stop.** cam_eyes is 105 mm at f/11. A longer lens at the same stop also gives
+  shallower depth of field; check the lashes and the far eye corner stay sharp.
+- Inset border 2 px, grey 0.55: keep, change or drop.
 
 ### Fri 13 Nov 2026, late — M3 iris: the five make_iris items, eye tiles rebuilt (Opus)
 Did the five items from "Iris: what `tools/make_iris.py` needs" in the M3 entry and rebuilt the

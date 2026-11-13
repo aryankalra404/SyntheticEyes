@@ -122,7 +122,9 @@ class Rig:
             else:
                 vals[f"blink.{s}"] = b
             vals[f"brow_up.{s}"] = ch.get(f"brow_{s}", 0.0)
-            vals[f"squint.{s}"] = ch.get("squint", 0.0)
+            # squint lowers the upper margin too; left on through a blink it pushes the closed
+            # upper lid 1.4 mm past the lower one at squint 0.3, so it fades with the blink
+            vals[f"squint.{s}"] = ch.get("squint", 0.0) * (1.0 - b)
         vals["pupil"] = self.rest_pupil + ch.get("pupil", 0.0)
         self.touched_keys = []
         for k, v in vals.items():

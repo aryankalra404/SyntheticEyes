@@ -61,7 +61,8 @@ Dockerfile
 ```
 BLENDER=/Applications/Blender.app/Contents/MacOS/Blender
 
-# rebuild the scene from scratch
+# rebuild the scene from scratch (solve_lids writes assets/gnm/lids.npz, which build_scene reads)
+python3 tools/solve_lids.py
 $BLENDER -b -P tools/build_scene.py
 
 # what evaluators run
@@ -75,6 +76,7 @@ python -m unittest discover tests     # gaze engine against the published number
 python -m wrapper.gaze --mode left --seed 0 --plot /tmp/left.png   # see the motion as curves
 $BLENDER -b scene.blend -P wrapper/eyes.py -- --check-directions --render   # feeds validate.py
 $BLENDER -b scene.blend -P tools/rig_strips.py   # lid follow, blink, brow strips → outputs/tmp/m1/
+$BLENDER -b scene.blend -P tools/check_lids.py   # lid skin inside the globe over gaze x blink → outputs/lid_check.json
 ```
 
 ## Working rules

@@ -8,7 +8,7 @@ what the next session needs to know.
 | Milestone | State |
 |---|---|
 | M0 Setup and spikes | done |
-| M1 Rig and calibrated wrapper | plumbing done on stand-in lids (Opus, 13 Nov); lid solve, its three numbers and a rig review left for Fable (`docs/BRIEF_M1.md`, "Status 13 Nov") |
+| M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done on stand-in lids (Fable, 13 Nov): lashes, wet eye, skin, two lighting looks, nine stills; open items listed in the M3 entry (iris texture, brow hair weight, recheck after the lid solve) |
 | M4 Motion | gaze engine done and tested; rig adapter and Timeline bake done (M1 plumbing); draft videos render; final framing and final videos pending |
@@ -56,6 +56,148 @@ limbal ring and the fornix falloff, so in `eye_textured` set `IRIS_SATURATION = 
 `gain` expression, not behind a constant; leaving it darkens the sclera twice). Then rebuild
 `scene.blend` and rerun `tools/render_stills.py`, and check the eye stills against the M3 ones:
 browns should read darker and warmer, the rest about the same tone.
+
+### Fri 13 Nov 2026 — M1 lid solve, globe guard, rig review (Fable)
+The five items left in `docs/BRIEF_M1.md`. New: `tools/solve_lids.py`, `tools/check_lids.py`.
+Changed: `tools/build_scene.py`, `wrapper/rig.py` (one line). `scene.blend` rebuilt (9.9 MB,
+`lid_shapes = "solved"`, `blink_keys = "tent"`).
+
+**The solve** (`python3 tools/solve_lids.py`, numpy only, 0.8 s, byte-identical across runs;
+`assets/gnm/lids.npz` is git-ignored like `base.npz`, so run it before `build_scene.py`).
+Per eye: the globe is read from the eyeball mesh as a radius profile about the optical axis
+(sclera 14.60 mm, cornea apex 16.22 mm). Every margin and pocket vertex is rotated about the
+joint's left-right axis by its column's angle (zero at both corners), then reseated on the
+globe as posed for that key. The 100 eye-region coefficients are fitted to those targets with
+the far ring held still; what the basis misses is added directly and spread over 3 mm of skin.
+Skin that rides the globe keeps its rest clearance over the posed globe. Everything fades out
+between 18 and 30 mm from the pupil.
+
+What differs from the brief, and why:
+- **Targets run along the whole lid**, not one column: lid follow tapers as sin(pi s)^0.7 to the
+  corners; a blink rotates each margin vertex to the other lid at the same x.
+- **`lid_up` and `lid_down` are the least-squares line through the arc** (at 0.25 to 1.2 of the
+  way). A key is a straight line; the end point alone put the margin 0.28 mm inside the globe
+  at half weight.
+- **A retracting lid carries its own skin.** With the basis fit alone, an upper lid going up slid
+  in behind the lid skin above it and the lashes came out through the skin (seen at +20 deg).
+  For the upper lid in `lid_up` / `lid_open` and the lower lid in `lid_down`, the lid's skin is
+  rotated with the margin, fading over 20 mm (upper) or 12 mm (lower) of skin.
+- **Globe guard** (`build_globe_guard` in `tools/build_scene.py`). Lid keys cannot meet
+  number 2 below by themselves: the cornea bulge moves with yaw, and under a closing lid with
+  pitch, and no key knows. The template alone, lids untouched, has the cornea 0.86 mm (L) and
+  0.91 mm (R) through the lid skin at 30 deg yaw; keys alone leave 1.2 to 1.3 mm in the worst
+  combined pose (closed lids, eye down 20 deg). So each eye has a hidden copy of its shell on
+  the eye bone, and the head, the lash carrier and the tear lines each have a Shrinkwrap
+  modifier (nearest surface point, outside mode, 0.12 mm): a vertex moves only while it is
+  inside the globe. This bends M1's "no drivers, no constraints": it is a modifier, evaluated
+  by Blender with the armature, no Python, and the eyes and pupils (so `metadata.json`) are
+  untouched. `--no-guard` builds without it.
+- **Identity heads** (`--npz`): `lids.npz` records the hash of the vertices it was solved on;
+  for any other head `build_scene.py` runs the same solve in-process. Checked on the ten cached
+  identities: closed gap 0.00 to 0.13 mm, rest lid 2.3 to 4.1 mm above the pupil brought to 4.0.
+
+**The three section-1 numbers** (template; `tools/solve_lids.py` prints them, number 2 is from
+`$BLENDER -b scene.blend -P tools/check_lids.py`, the evaluated mesh over 385 poses)
+
+| | Left | Right | Brief |
+|---|---|---|---|
+| 1. Lid gap at blink 1.0, column through the pupil | 0.04 mm | 0.04 mm | <= 0.2 |
+| largest gap along the middle 70 % of the lid | 0.13 mm | 0.09 mm | |
+| gap at blink 0, 0.33, 0.67 | 9.15, 6.13, 2.95 | 9.09, 6.13, 2.95 | |
+| basis-fit residual on the margin, mean / max: `blink` | 0.35 / 1.20 mm | 0.36 / 1.23 mm | (0.3: correct directly) |
+| `blink_33`, `blink_66` | 0.19 / 0.66, 0.28 / 0.90 | 0.20 / 0.68, 0.29 / 0.92 | |
+| `lid_up`, `lid_down`, `lid_open` | 0.41 / 1.08, 0.47 / 1.35, 0.05 / 0.12 | 0.41 / 1.08, 0.48 / 1.34, 0.05 / 0.14 | |
+| 2. Lid skin deepest inside the globe, pitch -30..+25, yaw +-30, blink 0..1 | 0.012 mm | 0.022 mm | <= 0.05 |
+| the same from the keys alone, no guard: yaw 0 / all yaw | 0.98 / 1.19 mm | 0.97 / 1.28 mm | |
+| keys alone at the six poses they were solved for | 0.01 mm | 0.06 mm | |
+| margin back edge under the globe, worst pose | 0.10 mm | 0.10 mm | |
+| margin back edge standing off the globe, worst pose | 2.0 mm | 2.1 mm | |
+| 3. Upper margin above the pupil centre, rest | 4.03 mm | 4.05 mm | |
+| over pitch -25..+20 | 3.62 to 4.05 mm | 3.66 to 4.07 mm | within 1 mm of rest |
+
+The basis reaches no key within 0.3 mm at the worst margin vertex, so every key carries the
+direct margin correction; the margin itself is on target exactly. The fit shapes the skin.
+
+Number 2 holds for the skin. It does not hold for "margin standing off": where a key seats the
+margin on the cornea and the eye has since yawed away, the back edge is left above the sclera,
+0.9 mm at rest lids and 30 deg yaw (the template's own lid does this: its margin sits on the
+cornea), up to 2 mm in the worst mid-blink pose looking down and sideways. At yaw 0 it is
+0.06 mm or less from -25 to +10 deg and 0.43 mm at +20. It does not show in the yaw strips.
+Pulling the margin down as well would need a second modifier that also moves it at rest; not done.
+
+**`REST_LID_OPEN` = 1.0.** `lid_open` at 1.0 puts the upper margin 4.0 mm above the pupil
+centre (template 3.24 / 3.33 mm; the clinical normal is 4 to 5). Chosen from the `cam_eyes`
+reset frame at 0, 0.5, 1.0 and 1.5: at 1.0 the lid covers about the top millimetre of the iris;
+at 1.5 the iris edge is almost bare and the eye starts to stare; at 0 and 0.5 the lid is heavy.
+
+**`wrapper/rig.py` review.** Checked on paper and against numbers:
+- `_set_local`: with pose = parent pose x (parent rest)^-1 x rest x basis, a bone's deformation
+  is its parent's times `M basis M^-1`, so `basis = M^-1 L M` gives exactly "parent, then L".
+  Every pivot is the bone's own head, so the basis is a pure rotation and location 0 is exact.
+- Eye aim: each eye aims from its posed joint at one world point, in the head's rest frame,
+  yaw then pitch (Fick, no torsion; real eyes follow Listing's law, a few degrees of iris
+  twist at oblique gaze that nobody will see). Vergence comes from the shared point.
+  `tools/check_lids.py` poses 385 gazes through the rig and its lid-inside-globe figure without
+  the guard matches the numpy figure to the micron (1.194 / 1.276 mm), which checks the yaw and
+  pitch signs and the composition order against an independent implementation.
+- Head split: 35 / 65 about the neck and head joints. The two partial rotations do not
+  compose to exactly the commanded yaw, pitch, roll, and it does not matter: the eyes aim at
+  the world target from wherever the head ended up.
+- Quaternion keys cannot flip sign between frames (all rotations are far below 90 deg), so
+  the sub-frame samples motion blur takes are safe.
+- Lid follow uses each eye's own in-head pitch, scaled by (1 - blink), and the tent weights
+  sum correctly. Lid travel through a blink is monotonic from any gaze pitch.
+- **One fix: `squint` now fades with (1 - blink).** It lowers the upper margin, and left on
+  through a blink it pushed the closed upper lid 1.4 mm past the lower one at squint 0.3.
+- Left as is: `brow_up` at 1.0 opens a closed lid by 0.26 mm (0.11 mm at 0.3).
+
+**Looked at** (Cycles unless said): the `tools/rig_strips.py` strips from `cam_eyes`
+(`outputs/tmp/m1/`: pitch -25, -12, 0, +10, +20; yaw -30, +30; blink 0, 0.33, 0.66, 1.0; brow,
+squint, widen); the same poses close up from `cam_test_eye`, plus pitch +25 with widen, and
+six combined poses with and without the guard (yaw 30; yaw 30 half closed; closed looking down
+20; down 25 with yaw 30; closed with yaw 30). The iris never tucks under the lid from -25 to
++20, sclera shows below it at +20, the closed lid is one clean line, lashes stay on the lid.
+Also `tools/look_shots.py -- --texture 9 --blink` (blink 0, 0.5, 1.0 from `cam_test_eye`):
+nothing pokes through, upper lashes sweep down over the closure, the tear line stays on the lid.
+**Forehead**: whole-face renders of the darkest set (`--texture 6`) at centre, +20, -25 and blink
+1.0. A render with every lid key at 0 and one with `lid_open` at 1 differ only around the eyes
+(under one grey level anywhere on the forehead); no lid key moves a vertex within 1 mm of the
+midline (0.005 mm within 3 mm) or the forehead group by more than 0.09 mm. tex_06 does show a
+soft vertical change of tone down the forehead on the template head in both renders, so it is
+in the map or the light, not in a shape.
+
+**Draft `left` video** (`--input left --quality draft`, 270 frames, 9.0 s, 8 saccades, 3 blinks).
+It was not watched at playback speed: this session can only read frames. Instead every pair
+of neighbouring frames was differenced (no frame differs from both neighbours by more than
+they differ from each other, so no one-frame pops; the motion ramps are smooth), and Cycles
+frames of the same track from `cam_eyes` were looked at for 33-48 (first saccade, 23.7 deg: the
+eyes land in 3 frames with motion blur, the head follows to frame 48), 89-98 (blink: shut in
+2 frames, open in 4) and 156-167 (blink during the return saccade, eyes about 20 deg off
+centre: the closed lid is a clean line, no cornea through it). **Someone should still press
+play on it.**
+
+**Found / left for M3, M4, M5**
+- **EEVEE drafts show the cornea as a mirror** since the M3 look (no refraction in the draft
+  settings): the iris is hidden behind a reflection of the HDRI and lashes render as thick
+  black wire. Draft videos are good for timing only. `setup_render("draft")` in
+  `wrapper/eyes.py` needs raytraced refraction on the cornea and tear materials, or a plain
+  draft material.
+- **The nine stills in `outputs/stills/` are on the old lids** (stand-in, rest opening 0.5). On
+  solved lids every identity's upper lid rests 4.0 mm above the pupil centre (their own rest is
+  2.3 to 4.1 mm), so the eyes are more open. Re-render once (`python3 tools/render_stills.py`)
+  after the iris work lands. Not done here.
+- A short black dash at the outer end of the subject's right lower lid in every `cam_eyes`
+  frame, also in M3's `outputs/tmp/m3/scene_check_eyes.png`: probably the tear line's mirror
+  share picking up the black backdrop.
+- Lashes and the tear line are bound to the shape keys, not to the guarded mesh. Where the
+  guard lifts the lid edge over the cornea (up to about 1 mm in off-centre gaze) they stay
+  put, but they are guarded themselves, so they sit on the cornea rather than inside it.
+- `README.md` "How it works" should say the lids are solved on the globe and name the guard;
+  `validate.py` still fails only "README: no TODO left" (5 lines, as before this session).
+- `renders/`, `metadata.json` and the videos are still the pre-solve ones; M4 / M5 regenerate.
+- Checks at the end: `python -m unittest discover tests` 18 pass; `tools/validate.py --blender`
+  passes everything but the README line; direction check unchanged (left -13.8 / -14.2 px,
+  right +14.2 / +13.8, up -14.0, down +14.0).
 
 ### Fri 13 Nov 2026 — M3 look: lashes, wet eye, skin, light (Fable)
 Tuned on `tex_09` (identity male_white_9) with the two fixed test shots after every change, then

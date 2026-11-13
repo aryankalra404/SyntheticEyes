@@ -35,21 +35,34 @@ TILES = {"L": 1002, "R": 1004}
 
 # sRGB 0-255. base = deep stroma, fibre = light stroma, pupillary = zone inside the collarette,
 # collarette = the ring itself, limbal = dark outer ring, ruff = pupil margin.
+# These are final colours: they include the tone the eye shader used to add on top
+# (linear-light HSV, saturation x 0.72, value x 0.80; M3), and the pupillary and collarette
+# hues are kept within 15 degrees of the fibre hue so the inner zone reads as part of the same
+# iris, not a painted patch. Brown and dark brown are set by hand, darker and warmer than the
+# toned originals (which read grey-brown at face distance).
 PALETTE = {
-    "dark_brown": dict(base=(34, 19, 11), fibre=(78, 46, 26), pupillary=(48, 27, 14),
-                       collarette=(96, 60, 34), limbal=(16, 10, 7), ruff=(22, 13, 8), freckles=0.5),
-    "brown": dict(base=(66, 37, 18), fibre=(132, 84, 46), pupillary=(80, 44, 20),
-                  collarette=(150, 98, 52), limbal=(27, 16, 9), ruff=(30, 17, 9), freckles=0.7),
-    "hazel": dict(base=(78, 72, 38), fibre=(146, 134, 78), pupillary=(122, 70, 28),
-                  collarette=(168, 112, 52), limbal=(36, 36, 22), ruff=(34, 20, 10), freckles=0.5),
-    "green": dict(base=(56, 82, 52), fibre=(122, 150, 96), pupillary=(138, 108, 48),
-                  collarette=(150, 142, 82), limbal=(26, 40, 30), ruff=(34, 22, 12), freckles=0.3),
-    "blue": dict(base=(56, 90, 136), fibre=(150, 180, 212), pupillary=(104, 116, 118),
-                 collarette=(172, 186, 202), limbal=(26, 40, 64), ruff=(36, 26, 20), freckles=0.15),
-    "grey": dict(base=(92, 102, 110), fibre=(172, 180, 184), pupillary=(118, 116, 106),
-                 collarette=(182, 186, 186), limbal=(42, 48, 56), ruff=(36, 28, 22), freckles=0.15),
+    "dark_brown": dict(base=(25, 15, 9), fibre=(64, 39, 22), pupillary=(33, 19, 10),
+                       collarette=(74, 46, 26), limbal=(11, 7, 5), ruff=(14, 9, 6), freckles=0.5),
+    "brown": dict(base=(46, 27, 15), fibre=(98, 62, 36), pupillary=(56, 32, 17),
+                  collarette=(108, 70, 40), limbal=(20, 12, 7), ruff=(22, 13, 8), freckles=0.7),
+    "hazel": dict(base=(70, 66, 47), fibre=(132, 124, 93), pupillary=(110, 89, 63),
+                  collarette=(152, 125, 92), limbal=(32, 32, 23), ruff=(30, 21, 16), freckles=0.5),
+    "green": dict(base=(58, 73, 55), fibre=(118, 135, 103), pupillary=(112, 125, 77),
+                  collarette=(124, 135, 96), limbal=(27, 35, 29), ruff=(30, 22, 17), freckles=0.3),
+    "blue": dict(base=(79, 95, 123), fibre=(154, 172, 192), pupillary=(97, 104, 106),
+                 collarette=(164, 172, 183), limbal=(36, 43, 57), ruff=(32, 25, 22), freckles=0.15),
+    "grey": dict(base=(88, 94, 99), fibre=(159, 164, 166), pupillary=(99, 106, 106),
+                 collarette=(166, 168, 168), limbal=(41, 45, 50), ruff=(32, 26, 23), freckles=0.15),
 }
 COLORS = list(PALETTE)
+FRECKLE = (63, 44, 35)
+
+# Shading the eye shader used to apply and that is now in the tile (M3 numbers; the shader's
+# IRIS_SATURATION / IRIS_VALUE go to 1, LIMBAL_DARK to 0 and its fornix falloff goes away).
+LIMBAL_START = 0.72      # limbal ring starts darkening at this fraction of the limbus radius
+LIMBAL_GAIN = 0.45       # brightness factor at the limbus
+LIMBAL_FADE = 0.03       # UV distance over which it fades out into the sclera
+FORNIX = (0.20, 0.40, 0.30)   # sclera darkens from UV radius 0.20 to 0.40, by 30 %
 
 
 # --------------------------------------------------------------------------- measurement
@@ -176,7 +189,7 @@ def structure_params(seed: int) -> dict:
         collarette=rng.uniform(0.28, 0.40),
         collarette_jag=rng.uniform(0.035, 0.06),
         fibre_contrast=rng.uniform(0.8, 1.0),
-        crypts=int(rng.integers(18, 45)),
+        crypts=int(rng.integers(40, 80)),
         furrows=int(rng.integers(1, 4)),
         limbal=rng.uniform(0.5, 0.75),
         pupillary_mix=rng.uniform(0.55, 0.85),
@@ -185,6 +198,8 @@ def structure_params(seed: int) -> dict:
         freckle_count=int(rng.integers(0, 5)),
         streaks=rng.uniform(0.22, 0.32),
         collarette_gaps=rng.uniform(0.15, 0.35),
+        collarette_reach=rng.uniform(0.08, 0.16),
+        crypt_scale=rng.uniform(0.85, 1.2),
     )
 
 
@@ -197,7 +212,7 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
     coll_c, limbal_c, ruff_c = lin(P["collarette"]), lin(P["limbal"]), lin(P["ruff"])
 
     # stroma fibres: radial streaks, gently wavy, coarse + fine
-    warp = 6.0 * polar_noise(rng, (nt, nth), (40, 60))
+    warp = 6.0 * polar_noise(rng, (nt, nth), (40, 60)) + 6.0 * polar_noise(rng, (nt, nth), (25, 90))
     cols = (np.arange(nth)[None, :] + warp) % nth
     rows = np.broadcast_to(np.arange(nt)[:, None], (nt, nth)).astype(np.float64)
     coarse = polar_noise(rng, (nt, nth), (18, 2.2))
@@ -211,41 +226,69 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
     st = 0.6 * polar_noise(rng, (nt, nth), (60, 12)) + 0.6 * polar_noise(rng, (nt, nth), (90, 26))
     st = map_coordinates(norm01(st), [rows, cols], order=1, mode="grid-wrap")
 
-    # collarette radius, jagged
+    # collarette radius, gently jagged
     jag = polar_noise(rng, (1, nth), (0, 26))[0] * 0.6 + polar_noise(rng, (1, nth), (0, 6))[0] * 0.4
-    tc_th = S["collarette"] + S["collarette_jag"] * jag
-    inside = 1.0 - smoothstep(tc_th - 0.035, tc_th + 0.03, t)
+    tc_th = S["collarette"] + 0.6 * S["collarette_jag"] * jag
+    # the pupillary zone reaches outward along radial spokes (a few fibres wide) instead of
+    # stopping at a line, and blends into the ciliary zone over +-0.08 of the iris width
+    spokes = norm01(0.6 * polar_noise(rng, (1, nth), (0, 10))[0] + 0.5 * polar_noise(rng, (1, nth), (0, 30))[0])
+    edge = tc_th + S["collarette_reach"] * smoothstep(0.0, 2.0, spokes)
+    inside = 1.0 - smoothstep(edge - 0.08, edge + 0.08, t)
+    inside = inside * np.clip(0.55 + 0.9 * fib, 0, 1) ** (1.0 - inside)   # ragged along the fibres
 
     col = lerp(base, fibre, np.clip(fib * S["fibre_contrast"] + 0.18 + 0.12 * st, 0, 1))
     col = lerp(col, pupillary * (0.7 + 0.6 * fib[..., None]), inside * S["pupillary_mix"])
     col = col * (1 + S["streaks"] * np.clip(st, -2.2, 2.2))[..., None]
 
-    # collarette: a broken ridge, not a ring. Width and brightness vary around the iris and
-    # it has gaps.
-    width = 0.022 * np.clip(0.75 + 0.45 * polar_noise(rng, (1, nth), (0, 30))[0], 0.3, 1.6)
+    # collarette: a low broken ridge, not a ring. Width and brightness vary around the iris and
+    # it has gaps; it follows the fibres so it reads as raised stroma, not a painted line.
+    width = 0.035 * np.clip(0.75 + 0.45 * polar_noise(rng, (1, nth), (0, 30))[0], 0.3, 1.6)
     bright = np.clip(0.6 + 0.4 * polar_noise(rng, (1, nth), (0, 45))[0], 0.1, 1.0)
     gap_n = polar_noise(rng, (1, nth), (0, 60))[0]
     gaps = smoothstep(np.quantile(gap_n, S["collarette_gaps"]) - 0.3,
                       np.quantile(gap_n, S["collarette_gaps"]) + 0.3, gap_n)
-    band = np.exp(-0.5 * ((t - tc_th) / width) ** 2) * (0.5 + 0.5 * np.clip(fib * 1.5, 0, 1))
-    col = lerp(col, coll_c, np.clip(0.95 * band * bright * gaps, 0, 1))
+    band = np.exp(-0.5 * ((t - tc_th) / width) ** 2) * np.clip(fib * 1.4, 0, 1)
+    col = lerp(col, coll_c * (0.8 + 0.4 * fib[..., None]), np.clip(0.85 * band * bright * gaps, 0, 1))
 
-    # crypts: dark radial lozenges near and outside the collarette, with lighter rims
+    # crypts: dark lozenges stretched along the radius, pointed at both ends, varied in size,
+    # densest just outside the collarette and thinning toward the limbus, with lighter rims of
+    # trabeculae. Drawn on a local window each (the full grid per crypt is slow).
     dark = np.zeros((nt, nth))
     rim = np.zeros((nt, nth))
+    span = 0.138                                            # iris width in UV (pupil edge -> limbus)
     for _ in range(S["crypts"]):
-        ct = np.clip(rng.normal(S["collarette"] + 0.12, 0.16), 0.12, 0.85)
+        if rng.random() < 0.7:
+            ct = S["collarette"] + 0.03 + rng.exponential(0.1)
+        else:
+            ct = rng.uniform(0.1, 0.85)
+        ct = float(np.clip(ct, 0.08, 0.88))
         cth = rng.uniform(0, 2 * np.pi)
-        lt = rng.uniform(0.025, 0.08)
-        r_uv = 0.05 + ct * 0.138
-        wth = rng.uniform(0.008, 0.022) / r_uv * 0.6           # angle width ~ arc length
-        dth = (th - cth + np.pi) % (2 * np.pi) - np.pi
-        q = ((t - ct) / lt) ** 2 + (dth / wth) ** 2
-        depth = rng.uniform(0.5, 1.0)
-        dark = np.maximum(dark, depth * np.exp(-q * 1.6) * (q < 4))
-        rim = np.maximum(rim, depth * np.exp(-((np.sqrt(q) - 1.25) / 0.3) ** 2) * (q < 4))
-    col = col * (1 - 0.7 * dark)[..., None]
-    col = lerp(col, fibre, 0.25 * rim)
+        r_uv = 0.05 + ct * span
+        # half-width across the radius (UV); bigger and deeper near the collarette
+        near = np.exp(-max(ct - S["collarette"], 0) / 0.2)
+        w = S["crypt_scale"] * rng.lognormal(np.log(0.0042), 0.45) * (0.7 + 0.5 * near)
+        L = w * rng.uniform(1.8, 3.2)                       # half-length along the radius
+        L_out = L * rng.uniform(1.0, 1.5)                   # a little longer outward (teardrop)
+        depth = rng.uniform(0.45, 1.0) * (0.7 + 0.3 * near)
+        r0, r1 = int((ct - 1.6 * L / span) * (nt - 1)) - 1, int((ct + 1.6 * L_out / span) * (nt - 1)) + 2
+        r0, r1 = max(r0, 0), min(r1, nt)
+        half = int(1.6 * w / r_uv / (2 * np.pi) * nth) + 2
+        c_mid = int(round(cth / (2 * np.pi) * nth))
+        ci = np.arange(c_mid - half, c_mid + half + 1) % nth
+        if r1 <= r0:
+            continue
+        tt = t[r0:r1]
+        dth = (th[0, ci][None, :] - cth + np.pi) % (2 * np.pi) - np.pi
+        dr = (tt - ct) * span
+        a = np.where(dr > 0, dr / L_out, dr / L)
+        b = dth * r_uv / w
+        q = (np.abs(a) ** 1.25 + np.abs(b) ** 1.25) ** (1 / 1.25)   # rounded diamond
+        d_in = depth * (1 - smoothstep(0.55, 1.0, q)) * (0.65 + 0.35 * np.clip(1 - q, 0, 1))
+        d_rim = depth * np.exp(-((q - 1.12) / 0.16) ** 2)
+        dark[r0:r1, ci] = np.maximum(dark[r0:r1, ci], d_in)
+        rim[r0:r1, ci] = np.maximum(rim[r0:r1, ci], d_rim)
+    col = col * (1 - 0.7 * dark * (0.75 + 0.5 * (1 - fib)))[..., None]
+    col = lerp(col, fibre * (0.85 + 0.3 * fib[..., None]), 0.3 * rim)
 
     # contraction furrows: a few short, faint arcs in the outer (ciliary) zone
     for i in range(S["furrows"]):
@@ -263,10 +306,11 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
         s = rng.uniform(0.004, 0.009)
         dth = (th - cth + np.pi) % (2 * np.pi) - np.pi
         q = ((t - ct) * 0.138 / s) ** 2 + (dth * r_uv / s) ** 2
-        col = lerp(col, lin((70, 38, 18)), 0.8 * np.exp(-q))
+        col = lerp(col, lin(FRECKLE), 0.8 * np.exp(-q))
 
-    # limbal ring: darkening toward the edge
-    lim = smoothstep(0.80, 1.0, t) * S["limbal"]
+    # limbal colour toward the edge; the wide brightness falloff across the limbus is applied
+    # in make_eye, in UV, so it carries on into the sclera
+    lim = smoothstep(0.75, 1.0, t) * S["limbal"] * 0.7
     col = lerp(col, limbal_c, lim)
 
     # pupil ruff: thin crenellated dark-brown rim at the pupil edge
@@ -430,6 +474,17 @@ def make_eye(color: str, seed: int, side: str, eye_uv: dict, size: int = 2048) -
     # iris -> sclera blend across the limbus (about 0.15 mm wide on the surface)
     w_iris = 1 - smoothstep(rl - 0.002, rl + 0.006, R)
     col = lerp(scl, iris, w_iris)
+
+    # limbal ring: a wide, soft shadow from 72 % of the limbus radius, darkest at the limbus,
+    # fading 0.03 UV into the sclera; its strength wanders a little around the eye
+    wander = 1 + 0.08 * polar_noise(rng, (1, 1024), (0, 40))[0]
+    wander = np.interp(TH / (2 * np.pi) * 1024, np.arange(1025), np.append(wander, wander[0]))
+    ring = smoothstep(LIMBAL_START * rl, rl, R) * (1 - smoothstep(rl, rl + LIMBAL_FADE, R))
+    col = col * (1 - (1 - LIMBAL_GAIN) * np.clip(ring * wander, 0, 1))[..., None]
+
+    # sclera: darker toward the fornix, away from the lit front
+    f0, f1, fk = FORNIX
+    col = col * (1 - fk * smoothstep(f0, f1, R))[..., None]
 
     # pupil: near-black inside the measured pupil edge, soft by about one texel
     pupil = 1 - smoothstep(rp - 0.0015, rp + 0.0005, R)

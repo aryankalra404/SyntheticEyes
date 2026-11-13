@@ -110,14 +110,21 @@ https://github.com/csbhr/FFHQ-UV
 ## Iris and sclera generation
 
 Work in polar coordinates around the tile centre, then warp to the disc.
-- Stroma fibres: noise stretched along the radius
-- Collarette: brighter jagged ring at roughly a third of the iris radius
-- Crypts and furrows: dark lozenges and concentric contraction rings
-- Limbal ring: dark soft edge where iris meets sclera
+- Stroma fibres: noise stretched along the radius, gently wavy
+- Collarette: a low broken ridge at roughly a third of the iris width; the pupillary zone
+  blends into the ciliary zone over ±0.08 of the width and reaches outward along radial
+  spokes, its hue within 15° of the outer zone
+- Crypts and furrows: dark lozenges stretched along the radius, varied in size, densest just
+  outside the collarette; faint concentric contraction rings
+- Limbal ring: wide soft shadow from 72 % of the limbus radius to × 0.45 at the limbus,
+  fading 0.03 UV into the sclera
+- Final tone is in the palettes (the eye shader adds none): the M3 shader correction
+  (linear HSV saturation × 0.72, value × 0.80) is baked in, browns darker and warmer
 - Pupil ruff: thin dark-brown rim at the pupil edge
 - Colour from a small palette (dark brown, brown, hazel, green, blue, grey), most sets brown
 - Left and right share the palette and structure parameters but use different noise seeds
-- Sclera: off-white with a warm tint toward the corners and fine branching veins
+- Sclera: off-white with a warm tint toward the corners and fine branching veins, 30 % darker
+  by UV radius 0.40 (toward the fornix)
 - The pupil is geometry (GNM's pupil coefficient), so keep the texture's pupil region dark
   and let the mesh set the size
 

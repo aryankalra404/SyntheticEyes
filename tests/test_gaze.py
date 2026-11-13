@@ -288,6 +288,23 @@ class Natural(unittest.TestCase):
         far, near = c["pupil"][t < 1.0].mean(), c["pupil"][t > 3.0].mean()
         self.assertLess(near, far - 0.05 * P.pupil_range)
 
+    def test_far_to_camera_constricts_by_about_15_percent(self):
+        quiet = GazeParams(drift_deg=0.0, micro_rate=1e-9, head_sway_deg=(0, 0, 0),
+                           blink_mean_gap=1e6, hippus=0.0)
+        look = Look(1.0, 0.0, 0.0, dist=0.40, blink=False, head=0.0)
+        tr = simulate(Script(5.0, [look], start_dist=1.6), 0, quiet)
+        p = tr.channels["pupil"]
+        drop = (p[0] - p[-1]) / P.pupil_range
+        self.assertTrue(0.13 <= drop <= 0.17, drop)
+
+    def test_a_blink_leaves_the_pupil_alone(self):
+        no_nasal = GazeParams(blink_eye_nasal=0.0)
+        for mode in MODES:
+            a, b = generate(mode, 0), generate(mode, 0, params=no_nasal)
+            self.assertGreater(np.abs(a.channels["gaze_dist"] - b.channels["gaze_dist"]).max(),
+                               0.05)                              # the blink dip is there ...
+            np.testing.assert_array_equal(a.channels["pupil"], b.channels["pupil"])   # ... unseen
+
     # 6. effort of a large gaze shift in left and right
     def test_large_shifts_lift_the_brows_and_tense_the_lids_then_relax(self):
         for mode in ("left", "right"):

@@ -97,7 +97,7 @@ class GazeParams:
     pupil_range: float = 0.80              # the pupil channel spans about -0.4 .. +0.4
     hippus: float = 0.024                  # rms of the slow wander, 3 % of pupil_range ...
     hippus_band: tuple = (0.30, 1.00)      # ... in this band, Hz
-    near_gain: float = 0.25                # constriction per dioptre of accommodation (near triad)
+    near_gain: float = 0.065               # per dioptre (near triad); 1.6 m -> 0.4 m is 15 % of range
 
 
 # ---- script elements -------------------------------------------------------------------------
@@ -515,6 +515,7 @@ def simulate(script, seed=0, params=GazeParams()):
     squint = np.clip(_lowpass(squint, 0.08, dt), 0.0, 1.0)
 
     # -- 8. pupil: near response (constricts as the eyes converge) plus a slow wander ----------
+    # Reads fix_dist, not gaze_dist: the nasal turn under a blink must leave the pupil alone.
     near = -p.near_gain * np.clip(1.0 / fix_dist - 1.0 / 0.6, -1.0, 2.0)
     pupil = _lowpass(near, p.pupil_tau, dt) + p.hippus * _smooth_noise(rng, t, *p.hippus_band)
 

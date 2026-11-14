@@ -12,12 +12,13 @@ read flat in the eye close-up. Here every hair roots on the painted brow of this
 - where: inside GNM's left/right_brow_region, kept only where the albedo is darker than the skin
   around it (luminance under BROW_DARK of a local skin level that leaves dark pixels out), and
   more likely the darker it is;
-- how many: 450 to 600 per brow, POINTS points each; 6 to 11 mm long in the body, 4 to 6 mm at
-  the inner end and the tail; radius 35 um at the root to 8 um at the tip;
+- how many: 450 to 600 per brow, POINTS points each; 6 to 11 mm long in the body, 3.5 to 5 mm at
+  the inner end and the tail; radius 45 um at the root to 14 um at the tip (thinner tips were
+  under a third of a pixel in the eye close-up and blended into the lit skin as straw);
 - direction (on the skin): the inner third grows up and out (about 60 deg above the line to the
   temple); the body follows the brow's arch toward the temple, its top row leaning down and its
-  bottom row leaning up so the two meet along the middle; 12 deg of scatter, and one hair in
-  fifteen is a stray up to 30 deg off;
+  bottom row leaning up so the two meet along the middle; 8 deg of scatter, and one hair in
+  twenty-five is a stray up to 20 deg off (at 12 deg and 1 in 15 the tail read as tangled wool);
 - lying flat: 8 to 15 deg off the skin at the root, curving back so the tip is 0.3 to 0.8 mm
   above the skin. Each point is laid on the skin under it (the plane of the nearest vertex) at
   that height, so the hair follows the brow ridge. No hair passes through skin: the crossing
@@ -33,17 +34,17 @@ from lashes import crosses
 POINTS = 6
 COUNT = (450, 600)              # per brow, inclusive
 LENGTH_BODY = (0.006, 0.011)    # m
-LENGTH_ENDS = (0.004, 0.006)    # m, at the inner end and the tail
-ROOT_RADIUS = 0.000035          # m
-TIP_RADIUS = 0.000008
+LENGTH_ENDS = (0.0035, 0.005)    # m, at the inner end and the tail
+ROOT_RADIUS = 0.000045          # m
+TIP_RADIUS = 0.000014
 ROOT_ANGLE = (8.0, 15.0)        # deg off the skin at the root
 TIP_HEIGHT = (0.0003, 0.0008)   # m above the skin at the tip
 ROOT_SINK = 0.00005             # m the root starts under the skin
 INNER_ANGLE = 60.0              # deg above the line to the temple, inner third
 MEET = 20.0                     # deg the top and bottom rows lean toward the middle line
-SCATTER = 12.0                  # deg
-STRAY_RATE = 1.0 / 15.0
-STRAY = 30.0                    # deg, at most
+SCATTER = 8.0                   # deg
+STRAY_RATE = 1.0 / 25.0
+STRAY = 20.0                    # deg, at most
 BROW_DARK = (0.10, 0.30)        # 1 - luminance / skin level: no hair below the first, full weight at the second
 SKIN_BLUR = 0.006               # m, about how far "the skin around it" reaches
 UV_METRE = 0.40                 # m of face per unit of GNM's tile 1001 (brow region: 5.3 cm over 0.13 u)

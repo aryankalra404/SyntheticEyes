@@ -726,8 +726,16 @@ def hair_node_group():
     return ng
 
 
-def hair_material(name, colour, rough=0.35):
-    """Principled Hair BSDF, direct colouring: fine dark hair with a soft sheen, not wire."""
+DARK_HAIR_IOR = 1.2     # brows and lashes: see hair_material
+
+
+def hair_material(name, colour, rough=0.35, ior=1.55, random=0.3):
+    """Principled Hair BSDF, direct colouring: fine dark hair with a soft sheen, not wire.
+
+    ior sets how much of the key the fibre's surface reflects, whatever its colour. At hair's own
+    1.55 the hard raking key of the `eye` look turned black brows and lashes grey and brown ones
+    straw (a pure black colour rendered just as grey); at 1.2 they stay dark and keep a thin
+    glint, which the lower roughness of the brows and lashes sharpens."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -737,7 +745,8 @@ def hair_material(name, colour, rough=0.35):
     h.inputs["Color"].default_value = (*colour, 1.0)
     h.inputs["Roughness"].default_value = rough
     h.inputs["Radial Roughness"].default_value = 0.55
-    h.inputs["Random Roughness"].default_value = 0.3
+    h.inputs["Random Roughness"].default_value = random
+    h.inputs["IOR"].default_value = ior
     nt.links.new(h.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
     return mat
 
@@ -818,9 +827,10 @@ def grow_vellus(D):
     return H
 
 
-LASH_COLOUR = (0.03, 0.02, 0.013)          # linear
-LASH_ROUGH = 0.25
-BROW_GROWN_COLOUR = (0.05, 0.032, 0.02)   # linear, for a set whose set.json gives no brow colour
+LASH_COLOUR = (0.015, 0.010, 0.0065)       # linear
+LASH_ROUGH = 0.15
+BROW_ROUGH = 0.25
+BROW_GROWN_COLOUR = (0.020, 0.013, 0.008)  # linear, for a set whose set.json gives no brow colour
 
 
 def grow_brows(D, nn):
@@ -866,13 +876,14 @@ def build_hair(D, deltas, head, rig, path, texture):
     else:
         print(f"[build] {path.name} not found (run tools/carry_hair.py): no brow hair")
     ng = hair_node_group()
-    # lashes: a smoother, lighter brown than the hair colour alone suggests, so the key lays a
-    # pale highlight along them as in the reference
-    mats = {"lashes": hair_material("lash_hair", LASH_COLOUR, rough=LASH_ROUGH),
+    # lashes and brows: dark, smooth fibres with a weak surface reflection, so they read as dark
+    # strands with a thin glint under the key, as in the reference, not as a pale fringe
+    dark = dict(ior=DARK_HAIR_IOR, random=0.15)
+    mats = {"lashes": hair_material("lash_hair", LASH_COLOUR, rough=LASH_ROUGH, **dark),
             "vellus": vellus_material(),
-            "brows": hair_material("brow_hair", (0.045, 0.028, 0.018))}
+            "brows": hair_material("brow_hair", (0.045, 0.028, 0.018), rough=BROW_ROUGH, **dark)}
     if grown:
-        mats["brows_grown"] = hair_material("brow_hair_grown", brow_colour)
+        mats["brows_grown"] = hair_material("brow_hair_grown", brow_colour, rough=BROW_ROUGH, **dark)
     made = []
     for name in names:
         tri, bary, off = H[f"{name}_tri"], H[f"{name}_bary"], H[f"{name}_off"]
@@ -1090,13 +1101,16 @@ EYE_LIGHTS = {
 #   skin leaves the globe in the shadow of the brow and the orbital rim, and the iris goes dull.
 #   Diffuse only (no second highlight). The two lamps ride on the head bone, so the pools stay on
 #   the eyes through a head turn; they are too weak and too narrow to read as a light of their own.
-IRIS_LIGHT = dict(cone=5.5, radius=0.01, watts=3.0, colour=(1.0, 0.97, 0.92),
+#   1.5 W: at 3.0 the whites were the brightest thing in frame on the dark-skinned heads and
+#   glowed out of the shadow side of the face; at 1.2 the tex_09 iris starts to go dull.
+IRIS_LIGHT = dict(cone=5.5, radius=0.01, watts=1.5, colour=(1.0, 0.97, 0.92),
                   az=30.0, el=28.0, dist=0.50)
 
 CATCH = dict(width=0.06, height=0.10, strength=80.0, az=30.0, el=28.0, dist=0.50)
 # sheen: a second card made the same way, a soft upright strip far round to the temple side and
 #   a little up, so the sclera on that side carries a long soft reflection as in the reference.
-SHEEN = dict(width=0.30, height=0.60, strength=4.0, az=70.0, el=10.0, dist=0.80)
+#   Strength 2.5: at 4 it crossed a dark iris as a hard white bar as bright as the catchlight.
+SHEEN = dict(width=0.30, height=0.60, strength=2.5, az=70.0, el=10.0, dist=0.80)
 FLAG_AT = 0.76          # the flag sits this far along the way from the key to the nose
 FLAG_SHRINK = 0.004     # m (at the face) its outline is pulled in from the nose's own
 FLAG_DENSITY = 0.65     # share of the key it stops: the nose is shaded, not blacked out

@@ -167,15 +167,20 @@ As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
 - **Tear line**: a concave strip of water (Glass IOR 1.34 plus a tenth of mirror) in the angle
   between the lower lid margin and the globe, 0.75 mm up the globe.
 - **Lashes**: grown per head on the front edge of the lid margin (`tools/lashes.py`), 135 upper
-  (up to 10 mm) and 80 lower (up to 6.5 mm) per eye, 60 → 6 µm radius, in clumps of 3–5 with the
-  tips pulled 60–80 % together (one in ten alone). Principled Hair, colour (0.03, 0.02, 0.013),
-  roughness 0.25, so the key lays a pale highlight along them; the rim lights them.
+  (up to 9 mm) and 80 lower (up to 6.5 mm) per eye, 60 → 8 µm radius, in clumps of 3–5 with the
+  tips pulled 75–95 % together (one in ten alone). Principled Hair, colour (0.015, 0.010, 0.0065),
+  roughness 0.15, IOR 1.2: dark strands with a thin glint; the rim lights them.
+- **Dark hair under the hard key**: Principled Hair's surface reflection does not depend on the
+  fibre's colour. At hair's real IOR 1.55 the raking key turned black brows and lashes grey and
+  brown ones straw (a pure black colour rendered the same grey); only a lower IOR took it off.
+  Brows and lashes use IOR 1.2 (`DARK_HAIR_IOR`), random roughness 0.15. The fine facial hair
+  keeps 1.55: it is pale and is meant to catch the light.
 - **Brows**: grown per head on the brow painted in the albedo of the set the scene is built with
   (`tools/brows.py`, `brows_grown`, `brow_set` = that set): 450–600 hairs per brow inside GNM's
   brow regions where the albedo is darker than the skin round it; inner third up and out, body
-  along the arch, top and bottom rows meeting in the middle; 4–11 mm, 35 → 8 µm, lying 8–15° off
-  the skin at the root with the tip 0.3–0.8 mm up. Colour from set.json `eyebrows.color_linear`,
-  else (0.05, 0.032, 0.02). Kept out of the rim. For any other set the carried Mindfront strands.
+  along the arch, top and bottom rows meeting in the middle, 8° of scatter; 3.5–11 mm, 45 → 14 µm,
+  lying 8–15° off the skin at the root with the tip 0.3–0.8 mm up. Roughness 0.25, IOR 1.2. Colour
+  from set.json `eyebrows.color_linear`, else (0.020, 0.013, 0.008). Kept out of the rim. For any other set the carried Mindfront strands.
 - **Fine facial hair**: grown per head on the face front (`tools/vellus.py`), about 8,100 hairs of
   0.6–3.5 mm, 9 → 3 µm radius, none on lips, lid margins or brows. Each takes the skin texture's
   colour under its root (less saturated, lifted a little), so it suits every set.
@@ -192,12 +197,14 @@ As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
   - rim: 6 × 30 cm strip, 2.5 W, 155° round and 20° up, behind the temple; it backlights the fine
     hair on the silhouette. Light linking keeps it off the brow hair (it greyed them); the lashes
     take it since 14 Nov.
-  - iris spots: one 5.5° spot per eye, 3.0 W, diffuse only, on the head bone. A raking key
-    leaves a deep-set iris dull.
+  - iris spots: one 5.5° spot per eye, 1.5 W, diffuse only, on the head bone. A raking key
+    leaves a deep-set iris dull. (At 3.0 W the whites were the brightest thing in frame on the
+    dark-skinned heads and glowed out of the shadow side of the face.)
   - catchlight: a 6 × 10 cm card 30° to the temple side and 28° up whose material emits only
     into singular reflection rays: the cornea and the tear line see it, nothing else is lit.
   - sclera strip (`sheen_eye`): a second card made the same way, 30 × 60 cm, 0.8 m away, 70° to
-    the temple side and 10° up, strength 4: a long soft reflection on the temple side of the eye.
+    the temple side and 10° up, strength 2.5: a long soft reflection on the temple side of the eye.
+    (At 4 it was a hard white bar across a dark iris, as bright as the catchlight.)
   - flag: a scrim (65 % dense) shaped as the nose's outline seen from the key, 24 % of the way
     from the nose to the key, held on the key-to-nose lines by a Geometry Nodes step as the head
     moves. Shadow rays only. It keeps the key from making the nose the brightest thing in frame.

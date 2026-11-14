@@ -12,11 +12,13 @@ Here each lash is rooted on the front edge of the lid margin of the head being b
 
 Lash shape (numbers from anatomy texts: about 100-150 upper lashes of 8-12 mm, 50-75 lower of
 6-8 mm, base diameter about 0.1 mm; 14 Nov: longer and thicker than at first, after the
-reference, where the lashes read as dark clumped strands with a pale highlight): a planar arc
+reference, where the lashes read as dark clumped strands with a pale highlight; the upper ones
+then back from 10 to 9 mm, at 10 they read as false lashes on the male heads): a planar arc
 that leaves the margin along the globe's outward direction and curls away from the eye, fanned
 toward the outer corner, with jittered length and direction, a share of short lashes still
-growing, and neighbours gathered into clumps of three to five whose tips are pulled most of the
-way together; one lash in ten stays out of any clump.
+growing, and neighbours gathered into clumps of three to five whose tips are pulled nearly
+together (75 to 95 % of the way: at 60 to 80 % the clumps did not read as spikes in the eye
+close-up); one lash in ten stays out of any clump.
 """
 
 from __future__ import annotations
@@ -25,14 +27,14 @@ import numpy as np
 
 LIDS = {
     #          count  s0    s1    length m  curl deg (root, tip)  fan deg (inner, outer)
-    "upper": dict(n=135, s0=0.14, s1=0.97, length=0.0100, curl=(-8.0, 58.0), fan=(-4.0, 36.0)),
+    "upper": dict(n=135, s0=0.14, s1=0.97, length=0.0090, curl=(-8.0, 58.0), fan=(-4.0, 36.0)),
     "lower": dict(n=80, s0=0.22, s1=0.95, length=0.0065, curl=(-10.0, 30.0), fan=(-6.0, 30.0)),
 }
 POINTS = 7                 # per lash
 ROOT_RADIUS = 0.000060     # m
-TIP_RADIUS = 0.000006
+TIP_RADIUS = 0.000008
 CLUMP = (3, 5)             # lashes per clump, inclusive
-CLUMP_PULL = (0.6, 0.8)    # share of the way each tip is pulled to the clump's mean tip
+CLUMP_PULL = (0.75, 0.95)   # share of the way each tip is pulled to the clump's mean tip
 CLUMP_ALONE = 0.1          # share of lashes left out of any clump
 ROOT_SINK = 0.00015        # m the root starts under the skin
 

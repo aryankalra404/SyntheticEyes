@@ -21,6 +21,106 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026 — M12: the ear of tex_09, trial built and reviewed, NOT adopted (Opus)
+**Review sheet: `outputs/tmp/m12/review.png`.** Row a: bare head, plain material, the
+subject's left ear before | after, plus a 2x zoom. Row b: lit scene, `--input left` frames 110
+and 150, 64 spp, CPU, ear cropped at 1:1, before | after. Row c: tex_01 and tex_03 as shipped.
+Trial set: `outputs/tmp/m12/sets/tex_09/`; its intermediates are in `outputs/tmp/m12/work/`.
+
+**Not adopted: a video render (`--input generate --quality preview`, another session) was running
+the whole time**, so per the brief nothing was copied into `textures/` and `scene.blend` was not
+rebuilt. `textures/` is byte-identical to `outputs/tmp/m12/md5_before.txt`.
+
+Code (committed, gated per set, off by default):
+- Colour: `tools/skin_fix.py`, new fix key `ears`. It goes there because that is where a baked
+  albedo gets corrected, with the mesh-space masks and `harmonic_fill`, and it needs no Blender
+  re-bake (in `bake_scan.py` it would). The ear's tone at 3 mm and coarser is replaced by a
+  harmonic fill from the skin around the ear, so the join has no border. From 6 mm inside the
+  ear's root (geodesic over the ear) the fill's chroma gives way to the median hue of the parotid
+  and temple on that side. The rim of the helix (the farthest part from the root) and the lobe
+  (the lowest quarter) get a small log shift (+0.03, -0.07, -0.06). Anything finer than 3 mm stays.
+  The ear's luminance is filled as well, because the smear carried the photo's shadow in the
+  concha. With only the chroma swapped, the concha read grey-brown.
+- Relief and roughness: `tools/detail_maps.py --ear-skin` with `EAR_SKIN` (pores 3.0/mm2,
+  sigma 0.035 mm, depth 0.5; furrows 2.0x, from the same noise field as the rest of the face;
+  roughness 0.53). This is blended in last, from its own random stream (`[seed, 12]`), so the main
+  stream and every texel outside the ear are unchanged.
+- Shared mask: `detail_maps.ear_weight` = GNM's `ears` group, full weight about 2 mm past it,
+  half at about 5 mm, exactly 0 from about 13 mm.
+- Recipe: 09 gets `fix=dict(ears=1.0)` and `"ear_skin": 1.0` in `detail`. Sets 01 to 08 are
+  untouched. Checked: tex_01 rebuilt with the new code gives byte-identical normal, roughness and
+  albedo, and the tex_09 baseline before the change was byte-identical too.
+- `tools/check_detail.py`: new shot `wrap_ear_l` (bare head, camera beside the left cheek).
+
+Measured, trial against shipped tex_09 (left ear group / reference):
+| | shipped ear | trial ear | reference |
+|---|---|---|---|
+| chroma r-g / g-b (log) | 0.655 / 0.297 (yellow-orange) | 0.565 / 0.179 | parotid 0.539 / 0.073, temple 0.559 / 0.158 |
+| mean normal tilt | 1.90 deg | 4.07 deg | cheek 5.35, forehead 4.10, temple 3.72 |
+| roughness median | 0.494 | 0.541 | cheek 0.545, parotid 0.525 |
+
+Changed texels (difference mask, trial against shipped):
+| map | changed | right ear bbox (y, x) | left ear bbox (y, x) | outside ear weight |
+|---|---|---|---|---|
+| skin.1001.png (and legacy/skin.png, identical) | 711,370 | 1199-2055, 553-1098 | 1200-2057, 3001-3540 | 0 |
+| skin_normal.1001.png | 752,456 | 1147-2086, 528-1150 | 1146-2086, 2946-3566 | 55, all within 1 texel (finite differences) |
+| skin_rough.1001.png (2048) | 178,628 | 574-1040, 265-572 | 575-1039, 1476-1782 | 1, within 1 texel (2x2 downsample) |
+Eye tiles and their legacy copies: 0 changed. Both ears change, since the mask is symmetric. The
+ear lies inside the main UV island, so there is no padding or seam at its edge. The check script
+is `outputs/tmp/m12/diffcheck.py SHIPPED_DIR TRIAL_DIR`.
+
+**Looked at**: UV crops of albedo, normal and roughness before | after at each step (three colour
+trials: the plain harmonic fill went grey-beige, chroma only left the concha grey-brown, the third
+kept); the normal map at 1:1, ear against cheek; bare-head ear and three-quarter before | after;
+the lit frames; the review sheet, all rows.
+- Bare head: the orange concha is gone. The ear has the hue of the skin in front of it, fine
+  texture, no wet sheen, and no visible join. The rim and lobe are only slightly pinker.
+- Lit scene: the orange-yellow glow is gone. The concha is a warm red-brown where light passes
+  through it (subsurface), not yellow, and the wet highlight on the lower ear is gone. **The ear
+  does not glow after the texture fix**, so the skin shader needs no change.
+
+**tex_01 and tex_03 as shipped** (row c, not fixed): same flat, glossy ear. Mean tilt on the ear
+1.92 / 2.11 deg against the cheek's 3.47 / 5.40; roughness 0.447 / 0.455 against the cheek's
+0.549 / 0.541. Colour is not the problem there: 03 matches its parotid; 01 is a little more orange
+(r-g 0.65 against 0.54). 03 also has dark shading painted into the concha (MakeHuman source) and
+a visible sheen on the helix. 01 has a small red-brown mark at the top of the ear root. Using
+`"ear_skin": 1.0` alone (relief and roughness, no colour fix) would likely suit both; the owner's
+call.
+
+**Adoption, to run when `pgrep -fl "Blender -b"` shows nothing** (all checked except where noted):
+```
+cp outputs/tmp/m12/sets/tex_09/{skin.1001.png,skin_normal.1001.png,skin_rough.1001.png} textures/tex_09/
+cp outputs/tmp/m12/sets/tex_09/legacy/skin.png textures/tex_09/legacy/skin.png
+python3 outputs/tmp/m12/diffcheck.py outputs/tmp/m12/sets/tex_09 textures/tex_09   # expect 0 everywhere
+md5 textures/tex_*/*.png textures/tex_*/legacy/*.png textures/tex_*/set.json | diff - outputs/tmp/m12/md5_before.txt   # only the 4 tex_09 skin files
+python3 tools/solve_lids.py && $BLENDER -b --factory-startup -P tools/build_scene.py -- --npz assets/gnm/id_male_white_9.npz
+python3 -c "import sys; sys.path.insert(0, 'tools'); import build_textures as b; b.check('09', 'wrap_front,wrap_three_quarter')"   # preview.png + the two sheet views (not run)
+python3 tools/build_textures.py --sheet-only                                    # outputs/stills/texture_sheet.png (not run)
+```
+(Not `build_textures.py --sets 09 ...`: every mode of it rewrites set.json, see below.)
+- **Does the build read the changed maps? Yes.** `build_scene.grow_brows` loads
+  `textures/tex_09/skin.1001.png` for the darkness map that places the grown brow strands. The
+  ear change reaches the brow region of that map only at 4e-14 (rounding in `brows.box_blur`'s
+  cumulative sums), so the brows should come out the same, but the scene must still be rebuilt.
+  `lids.npz` md5 before: 7d45359c…, `scene.blend` 97fffcc8….
+- `preview.png` and the contact sheet: the `check` line above renders front and three-quarter
+  into `outputs/tmp/m2/sets/tex_09/` (what `--sheet-only` reads) and copies the front to
+  `preview.png`. The three-quarter shows the ear, so the sheet does change. The tex_09 still in
+  `outputs/stills/`: compare before | after with a pixel diff, rerender only if the ear is in frame.
+- **set.json**: the brief allows only the skin maps to change, so it was not touched. Any
+  `build_textures.py` run that writes set 09 (even `--eyes-only`) regenerates it from the recipe,
+  which now records `skin_fix: {ears: 1.0}` and `ear_skin`, **and M11's new label for 09**. M11's
+  stage 2 does that anyway.
+
+**Checks**: `python -m unittest discover tests` gives 46 OK. `validate.py --blender` on the
+current tree: only the two known TODO-line checks fail (README 4 lines, AI_DISCLOSURE 1 line).
+Rerun both after adoption.
+
+**Not done**: adoption, scene rebuild, preview and sheet rerender, tex_09 still diff (all blocked
+by the running render). No change to tex_01 or tex_03 ears, the skin shader or the README. The
+`TECH_NOTES` entry for the ear fix waits for adoption. Nothing pushed.
+`outputs/tmp/m12` holds about 0.5 GB.
+
 ### Sun 15 Nov 2026, early — the owner watched the drafts: fixed camera, head and blink changes (Fable)
 The owner watched the three drafts at playback speed for the first time and rejected them:
 brows and lashes "glitchy", white dots round the eye, low quality, "random zoom in zoom out",

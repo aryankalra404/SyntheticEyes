@@ -303,6 +303,56 @@ tests pass. Trial build and final build of every set are byte-identical (md5 of 
 - Lips are smooth in colour next to real lips; the relief carries the creases.
 - Back of 03 / 06: the soft band of item 1.
 
+**Evening follow-up: the teammate's audit checked on the rebuilt sets, `refine_skin.py` removed**
+Code: `tools/detail_maps.py` (`--grain`, `--stubble`), `tools/skin_fix.py`, `tools/tex_core.py`
+(`fill_smooth`), `tools/build_textures.py` (recipes), `tools/check_detail.py` (`cheek` shot);
+`tools/refine_skin.py` deleted. Rebuilt once: the albedo of 01 to 08, and the normal and roughness
+maps of 01, 02, 06, 08. Untouched and byte-identical: all of tex_09, the normal and roughness maps
+of 03, 04, 05, 07, every eye tile. Stills of 01 to 08 and both sheets rerendered. Labels, skin
+sources and iris colours did not change, so the README table stands.
+
+The four findings of the audit entry above (made on the sets before the rebuild):
+- **01 to 08 read as CG next to 09.** Narrowed by the rebuild (brows, scalp cap, eye area, lips,
+  04's colour) and by the two items below; not closed. What still reads as CG is listed under
+  "Still reads as CG" above, less the stubble.
+- **The 01 albedo is soft at 1:1.** Confirmed on the rebuilt sets, on all six light skins: a blur
+  with a few dark specks. Fine band (1.5 px) of log-luminance on cheeks and forehead 1.04-1.14 %
+  against 1.76 % on 09. **Fixed** in `detail_maps.py`: the two finest bands of the height map go
+  into the colour detail (valleys darker and a little redder, ridges lighter), and the pore specks
+  are taken to 0.6 on those six. After: 01 1.62, 02 1.65, 04 1.70, 05 1.64, 07 1.68, 08 1.62 %
+  (03 and 06 unchanged at 1.71 %, grain 0). Looked at 1:1 against 09 (cheek, forehead) and on the
+  bare head (front, cheek, lips, eye; front, three-quarter, profile and back of all eight): fine
+  stipple, no blotches, nothing visible at face distance.
+- **Stubble-like specks on the upper lip of 01.** Confirmed, and it is relief, not colour: the
+  scan is a man's, and from under the nose down its relief is stubble follicles. Under the raking
+  key the mouth, chin and jaw of 01, 02, 06 and 08 (made as women's skin) were covered in them.
+  **Fixed**: `--stubble 0.3` on those four turns the scan relief down there, where it is coarser
+  than elsewhere. Looked at in grey (lips, front) and in the four lit stills: gone. The strength
+  of the grain and the pore tint is scaled on the relief before the cut, so those four sets get
+  the same grain elsewhere as the others (the first build did not, and came out 15 % stronger).
+- **Streaked padding in the normal and roughness maps.** Confirmed; it is the nearest-texel fill
+  outside the UV islands, never sampled by a render. **Dismissed** for those two maps: rewriting
+  nine normal maps for it is about 230 MB of history. The same streaks were in the albedos since
+  the rebuild (my `skin_fix.py` used the same fill); those are smooth again (push-pull), as the
+  albedo files were being rewritten anyway.
+
+**`tools/refine_skin.py`: tried, not adopted, deleted** (with the skin-only mode added in
+`6178c63`, which is the path tested here). Skin half only on tex_01 and tex_05, fine gain as
+written, mid target 0.020: fine 1.04 → 1.40 %, mid 1.64 → 1.98 % on 01. On the bare head (front,
+cheek, lips, eye) there is no visible difference; at 1:1 the cheek and forehead show the same
+blur with the existing specks and a comb-shaped mark of the pore tint on the forehead a little
+darker. It amplifies what is in the albedo, and there is nothing pore-sized in it. The relief
+grain above does what it was meant to. Also a reason to remove it rather than leave it opt-in: on
+the rebuilt sets its fine gain is 1.0 and its mid gain still about 1.4 (stale 0.026 target), which
+is the blotch direction. The brow half was never run.
+
+Also changed: lip streaks a third fainter (they read as bar lines at 1:1).
+Checks: `tools/validate.py` fails only the two TODO checks (README, AI_DISCLOSURE; the owner's);
+43 unit tests pass. A set without the stubble cut rebuilds byte-identical maps after the last code
+change (05 compared). `textures/` is 699 MB; largest file 28.6 MB.
+Before / after: `outputs/tmp/m10/` (`crop_final_01.png`, `crops_final_a.png`,
+`grey_stubble_01.png`, `stills_mouth_before_after.png`, `wrap_final_a.png`, `wrap_final_b.png`).
+
 ### Sat 14 Nov 2026 — M7 eye close-up: grown brows, clumped lashes, deeper warmer shadows (Opus)
 Closing the gap to "Eye Piece" (0:11, 0:14, 0:19 looked at: near-black shadow side, dense clumped
 lashes with pale highlights, deep shadow under the brow) in brows, lashes and shadow depth.

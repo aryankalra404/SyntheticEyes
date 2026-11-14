@@ -118,6 +118,16 @@ What the bake alone gets wrong on a bare head, and where it is put right (14 Nov
   so `tools/detail_maps.py` narrows that filter toward island borders. Normals are written in
   Blender's frame (bitangent at right angles to the tangent, not along +v): the scalp unwrap
   is sheared about 17 degrees, opposite ways on the two sides.
+- **Soft colour at 1:1** (`tools/detail_maps.py`, `grain`): a baked MakeHuman skin holds about
+  2 px per mm, so at 1:1 it is a blur with a few dark pore specks. The two finest bands of the
+  height map (1.5 px, and 1.5 to 6 px) go into the colour detail, valleys darker, ridges
+  lighter, as in a photograph of skin. Fine band of log-luminance on cheeks and forehead:
+  1.04-1.14 % before, 1.62-1.70 % after, 1.76 % on the photographed set. Amplifying the bands
+  of the albedo itself only darkens the specks; there is nothing finer in it to amplify.
+- **Stubble relief** (`stubble`): the scanned relief is a man's, coarse with follicles from
+  under the nose down. Sets made as women's skin keep 0.3 of it there.
+- Padding outside the islands of the albedo is a push-pull fill (`tex_core.fill_smooth`); the
+  normal and roughness maps keep a nearest-texel fill. Neither is ever sampled.
 
 Optional extra source: FFHQ-UV, 50,000+ face UV maps derived from photos, HiFi3D++
 topology. Stated as research use, so only use if time allows and note it in the README.

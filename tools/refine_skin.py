@@ -308,7 +308,10 @@ def refine_skin(lin, keep_out=None):
 
 # ---- a set ------------------------------------------------------------------------------------
 
-def refine_set(folder: Path, seed: int, preview: Path | None = None) -> dict | None:
+def refine_set(folder: Path, seed: int, preview: Path | None = None, skin_only: bool = False) -> dict | None:
+    """skin_only: raise the skin detail and leave the brows, the normal and the roughness map as
+    they are. The brows are kept out of the boost, so their darkness (which tools/brows.py roots
+    the 3D hairs on) does not change."""
     folder = Path(folder)
     meta_path = folder / "set.json"
     meta = json.loads(meta_path.read_text())
@@ -324,7 +327,7 @@ def refine_set(folder: Path, seed: int, preview: Path | None = None) -> dict | N
     lin = tc.srgb_to_linear(srgb.astype(np.float32) / 255.0).astype(np.float32)
     before = srgb.copy() if preview else None
 
-    brow = refine_brows(lin, normal, rough, seed)
+    brow = "left as they are (skin only)" if skin_only else refine_brows(lin, normal, rough, seed)
     keep = np.zeros(lin.shape[:2], np.float32)                    # the brows are done: leave them
     x0, y0, x1, y1 = BROW_BOX
     Yb = luma(lin[y0:y1, x0:x1])
@@ -335,11 +338,15 @@ def refine_set(folder: Path, seed: int, preview: Path | None = None) -> dict | N
     out = tc.to_u8(tc.linear_to_srgb(lin))
     tc.write_png(folder / "skin.1001.png", out)
     tc.write_png(folder / "legacy" / "skin.png", out)
-    tc.write_png(folder / "skin_normal.1001.png", normal)
-    tc.write_png(folder / "skin_rough.1001.png", rough)
-    meta["refine"] = {"version": VERSION, "tool": "tools/refine_skin.py", "brows": brow, "skin": skin,
-                      "note": "brows rebuilt (under-layer, strand variation, stray hairs, relief, roughness); "
-                              "fine and mid skin detail raised toward the scan's level"}
+    if not skin_only:
+        tc.write_png(folder / "skin_normal.1001.png", normal)
+        tc.write_png(folder / "skin_rough.1001.png", rough)
+    note = ("fine and mid skin detail raised toward the scan's level; brows, normal and roughness untouched"
+            if skin_only else
+            "brows rebuilt (under-layer, strand variation, stray hairs, relief, roughness); "
+            "fine and mid skin detail raised toward the scan's level")
+    meta["refine"] = {"version": VERSION, "tool": "tools/refine_skin.py", "skin_only": skin_only,
+                      "brows": brow, "skin": skin, "note": note}
     meta_path.write_text(json.dumps(meta, indent=1) + "\n")
     print(f"[refine] {folder.name}: brows {brow}, skin {skin}")
     if preview:
@@ -370,11 +377,13 @@ def main():
     ap.add_argument("--sets", nargs="*", default=[f"{i:02d}" for i in range(1, 9)])
     ap.add_argument("--root", type=Path, default=REPO / "textures")
     ap.add_argument("--preview", type=Path, default=None, help="write before/after crops here")
+    ap.add_argument("--skin-only", action="store_true",
+                    help="raise the skin detail only; brows, normal and roughness maps untouched")
     args = ap.parse_args()
     for nn in args.sets:
         folder = args.root / f"tex_{nn}"
         seed = json.loads((folder / "set.json").read_text()).get("detail_maps", {}).get("seed", int(nn))
-        refine_set(folder, seed, args.preview)
+        refine_set(folder, seed, args.preview, args.skin_only)
 
 
 if __name__ == "__main__":

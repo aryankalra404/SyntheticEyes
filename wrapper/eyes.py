@@ -15,7 +15,18 @@ still. --camera eyes (cam_eyes) is the other fixed camera. --camera move films w
 which holds a framing, glides to the next inside a fixation and holds again
 (wrapper/camera_move.py): left and right go both eyes, face, one eye; generate goes one eye,
 both eyes, face. Watched at playback speed the glides read as zooming for no reason, so it is
-no longer the default.
+no longer the default. --camera split films the same Timeline twice, cam_video and
+cam_move_eye (the subject's left eye from 15 cm, riding on the head bone), into
+outputs/frames/<input>/face/ and .../eye/, and joins each pair, both panes at 1024x1024, into
+one 2048x1024 frame in .../video/ (no divider or text). With --frames it writes face_####,
+eye_#### and the joined ####.png to outputs/frames/<input>/split_stills/.
+
+--resume (videos) picks up an interrupted run: the frames already in the pane folders are
+kept, the newest PNG in each (possibly half written) is deleted, and only the missing frames
+are rendered; the joined frames and the video are rebuilt. Without it a run starts clean.
+
+    blender -b scene.blend -P wrapper/eyes.py -- --input left --camera split --quality preview
+    blender -b scene.blend -P wrapper/eyes.py -- --input left --camera split --resume
 
 Or as a module from Blender's Python, with the repo root on sys.path:
 
@@ -428,20 +439,26 @@ def resize(a, w, h):
     return top * (1.0 - fy) + bot * fy
 
 
-def render_pass(cam, out_dir, crop=None, res=None):
+def render_pass(cam, out_dir, crop=None, res=None, resume=False):
     """Render the Timeline from cam into out_dir/####.png with the camera's look.
 
     crop (x0, y0, x1, y1 from the top left, fractions) renders only that part of the frame
     (render border, cropped); res sets the square resolution before the quality percentage.
+    resume keeps the frames already in out_dir and renders only the missing ones.
     """
     scene, r = bpy.context.scene, bpy.context.scene.render
     keep = dict(resolution_x=r.resolution_x, resolution_y=r.resolution_y, use_border=r.use_border,
                 use_crop_to_border=r.use_crop_to_border, border_min_x=r.border_min_x,
-                border_max_x=r.border_max_x, border_min_y=r.border_min_y, border_max_y=r.border_max_y)
+                border_max_x=r.border_max_x, border_min_y=r.border_min_y, border_max_y=r.border_max_y,
+                use_overwrite=r.use_overwrite)
     scene.camera = cam
     apply_look(cam)
-    out_dir.mkdir(parents=True)
+    out_dir.mkdir(parents=True, exist_ok=resume)
+    names = [out_dir / f"{f:04d}.png" for f in range(scene.frame_start, scene.frame_end + 1)]
+    had = sum(p.exists() for p in names) if resume else 0
     try:
+        if resume:
+            r.use_overwrite = False         # Blender skips a frame whose file exists
         if res:
             r.resolution_x = r.resolution_y = res
         if crop:
@@ -458,10 +475,34 @@ def render_pass(cam, out_dir, crop=None, res=None):
     finally:
         for k, v in keep.items():
             setattr(r, k, v)
-    frames = sorted(out_dir.glob("*.png"))
-    print(f"[eyes] {cam.name}: {len(frames)} frames in {sec:.0f} s "
-          f"({sec / max(len(frames), 1):.2f} s/frame)")
+    frames = [p for p in names if p.exists()]
+    kept = f", {had} kept from before" if resume else ""
+    print(f"[eyes] {cam.name}: {len(frames) - had} frames rendered in {sec:.0f} s "
+          f"({sec / max(len(frames) - had, 1):.2f} s/frame){kept}")
     return frames, sec
+
+
+def compose(left, right, out_dir, names=None):
+    """Join two frame lists side by side, each pane brought to VIDEO_SIZE square: one
+    (VIDEO_SIZE, 2 * VIDEO_SIZE) frame per pair in out_dir (####.png, or the given names)."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = []
+    for i, (a, b) in enumerate(zip(left, right)):
+        path = out_dir / (names[i] if names else f"{i + 1:04d}.png")
+        panes = [resize(load_rgb(f), VIDEO_SIZE, VIDEO_SIZE) for f in (a, b)]
+        save_rgb(np.concatenate(panes, axis=1), path)
+        out.append(path)
+    return out
+
+
+def drop_newest(folder):
+    """Delete the most recently written PNG in folder (a killed render may have left it half written)."""
+    pngs = list(folder.glob("*.png")) if folder.is_dir() else []
+    if pngs:
+        newest = max(pngs, key=lambda p: p.stat().st_mtime)
+        newest.unlink()
+        print(f"[eyes] resume: {len(pngs) - 1} frames kept in {folder.relative_to(REPO)}, "
+              f"dropped {newest.name}")
 
 
 def upscale(frames, out_dir):
@@ -600,8 +641,8 @@ def key_move(track, mode, fps=30, r=None):
     return glides
 
 
-def render_frames(cam, frames, out_dir):
-    """Render single Timeline frames from cam into out_dir/####.png; seconds for each."""
+def render_frames(cam, frames, out_dir, prefix=""):
+    """Render single Timeline frames from cam into out_dir/<prefix>####.png; seconds for each."""
     scene = bpy.context.scene
     scene.camera = cam
     apply_look(cam)
@@ -610,7 +651,7 @@ def render_frames(cam, frames, out_dir):
     out = []
     for f in frames:
         scene.frame_set(f)
-        scene.render.filepath = str(out_dir / f"{f:04d}.png")
+        scene.render.filepath = str(out_dir / f"{prefix}{f:04d}.png")
         t0 = time.perf_counter()
         bpy.ops.render.render(write_still=True)
         out.append(time.perf_counter() - t0)
@@ -618,26 +659,49 @@ def render_frames(cam, frames, out_dir):
     return out
 
 
-def video(mode, seed, fps, camera, limit=None, frames=None):
-    """Bake the gaze track to the Timeline, film it (the camera move, or face or eyes), encode.
-    With frames, only those Timeline frames are rendered, as stills, and nothing is encoded."""
+def video(mode, seed, fps, camera, limit=None, frames=None, resume=False):
+    """Bake the gaze track to the Timeline, film it (face, eyes, the camera move, or split:
+    face and eye side by side), encode. With frames, only those Timeline frames are rendered,
+    as stills, and nothing is encoded. resume keeps the frames of an interrupted run."""
     scene = bpy.context.scene
     track = generate(mode, seed=seed)
     n = rig().bake(track, fps=fps)
     if camera == "move":
         key_move(track, mode, fps)
+    # (folder, camera object) per pass; split films the same Timeline twice
+    passes = ([("face", VIDEO_CAMERAS["face"]), ("eye", MOVE_FRAMINGS["eye"])] if camera == "split"
+              else [(camera, VIDEO_CAMERAS[camera])])
+    passes = [(name, bpy.data.objects[ob]) for name, ob in passes]
+    root = REPO / "outputs" / "frames" / mode
     if frames:
-        out_dir = REPO / "outputs" / "frames" / mode / f"{camera}_stills"
-        render_frames(bpy.data.objects[VIDEO_CAMERAS[camera]], [f for f in frames if 1 <= f <= n], out_dir)
+        out_dir = root / f"{camera}_stills"
+        wanted = [f for f in frames if 1 <= f <= n]
+        if camera != "split":
+            render_frames(passes[0][1], wanted, out_dir)
+            return
+        for name, cam in passes:
+            render_frames(cam, wanted, out_dir, prefix=f"{name}_")
+        compose([out_dir / f"face_{f:04d}.png" for f in wanted],
+                [out_dir / f"eye_{f:04d}.png" for f in wanted], out_dir,
+                names=[f"{f:04d}.png" for f in wanted])
         return
     if limit:
         scene.frame_end = scene.frame_start + min(limit, n) - 1
-    root = REPO / "outputs" / "frames" / mode
     if root.exists():
-        shutil.rmtree(root)
+        if resume:
+            for name, _ in passes:
+                drop_newest(root / name)
+            shutil.rmtree(root / "video", ignore_errors=True)   # rebuilt from the pane frames
+        else:
+            shutil.rmtree(root)
     t0 = time.perf_counter()
-    frames, sec = render_pass(bpy.data.objects[VIDEO_CAMERAS[camera]], root / camera)
-    frames = upscale(frames, root / "video")
+    panes = [render_pass(cam, root / name, resume=resume)[0] for name, cam in passes]
+    if camera == "split":
+        if len(panes[0]) != len(panes[1]):
+            raise RuntimeError(f"split: {len(panes[0])} face frames but {len(panes[1])} eye frames")
+        frames = compose(panes[0], panes[1], root / "video")
+    else:
+        frames = upscale(panes[0], root / "video")
     sec = time.perf_counter() - t0
     print(f"[eyes] `{mode}` seed {seed}, camera {camera}: {len(frames)} frames, {sec:.0f} s in all, "
           f"{sec / max(len(frames), 1):.2f} s/frame")
@@ -661,9 +725,12 @@ def parse_args(argv):
     ap.add_argument("--quality", choices=("final", "preview", "draft"), default="final",
                     help="final: Cycles 1024 px; preview: Cycles 768 px, 32 samples, for judging a "
                          "video before the long render; draft: EEVEE 512 px, motion only")
-    ap.add_argument("--camera", choices=(*CAMERAS, "move"), default=None,
-                    help="videos: face (default; one fixed camera, forehead to chin), eyes, or move "
-                         "(glides between one eye, both eyes and the face); stills: face (default) or eyes")
+    ap.add_argument("--camera", choices=(*CAMERAS, "move", "split"), default=None,
+                    help="videos: face (default; one fixed camera, forehead to chin), eyes, move "
+                         "(glides between one eye, both eyes and the face), or split (face and the "
+                         "subject's left eye side by side, 2048x1024); stills: face (default) or eyes")
+    ap.add_argument("--resume", action="store_true",
+                    help="videos: keep the frames of an interrupted run and render only the missing ones")
     ap.add_argument("--samples", type=int, default=None,
                     help="render samples (Cycles; EEVEE with --quality draft)")
     ap.add_argument("--texture", type=int, default=None, help="use textures/tex_NN")
@@ -679,8 +746,10 @@ def parse_args(argv):
 
 def main(argv):
     args = parse_args(argv)
-    if args.camera == "move" and not args.input:
-        raise SystemExit("eyes.py: --camera move is for videos (--input)")
+    if args.camera in ("move", "split") and not args.input:
+        raise SystemExit(f"eyes.py: --camera {args.camera} is for videos (--input)")
+    if args.resume and not args.input:
+        raise SystemExit("eyes.py: --resume is for videos (--input)")
     engine = setup_render(args.quality, args.cpu, args.samples)
     if args.texture is not None:
         use_texture(args.texture)
@@ -696,7 +765,8 @@ def main(argv):
         move(*args.move)
         render(args.out or REPO / "outputs" / "move.png", args.camera or "face")
     else:
-        video(args.input, args.seed, args.fps, args.camera or "face", args.limit, args.frames)
+        video(args.input, args.seed, args.fps, args.camera or "face", args.limit, args.frames,
+              args.resume)
 
 
 if __name__ == "__main__" and "--" in sys.argv:

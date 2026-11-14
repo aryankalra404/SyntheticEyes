@@ -61,6 +61,7 @@ class GazeParams:
     head_gain_from: float = 10.0           # deg
     head_gain_to: float = 30.0             # deg
     head_roll_coupling: float = -0.10      # roll per degree of head yaw
+    head_min_shift: float = 9.0            # deg; a smaller refixation leaves the head where it is
     # Idle sway, rms deg in yaw, pitch, roll; band-limited noise. The eyes counter-rotate (eye =
     # gaze - head), so the gaze holds its target through it.
     head_sway_deg: tuple = (0.30, 0.30, 0.15)
@@ -70,7 +71,8 @@ class GazeParams:
     blink_hold: float = 0.030
     blink_open: float = 0.165              # about twice the closing time
     blink_mean_gap: float = 3.2            # s, spontaneous
-    blink_min_gap: float = 0.9
+    blink_min_gap: float = 1.6             # s from any other blink to a spontaneous one
+    blink_forced_gap: float = 1.3          # s between scripted or gaze-evoked blinks; the later one goes
     blink_guard: float = 0.35              # s kept blink-free at each end of the clip
     blink_evoked_from: float = 10.0        # deg; chance rises with gaze shift size
     blink_eye_dip: float = 1.5             # deg the eye rolls down under a closed lid
@@ -370,8 +372,11 @@ def simulate(script, seed=0, params=GazeParams()):
                 want = bool(rng.uniform() < chance)
             if want:
                 blinks.append((onset - 0.02, 1.0))
-        ih = min(n - 1, int(round((onset + p.head_delay) / dt)))
-        head_cmd[ih:] = target * head_share(target, ev.head)
+        # The head re-aims for a sweep or a real gaze shift. A small refixation on the same thing
+        # is the eyes' alone: re-aiming for it walked the head back and forth during a hold.
+        if isinstance(ev, Sweep) or amp >= p.head_min_shift:
+            ih = min(n - 1, int(round((onset + p.head_delay) / dt)))
+            head_cmd[ih:] = target * head_share(target, ev.head)
         if ev.dist is not None:
             iv = min(n - 1, int(round((onset + p.verg_latency) / dt)))
             dist_cmd[iv:] = 1.0 / ev.dist
@@ -414,7 +419,7 @@ def simulate(script, seed=0, params=GazeParams()):
     forced += [(min(max(e.t, lo), hi), e.amp) for e in script.events if isinstance(e, Blink)]
     kept = []
     for tb0, amp in sorted(forced):                          # scripted and gaze-evoked first
-        if all(abs(tb0 - k) > total + 0.15 for k, _ in kept):
+        if all(abs(tb0 - k) > p.blink_forced_gap for k, _ in kept):
             kept.append((tb0, amp))
     tb = lo
     while True:                                              # then spontaneous ones where there is room

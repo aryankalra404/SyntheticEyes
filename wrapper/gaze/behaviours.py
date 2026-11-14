@@ -12,23 +12,30 @@ CAMERA = 0.40      # metres, where the render camera sits
 FAR = 1.60         # metres, something across the room
 
 
+GLANCE_HEAD = 0.5   # the head takes half of a held side glance; the eyes lead, then it catches up
+
+
 def _glance(rng, side, duration=9.0):
-    """Look to one side (side = -1 image-left, +1 image-right), study it, come back."""
+    """Look to one side (side = -1 image-left, +1 image-right), study it, come back.
+
+    The eyes go first and are seen going: no blink on the way out. Blinks are spread over the
+    clip (in the hold, on the way back, at the viewer), about 2.5 s apart."""
     u = rng.uniform
     ev = []
     t = u(0.9, 1.2)
     yaw = side * u(25.0, 29.0)
     pitch = u(-3.0, 2.0)
-    ev.append(Look(t, yaw, pitch, dist=FAR))
+    ev.append(Look(t, yaw, pitch, dist=FAR, blink=False, head=GLANCE_HEAD))
     t += u(1.3, 1.6)                                    # a second fixation on the same thing
     yaw2, pitch2 = yaw - side * u(4.0, 7.0), pitch + u(2.5, 5.0)
-    ev.append(Look(t, yaw2, pitch2, blink=False))
+    ev.append(Look(t, yaw2, pitch2, blink=False, head=GLANCE_HEAD))
+    ev.append(Blink(t + u(0.25, 0.45)))
     t += u(0.9, 1.2)
-    ev.append(Look(t, yaw + side * u(1.5, 3.5), pitch - u(1.0, 3.0), blink=False))
-    ev.append(Blink(t + u(0.45, 0.7)))
+    ev.append(Look(t, yaw + side * u(1.5, 3.5), pitch - u(1.0, 3.0), blink=False, head=GLANCE_HEAD))
     t += u(1.5, 1.8)
     ev.append(Look(t, 0.0, 0.0, dist=CAMERA, blink=True))   # back to the viewer
     ev.append(Brow(t + 0.05, 0.35, u(0.12, 0.22)))
+    ev.append(Blink(t + u(2.1, 2.5)))
     t += u(1.1, 1.4)                                    # settle: flick between the viewer's eyes
     ev.append(Look(t, -side * u(1.4, 2.4), u(-0.6, 0.8), blink=False))
     t += u(0.7, 1.0)

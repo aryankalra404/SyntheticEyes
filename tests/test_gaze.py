@@ -112,6 +112,28 @@ class Blinks(unittest.TestCase):
         secs = sum(generate(m, 0).duration for m in MODES) * 8
         self.assertTrue(8 <= 60.0 * n / secs <= 32, 60.0 * n / secs)
 
+    def test_blinks_are_spaced_out(self):
+        for mode in MODES:
+            for seed in range(12):
+                b = [t0 for t0, _ in generate(mode, seed).meta["blinks"]]
+                if len(b) > 1:
+                    self.assertGreater(np.diff(b).min(), 1.3, (mode, seed))
+
+    def test_side_glance_shows_the_eyes_going(self):
+        """left and right: no blink hides the first gaze shift."""
+        for mode in ("left", "right"):
+            for seed in range(8):
+                tr = generate(mode, seed)
+                t0 = tr.meta["saccades"][0][0]
+                m = (tr.t > t0 - 0.2) & (tr.t < t0 + 0.6)
+                self.assertLess(tr.channels["blink_L"][m].max(), 0.05, (mode, seed))
+
+    def test_head_holds_through_a_small_refixation(self):
+        script = Script(4.0, [Look(0.5, 26.0, 0.0, blink=False), Look(2.5, 21.0, 3.0, blink=False)])
+        c = simulate(script, 0, STILL).channels
+        t = np.arange(len(c["head_yaw"])) * STILL.dt
+        self.assertLess(np.ptp(c["head_yaw"][t > 2.4]), 0.3)
+
     def test_no_blink_at_either_end(self):
         for mode in MODES:
             for seed in range(5):

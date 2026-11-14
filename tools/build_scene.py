@@ -1404,6 +1404,12 @@ def build_cameras_and_light(D, rig, mid, eye_l, hdri):
     return cams
 
 
+# cam_video films the videos, locked off: 112 mm from 0.56 m is 18 cm across, mid forehead to
+# under the chin, which keeps the whole face in through the 13 to 16 deg head turns of left and
+# right. (72 mm showed the whole bust with the eyes 60 px wide.)
+VIDEO_LENS = 112.0
+
+
 def build_test_cameras(D, rig):
     """The two fixed shots the stills are made from, both in the `eye` look. face: mid forehead
     to chin, straight on, with the bare scalp and the ears out of frame (126 mm from 0.56 m:
@@ -1416,7 +1422,7 @@ def build_test_cameras(D, rig):
     out = {}
     for name, target, lens, dist, az, el in (
             ("cam_test_face", mid + Vector((0, -0.01, -0.038)), 126.0, 0.56, 0.0, 0.0),
-            ("cam_video", mid + Vector((0, -0.01, -0.04)), 72.0, 0.56, 0.0, 0.0),
+            ("cam_video", mid + Vector((0, -0.01, -0.04)), VIDEO_LENS, 0.56, 0.0, 0.0),
             ("cam_test_eye", eyeL, MOVE_EYE["lens"], MOVE_EYE["dist"], MOVE_EYE["az"], MOVE_EYE["el"])):
         cd = bpy.data.cameras.new(name)
         cd.lens, cd.sensor_width, cd.sensor_fit = lens, 36.0, "HORIZONTAL"
@@ -1427,7 +1433,7 @@ def build_test_cameras(D, rig):
         scene.collection.objects.link(cam)
         out[name] = cam
     set_look(out["cam_test_face"], "eye")
-    set_look(out["cam_video"], "eye")    # the videos' face framing: looser, so a turning head stays in frame
+    set_look(out["cam_video"], "eye")    # the videos' camera: looser than the still, so a turning head stays in frame
     set_look(out["cam_test_eye"], "eye", focus=MOVE_EYE["dist"], fstop=MOVE_EYE["fstop"])
 
     out.update(build_move_cameras(D, rig, out["cam_video"]))
@@ -1447,7 +1453,7 @@ MOVE_EYE = dict(lens=100.0, dist=0.15, az=-24.0, el=6.0, fstop=45.0)
 # the tex_09 head the outer lashes reach 6.1 cm from the frame centre (11 cm, sized on the
 # template head, cut an eye in half). f/45.
 MOVE_EYES = dict(lens=100.0, width=0.13, centre=(0.0, -0.012, -0.012), fstop=45.0)
-# face: cam_video as it is (72 mm, 0.56 m). Pulling back already deepens the field, so the stop
+# face: cam_video as it is (VIDEO_LENS, 0.56 m). Pulling back already deepens the field, so the stop
 # opens to f/40: with focus on the left pupil that keeps the nose tip and the ears inside a
 # one-pixel blur circle (f/38 is the widest that does).
 MOVE_FACE = dict(dist=0.56, fstop=40.0)

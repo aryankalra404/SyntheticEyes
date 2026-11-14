@@ -9,11 +9,13 @@ Run inside Blender on scene.blend (paths are relative to the repo root, wherever
     blender -b scene.blend -P wrapper/eyes.py -- --input left --samples 64 --frames 40 110 240
     blender -b scene.blend -P wrapper/eyes.py -- --check-directions [--render]
 
-Videos are 1024x1024 at 30 fps. The default --camera move films them with cam_move, one camera
-that holds a framing, glides to the next inside a fixation, holds, glides to the last and holds
-to the end (wrapper/camera_move.py): left and right go both eyes, face, one eye; generate goes
-one eye, both eyes, face. In the one-eye framing the camera rides on the head. The whole move
-uses the `eye` look. --camera face (cam_video) or eyes (cam_eyes) films with one fixed camera.
+Videos are 1024x1024 at 30 fps, filmed by default with one fixed camera, cam_video (--camera
+face: forehead to chin, the `eye` look), so the motion is judged against a frame that holds
+still. --camera eyes (cam_eyes) is the other fixed camera. --camera move films with cam_move,
+which holds a framing, glides to the next inside a fixation and holds again
+(wrapper/camera_move.py): left and right go both eyes, face, one eye; generate goes one eye,
+both eyes, face. Watched at playback speed the glides read as zooming for no reason, so it is
+no longer the default.
 
 Or as a module from Blender's Python, with the repo root on sys.path:
 
@@ -56,7 +58,7 @@ from wrapper.rig import Rig  # noqa: E402
 FIX_PLANE = 0.35      # m in front of the eye midpoint
 FIX_RANGE = 0.05      # m at |h| or |v| = 1
 CAMERAS = {"face": "cam_face", "eyes": "cam_eyes"}
-VIDEO_CAMERAS = {"face": "cam_video", "eyes": "cam_eyes",       # face: whole head, 72 mm
+VIDEO_CAMERAS = {"face": "cam_video", "eyes": "cam_eyes",       # face: locked off, forehead to chin
                  "move": "cam_move"}                             # the glide between framings
 # cam_move's framings (tools/build_scene.py), named as in wrapper/camera_move.py
 MOVE_FRAMINGS = {"eye": "cam_move_eye", "eyes": "cam_move_eyes", "face": "cam_video"}
@@ -207,6 +209,9 @@ def setup_render(quality="final", cpu=False, samples=None):
         return f"EEVEE {scene.eevee.taa_render_samples} spp"
     scene.render.engine = "CYCLES"
     scene.render.resolution_percentage = 100
+    if quality == "preview":            # the final look at 768 px and 32 samples, about a quarter of the time
+        scene.render.resolution_percentage = 75
+        scene.cycles.samples = 32
     if samples:
         scene.cycles.samples = samples
     backend = None                      # OPTIX, CUDA, HIP, ONEAPI or METAL; None renders on the CPU
@@ -653,10 +658,12 @@ def parse_args(argv):
                      help="pose with move(h, v) and render one still to --out")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--fps", type=int, default=30)
-    ap.add_argument("--quality", choices=("final", "draft"), default="final")
+    ap.add_argument("--quality", choices=("final", "preview", "draft"), default="final",
+                    help="final: Cycles 1024 px; preview: Cycles 768 px, 32 samples, for judging a "
+                         "video before the long render; draft: EEVEE 512 px, motion only")
     ap.add_argument("--camera", choices=(*CAMERAS, "move"), default=None,
-                    help="videos: move (default; glides between one eye, both eyes and the face), "
-                         "face or eyes; stills: face (default) or eyes")
+                    help="videos: face (default; one fixed camera, forehead to chin), eyes, or move "
+                         "(glides between one eye, both eyes and the face); stills: face (default) or eyes")
     ap.add_argument("--samples", type=int, default=None,
                     help="render samples (Cycles; EEVEE with --quality draft)")
     ap.add_argument("--texture", type=int, default=None, help="use textures/tex_NN")
@@ -689,7 +696,7 @@ def main(argv):
         move(*args.move)
         render(args.out or REPO / "outputs" / "move.png", args.camera or "face")
     else:
-        video(args.input, args.seed, args.fps, args.camera or "move", args.limit, args.frames)
+        video(args.input, args.seed, args.fps, args.camera or "face", args.limit, args.frames)
 
 
 if __name__ == "__main__" and "--" in sys.argv:

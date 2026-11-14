@@ -21,6 +21,160 @@ what the next session needs to know.
 
 ## Log
 
+### Sat 14 Nov 2026, night — M11 stage 1: labels, brows and brown irises on the bare head, trials only (Opus)
+Stage 1 of 2: trials and a review sheet; nothing under `textures/` changed. **For the Fable
+review: `outputs/tmp/m11/review.png`** (one row per changed set, before | after: bare-head front,
+bare-head eye close-up, 1:1 albedo crop of the subject's right brow; plus a row with the rejected
+06 alternative and the lit eye of 03 and 05) and **`outputs/tmp/m11/outlines.png`** (all 14
+Mindfront outlines on the tex_01 skin: bare-head front over a 1:1 albedo crop, with areas).
+Trial sets built by the real command are in `outputs/tmp/m11/sets/` (01, 05, 06, 08 complete;
+02, 03 eye tiles and set.json only), their intermediates in `outputs/tmp/m11/work/`.
+
+Code (committed): `tools/build_textures.py` (labels, recipes for 01/05/06/08, `--work`, `--cpu`,
+`assemble_eyes` creates its folder), `tools/make_iris.py` (gated `radial` options, brown and
+dark_brown palettes). **The recipes in the code are now ahead of `textures/` until stage 2 runs.**
+To reject an item, put back the old values listed below.
+
+**1. Labels** (no gender, no ethnicity; age, skin tone, brows, iris). `identity` dicts unchanged.
+| set | new label |
+|---|---|
+| 01 | young adult, light skin, brown brows, hazel eyes |
+| 02 | young adult, medium brown skin, dark brown brows, dark brown eyes |
+| 03 | middle-aged, dark brown skin, black brows, dark brown eyes |
+| 04 | older adult, light skin, ash brows, blue eyes |
+| 05 | young adult, light warm skin, black brows, brown eyes |
+| 06 | older adult, deep brown skin, black brows, brown eyes |
+| 07 | young adult, light freckled skin, auburn brows, green eyes |
+| 08 | middle-aged, light skin, brown brows, grey eyes |
+| 09 | adult, light skin with stubble, photographed skin, hazel eyes |
+
+**2. Brows** (recipe changes only; `transfer_skin.py` not edited)
+- Outline areas, both brows (mm2): 01 382, 02 358, 03 456, 04 470, 05 963, 06 676, 07 987,
+  08 843, 09 570, 10 574, 11 761, 12 722, 13 895, 14 641. In range 600-900: 06, 08, 11, 12, 13, 14.
+- **01: outline 01 -> 12** (722 mm2): upright hairs at the head, full body, a clean taper to a fine
+  tail and a natural arch; 11 is bushier at the head, 13 ends blunt. Colour, opacity, width
+  0.14, density 1.8, shadow 0.40 unchanged.
+- **08: outline 01 -> 14** (641 mm2): flatter and a little lighter than 12, tapers to a point,
+  suits a middle-aged face and keeps 01 and 08 apart. Rest of the recipe unchanged.
+- **05**: outline 08 kept. color 0.014/0.011/0.009 -> 0.016/0.012/0.009, opacity 0.85 -> 0.72,
+  width 0.12 -> 0.11, density 1.5 -> 1.4, shadow 0.35 -> 0.20. Three trials: opacity 0.6 / shadow
+  0.15 and opacity 0.5 / shadow 0.10 read as hair but grey and sparse for black brows; this one
+  keeps them black and drops the hard painted edge (the edge was mostly the follicle shadow).
+- **06**: outline 01 and width 0.15 kept. color 0.010/0.007/0.006 -> 0.004/0.003/0.0025, opacity
+  0.9 -> 1.0, shadow 0.45 -> 0.60, density 2.0 kept. Brow/skin linear luminance over one common
+  footprint: 0.50 before, 0.45 after. The stronger trial (0.003, density 2.4, shadow 0.8) gets
+  0.42 but its core is a solid black stroke at 1:1, the slab the M2 audit removed; it is the
+  "06 ALTERNATIVE" row of the sheet, not in the recipe. Darker colour alone has a floor here:
+  skin shows between hairs, and the plain material's grey sheen lifts the near-black brow.
+- Check: the real command (`build_textures.py --sets 01 05 06 08 --out-root --work`) gave albedos
+  byte-identical to the trial driver's, normal maps byte-identical to the shipped ones, and a
+  trial with the unchanged 01 recipe gave `textures/tex_01/skin.1001.png` byte for byte.
+
+**3. Brown irises** (02, 03 dark_brown; 05, 06 brown). Under the judges' plain material the
+whole eye sits under a grey reflection of the world in the clear cornea: the pupil renders mid
+grey and the old browns became flat grey-mauve discs. New `radial` options per palette (only
+brown and dark_brown have them): stroma contrast x1.3, a lighter warm zone round the collarette
+(gaussian at 0.40 of the iris width, sd 0.13, mix 0.4, following the fibres), limbal colour weight
+0.7 -> 0.95 and limbal brightness 0.45 -> 0.32, darker stroma out to 0.16 round the pupil (x0.65 at
+the edge). Palette colours more saturated and warmer (old and new values are in the code).
+Every term is a function of the radius and the fibre noise, none of the angle: no highlight,
+catchlight or one-sided shadow. Iris annulus, linear luminance mean / sd: dark_brown seed 3
+0.0137 / 0.0067 -> 0.0184 / 0.0121; brown seed 5 0.0305 / 0.0139 -> 0.0384 / 0.0232.
+A first, stronger candidate (+65-80 % mean) went orange and was dropped.
+- `make_iris.py --color hazel --seed 9` is byte-identical to `textures/tex_09/eye.100{2,4}.png`
+  (checked after both edits). Eye tiles of 01 and 08 rebuilt byte-identical.
+- Bare head: the amber zone and darker rim show; the grey veil and grey pupil stay (the cornea,
+  not the tile). Lit eye (`eye` look, identity scenes, Cycles GPU, no video render running at
+  the time): 03 and 05 a little warmer in the middle with a darker rim, no glow.
+
+**Looked at**: the 14-outline sheet and a 1:1 crop of the five candidates; every trial of 01, 05,
+06, 08 (front and eye, before and after); the iris tiles at full size and at render size; the
+bare-head eyes zoomed; the lit eyes zoomed; the final review sheet, all rows.
+
+**Not sure about**
+- **3D brow hair in `scene.blend` for --texture 01 / 08.** `scene.blend` carries strand brows for
+  Mindfront 01, 05 and 08 only (`tools/carry_hair.py`, `build_hair` in `build_scene.py`), and
+  `eyes.use_texture` picks one by the last two digits of `set.json`'s eyebrow source. With 12 and
+  14, `eyes.py --texture 01` or `--texture 08` would show no 3D brow hair, only the painted brow
+  (the videos use tex_09 and are not affected; the per-set stills grow their brows from the
+  albedo and are fine). Options: (a) add 12 and 14 to `carry_hair.py` and to the `brows` list
+  in `build_hair`, rerun `carry_hair.py`, rebuild `scene.blend`; (b) use outline 08 (843 mm2,
+  already carried) for 01 and 08 instead, at the cost of its blunt tail; (c) accept it. Reviewer's
+  call; not tried.
+- 06 is only a little better at face distance; the sheen floor above limits what the albedo can do.
+- 01 with outline 12 is a fairly full brow on a pale skin; density 1.8 was set to fill the thin
+  outline and was not lowered.
+- The amber ring of the irises is subtle on the bare head; a stronger one went orange.
+
+**Not done**: nothing in `textures/`, no stills, no sheets, no README, no TECH_NOTES (the iris
+`radial` options belong under the iris notes in stage 2). `transfer_skin.py` untouched.
+
+**Other sessions' edits in the working tree, not mine and not committed**: `scene.blend`,
+`wrapper/eyes.py`, `wrapper/gaze/behaviours.py`, `wrapper/gaze/engine.py` and
+`tools/build_scene.py` (video camera lens 72 -> 112 mm) changed between 20:25 and 20:28, after my
+md5 baseline (20:17); that session ran out of usage. Its draft `--input left` render ran during
+this session; my check renders were moved to `--cpu` while it ran. `textures/`, `renders/`,
+`metadata.json` are byte-identical to the baseline (`outputs/tmp/m11/md5_{before,after}.txt`).
+Disk: 3.9 GB free at the end; `outputs/tmp/m11` is 1.5 GB and can go after stage 2.
+
+**Stage 2 commands** (check `pgrep -fl Blender` first; add `--cpu` to `build_textures.py` if a
+video render is running, and do not run `render_stills.py` until it has finished)
+```
+python3 tools/build_textures.py --sets 01 05 06 08                  # bake, maps, irises, set.json, checks
+python3 tools/build_textures.py --sets 02 03 --eyes-only            # new irises, set.json, preview
+python3 tools/build_textures.py --sets 04 07 09 --eyes-only --skip-check   # new labels in set.json only
+python3 tools/build_textures.py --sheet-only                        # outputs/stills/texture_sheet.png
+python3 tools/render_stills.py --sets 01 02 03 05 06 08             # then: python3 tools/render_stills.py --sheet-only
+```
+- The `--eyes-only` run of 04, 07, 09 rewrites their eye tiles byte-identical (their palettes
+  have no `radial`) and their `set.json` with the new label: that changes `textures/tex_09/set.json`.
+- `render_stills.py` rebuilds every identity scene whose `build_scene.py` is older, which the
+  other session's uncommitted edit triggers. Changing to 12/14 also moves the grown 3D brow hair
+  in the stills of 01 and 08 (`tools/brows.py` roots on the painted darkness).
+- README texture table: put in the nine labels above. Expected in the history: about 92 MB of
+  new albedos (01, 05, 08 about 26 MB each, 06 13 MB; the legacy copy is the same blob) and
+  8 eye tiles of about 2 MB.
+
+### Sat 14 Nov 2026, night — readiness check before the final videos (Fable)
+Read every doc, ran the checks, looked at the committed images, and ran the evaluator commands on
+a copy holding only the tracked files of `763d9c7` (copy-on-write, in a scratch folder, removed
+afterwards). No code, texture, render or `scene.blend` changed.
+
+**Passes**
+- 43 unit tests; `tools/validate.py --blender` passes all but the two TODO checks (README 4
+  lines, AI_DISCLOSURE 1).
+- Tracked files only, Blender 4.5.1: `scene.blend` opens with every image path relative and
+  found (HDRI packed), no libraries; Timeline 1-321 at 30 fps with actions on the rig (16
+  F-curves), the head's shape keys (17) and `cam_move` (7). `--move 1 0 --texture 03 --quality
+  draft --out` renders the tex_03 skin on the scene head. `--input left --quality draft` wrote a
+  9.00 s `left.mp4` in 234 s (0.87 s/frame). So a fresh clone runs with nothing from
+  `assets/gnm/*.npz` or `tools/`.
+- Looked at: both sheets, tex_09 and tex_01 stills, tex_09 eye, clockwise frame 0, the 64 spp
+  frames 45 and 150 of `left`, and a 16-frame sheet plus a saccade and blink strip of the fresh
+  draft. Nothing broken: both eyes in frame through the turn, lids close fully, no roll.
+
+**Blocks the final videos**
+- **Disk: 0.9 GB free** on the Mac (the first try at a real clone filled it). The finals write
+  about 860 PNGs of 1.1-1.3 MB, and macOS needs room of its own. `outputs/tmp/` is 4.3 GB of
+  working sheets (git-ignored), `outputs/frames/` 0.9 GB of old draft frames. Owner's call.
+- **A video run cannot resume**: `eyes.py --input` deletes `outputs/frames/<mode>/` and starts
+  from frame 1, so a sleep or a full disk two hours in loses that video. Run the three as
+  separate commands under `caffeinate -i`.
+- Still nobody has watched the drafts at playback speed. The motion and camera code have not
+  changed since the drafts in `outputs/videos/` (13:46), only the look, so those show the final
+  motion. 30 s of watching before 6.4 h of rendering.
+
+**Not ready, none of it code**: final videos; deck `CollegeName_TeamName.pdf`; demo video and
+its link; team and college name; names in `AI_DISCLOSURE.md`; `LICENSE` and the README line;
+commit `outputs/videos/`; zip and `validate.py --zip`. Docker on native x86_64 still untested.
+
+**Opinion, as a judge**: the tex_09 eye close-up and the 64 spp video frames are the strongest
+things here. Weakest for the 60 texture points, in the bare-head sheet the judges will
+reproduce: 01, 02, 06 and 08 are labelled women and sit on heads that read as men; brows on 01,
+05 and 08 are thin drawn arcs; irises go flat without our cornea. The `face` framing of the
+videos shows the bust on black with the eyes about 60 px wide; the motion reads in the other
+two framings.
+
 ### Sat 14 Nov 2026, evening — M7 review against "Eye Piece": dark hair shading, tidier brows, dimmer eye lamps (Fable)
 Judged the five M7 steps against the reference at 0:11 and 0:14 (looked at again in the browser
 pane, full frame and a crop of the eye) on tex_09, tex_03 and tex_06, and tuned the numbers that

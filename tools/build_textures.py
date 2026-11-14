@@ -6,6 +6,7 @@
     python3 tools/build_textures.py --sheet-only    # outputs/stills/texture_sheet.png
     python3 tools/build_textures.py --eyes-only     # eye tiles, set.json, preview.png only
     python3 tools/build_textures.py --out-root outputs/tmp/m9/sets   # trial build, textures/ untouched
+    python3 tools/build_textures.py --sets 05 --out-root DIR/sets --work DIR/work   # trial, shared work dir untouched
 
 Per set, from the recipe table below:
   1. tools/transfer_skin.py (Blender) bakes the MakeHuman skin + strand eyebrows into tile 1001
@@ -63,16 +64,17 @@ TEX = REPO / "textures"
 # MIDDLE_EASTERN).
 SETS = {
     "01": dict(
-        label="young woman, light skin, hazel eyes",
+        label="young adult, light skin, brown brows, hazel eyes",
         skin="skins01/skins/onlytheghosts_young_eurasian_female",
-        eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
+        # M11: outline 12 (722 mm2), medium full and tapering; outline 01 (382 mm2) read as a pencil arc
+        eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_12",
         brow=dict(color=[0.060, 0.038, 0.024], opacity=0.85, width=0.14, density=1.8, shadow=0.40),
         iris="hazel", seed=1,
         detail={"pore_tint": 0.6, "stubble": 0.3},
         fix=dict(scalp=0.75, lips=0.9, flush=0.8),
         identity=dict(gender="female", ethnicity="white", seed=1)),
     "02": dict(
-        label="young woman, South Asian, medium brown skin, dark brown eyes",
+        label="young adult, medium brown skin, dark brown brows, dark brown eyes",
         skin="skins01/skins/cutoff3d_indian_female_skin",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_05",
         brow=dict(color=[0.022, 0.015, 0.011], opacity=0.8, width=0.11, density=1.3, shadow=0.35),
@@ -83,7 +85,7 @@ SETS = {
         fix=dict(scalp=0.75, lips=0.3, flush=0.4),
         identity=dict(gender="female", ethnicity="middle_eastern", seed=2)),
     "03": dict(
-        label="middle-aged man, Black, dark brown eyes",
+        label="middle-aged, dark brown skin, black brows, dark brown eyes",
         skin="skins02/skins/mindfront_skin_male_african_middleage",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_08",
         brow=dict(color=[0.012, 0.009, 0.007], opacity=0.9, width=0.14, density=1.6, shadow=0.45),
@@ -93,7 +95,7 @@ SETS = {
         fix=dict(orbital=0.8, delines=0.8, lips=0.2),
         identity=dict(gender="male", ethnicity="black", seed=3)),
     "04": dict(
-        label="old man, light skin, blue eyes, ash brows",
+        label="older adult, light skin, ash brows, blue eyes",
         skin="skins02/skins/onlytheghosts_old_eurasian_male",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_05",
         brow=dict(color=[0.075, 0.062, 0.050], opacity=0.7, width=0.12, density=1.3, shadow=0.25),
@@ -104,19 +106,23 @@ SETS = {
         fix=dict(scalp=0.75, orbital=0.6, delines=0.5, lips=0.5, flush=0.5),
         identity=dict(gender="male", ethnicity="white", seed=4)),
     "05": dict(
-        label="young man, East Asian, brown eyes",
+        label="young adult, light warm skin, black brows, brown eyes",
         skin=f"makehuman_system_assets/skins/young_asian_male",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_08",
-        brow=dict(color=[0.014, 0.011, 0.009], opacity=0.85, width=0.12, density=1.5, shadow=0.35),
+        # M11: softer and lighter so it reads as hair, not a painted arc (was 0.014/0.011/0.009,
+        # opacity 0.85, width 0.12, density 1.5, shadow 0.35)
+        brow=dict(color=[0.016, 0.012, 0.009], opacity=0.72, width=0.11, density=1.4, shadow=0.2),
         iris="brown", seed=5,
         detail={"pore_strength": 1.1, "freckles": 0.5, "pore_tint": 0.6},
         fix=dict(scalp=0.75, lips=0.8, flush=0.8),
         identity=dict(gender="male", ethnicity="asian", seed=5)),
     "06": dict(
-        label="old woman, Black, deep brown skin, brown eyes",
+        label="older adult, deep brown skin, black brows, brown eyes",
         skin="makehuman_system_assets/skins/old_african_female",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
-        brow=dict(color=[0.010, 0.007, 0.006], opacity=0.9, width=0.15, density=2.0, shadow=0.45),
+        # M11: darker, for contrast on deep brown skin, same outline and width (was 0.010/0.007/0.006,
+        # opacity 0.9, shadow 0.45). Denser (2.4) with shadow 0.8 went to a solid black stroke at 1:1.
+        brow=dict(color=[0.004, 0.003, 0.0025], opacity=1.0, width=0.15, density=2.0, shadow=0.6),
         iris="brown", seed=6,
         detail={"redness": 0.5, "lid_lines": 1.6, "micro_strength": 1.3, "grain": 0, "stubble": 0.3},
         # the source is a saturated red-brown (cheek sRGB 96/39/20); to deep brown, about 86/53/37
@@ -124,7 +130,7 @@ SETS = {
         fix=dict(orbital=0.3, lips=0.2),
         identity=dict(gender="female", ethnicity="black", seed=6)),
     "07": dict(
-        label="young man, light freckled skin, auburn brows, green eyes",
+        label="young adult, light freckled skin, auburn brows, green eyes",
         # the ginger variant of this skin smears a freckle along the inner corner of the left lid
         skin="skins02/skins/toigo_light_skin_male_freckles",
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_05",
@@ -134,16 +140,17 @@ SETS = {
         fix=dict(scalp=0.75, lips=0.5, flush=0.5),
         identity=dict(gender="male", ethnicity="white", seed=7)),
     "08": dict(
-        label="middle-aged woman, light skin, grey eyes",
+        label="middle-aged, light skin, brown brows, grey eyes",
         skin="skins01/skins/onlytheghosts_middle_aged_eurasian_female",
-        eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
+        # M11: outline 14 (641 mm2), a little flatter and lighter than 01's; outline 01 was a pencil arc
+        eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_14",
         brow=dict(color=[0.075, 0.052, 0.036], opacity=0.85, width=0.14, density=1.8, shadow=0.40),
         iris="grey", seed=8,
         detail={"lid_lines": 1.3, "micro_strength": 1.15, "pore_tint": 0.6, "stubble": 0.3},
         fix=dict(scalp=0.75, lips=0.9, flush=0.8),
         identity=dict(gender="female", ethnicity="white", seed=8)),
     "09": dict(
-        label="man, light skin with stubble, photographed skin, hazel eyes",
+        label="adult, light skin with stubble, photographed skin, hazel eyes",
         # colour from the scan's photographs, so no generated colour detail on top of it, and
         # the scan's relief stays under its own brows
         scan=True,
@@ -226,6 +233,7 @@ def assemble(nn, r):
 def assemble_eyes(nn, r):
     """Eye tiles, their legacy copies and set.json only; the skin files are not touched."""
     w, out = WORK / f"tex_{nn}", TEX / f"tex_{nn}"
+    out.mkdir(parents=True, exist_ok=True)
     for f in ("eye.1002.png", "eye.1004.png"):
         shutil.copyfile(w / "iris" / f, out / f)
     leg = out / "legacy"
@@ -263,6 +271,9 @@ def assemble_eyes(nn, r):
     (out / "set.json").write_text(json.dumps(meta, indent=1) + "\n")
 
 
+CHECK_CPU = False      # --cpu: check renders on the CPU, for when a video render has the GPU
+
+
 def check(nn, shots="wrap_front,wrap_three_quarter,profile,back"):
     w, out = WORK / f"tex_{nn}", TEX / f"tex_{nn}"
     cd = w / "wrapcheck"
@@ -274,7 +285,7 @@ def check(nn, shots="wrap_front,wrap_three_quarter,profile,back"):
         tc.write_png(flat, np.full((64, 64, 3), 128, np.uint8))
     run([BLENDER, "-b", "--factory-startup", "-P", "tools/check_detail.py", "--",
          "--detail", cd, "--iris", out, "--skin", out / "skin.1001.png", "--wrap",
-         "--shots", shots, "--out", w])
+         "--shots", shots, "--out", w] + (["--cpu"] if CHECK_CPU else []))
     shutil.copyfile(w / "wrap_front.png", out / "preview.png")
 
 
@@ -306,16 +317,23 @@ def main():
     ap.add_argument("--sets", nargs="*", default=sorted(SETS))
     ap.add_argument("--out-root", type=Path, default=None,
                     help="write the sets here instead of textures/ (trial builds; no contact sheet)")
-    ap.add_argument("--skip-bake", action="store_true", help="reuse outputs/tmp/m2/sets/tex_NN/skin.1001.png")
+    ap.add_argument("--work", type=Path, default=None,
+                    help="intermediate bakes, maps and check renders (default outputs/tmp/m2/sets; give a "
+                         "separate one with --out-root so a trial does not overwrite what --sheet-only reads)")
+    ap.add_argument("--skip-bake", action="store_true", help="reuse <work>/tex_NN/skin.1001.png")
     ap.add_argument("--skip-maps", action="store_true", help="reuse the detail maps and irises")
     ap.add_argument("--skip-check", action="store_true")
+    ap.add_argument("--cpu", action="store_true", help="check renders on the CPU (a video render has the GPU)")
     ap.add_argument("--sheet-only", action="store_true")
     ap.add_argument("--eyes-only", action="store_true",
                     help="rebuild eye tiles, legacy eye files, set.json and preview.png; skin files untouched")
     args = ap.parse_args()
-    global TEX
+    global TEX, WORK, CHECK_CPU
+    CHECK_CPU = args.cpu
     if args.out_root is not None:
         TEX = (REPO / args.out_root).resolve()
+    if args.work is not None:
+        WORK = (REPO / args.work).resolve()
     if args.eyes_only:
         for nn in args.sets:
             irises(nn, SETS[nn])

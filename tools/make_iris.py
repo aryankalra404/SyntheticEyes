@@ -40,11 +40,23 @@ TILES = {"L": 1002, "R": 1004}
 # hues are kept within 15 degrees of the fibre hue so the inner zone reads as part of the same
 # iris, not a painted patch. Brown and dark brown are set by hand, darker and warmer than the
 # toned originals (which read grey-brown at face distance).
+# radial (brown and dark brown only, M11): on a bare head under plain light, with a clear cornea
+# that lays a grey reflection over the whole eye, the M3 browns went to flat grey-brown discs.
+# These add chroma and radial structure only, all functions of the radius and the fibre noise,
+# never of the angle (the tile turns with the eye): stroma contrast x contrast, a lighter warm
+# zone `mid` round the collarette (gaussian at mid_t, width mid_w), a deeper limbal ring (colour
+# weight `limbal`, brightness at the limbus limbal_gain instead of LIMBAL_GAIN) and darker stroma
+# out to pupil_ring_t round the pupil. Mean iris luminance rises 26-34 % (linear), its spread
+# about 75 %. Palettes without `radial` are unchanged, byte for byte.
 PALETTE = {
-    "dark_brown": dict(base=(25, 15, 9), fibre=(64, 39, 22), pupillary=(33, 19, 10),
-                       collarette=(74, 46, 26), limbal=(11, 7, 5), ruff=(14, 9, 6), freckles=0.5),
-    "brown": dict(base=(46, 27, 15), fibre=(98, 62, 36), pupillary=(56, 32, 17),
-                  collarette=(108, 70, 40), limbal=(20, 12, 7), ruff=(22, 13, 8), freckles=0.7),
+    "dark_brown": dict(base=(22, 12, 6), fibre=(72, 41, 19), pupillary=(32, 17, 8),
+                       collarette=(84, 50, 23), limbal=(8, 5, 3), ruff=(10, 6, 4), freckles=0.5,
+                       radial=dict(contrast=1.3, mid=(104, 64, 30), mid_t=0.40, mid_w=0.13, mid_amt=0.4,
+                                   limbal=0.95, limbal_gain=0.32, pupil_ring=0.35, pupil_ring_t=0.16)),
+    "brown": dict(base=(40, 22, 11), fibre=(106, 66, 34), pupillary=(50, 28, 13),
+                  collarette=(118, 76, 38), limbal=(14, 8, 5), ruff=(16, 9, 5), freckles=0.7,
+                  radial=dict(contrast=1.3, mid=(138, 92, 46), mid_t=0.40, mid_w=0.13, mid_amt=0.4,
+                              limbal=0.95, limbal_gain=0.32, pupil_ring=0.35, pupil_ring_t=0.16)),
     "hazel": dict(base=(70, 66, 47), fibre=(132, 124, 93), pupillary=(110, 89, 63),
                   collarette=(152, 125, 92), limbal=(32, 32, 23), ruff=(30, 21, 16), freckles=0.5),
     "green": dict(base=(58, 73, 55), fibre=(118, 135, 103), pupillary=(112, 125, 77),
@@ -236,9 +248,19 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
     inside = 1.0 - smoothstep(edge - 0.08, edge + 0.08, t)
     inside = inside * np.clip(0.55 + 0.9 * fib, 0, 1) ** (1.0 - inside)   # ragged along the fibres
 
-    col = lerp(base, fibre, np.clip(fib * S["fibre_contrast"] + 0.18 + 0.12 * st, 0, 1))
+    R_ = P.get("radial")                      # optional, brown palettes only (M11); None = as before
+    mix = fib * S["fibre_contrast"] + 0.18 + 0.12 * st
+    if R_:
+        mix = 0.5 + (mix - 0.5) * R_["contrast"]
+    col = lerp(base, fibre, np.clip(mix, 0, 1))
     col = lerp(col, pupillary * (0.7 + 0.6 * fib[..., None]), inside * S["pupillary_mix"])
     col = col * (1 + S["streaks"] * np.clip(st, -2.2, 2.2))[..., None]
+    if R_:
+        # a lighter, warmer zone round the collarette, following the fibres; a function of the
+        # radius and the fibre noise only, so it has no side and turns with the eye unnoticed
+        zone = np.exp(-0.5 * ((t - R_["mid_t"]) / R_["mid_w"]) ** 2)
+        col = lerp(col, lin(R_["mid"]) * (0.7 + 0.6 * fib[..., None]),
+                   np.clip(R_["mid_amt"] * zone * (0.5 + 0.7 * fib), 0, 1))
 
     # collarette: a low broken ridge, not a ring. Width and brightness vary around the iris and
     # it has gaps; it follows the fibres so it reads as raised stroma, not a painted line.
@@ -310,13 +332,16 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
 
     # limbal colour toward the edge; the wide brightness falloff across the limbus is applied
     # in make_eye, in UV, so it carries on into the sclera
-    lim = smoothstep(0.75, 1.0, t) * S["limbal"] * 0.7
+    lim = smoothstep(0.75, 1.0, t) * S["limbal"] * (R_["limbal"] if R_ else 0.7)
     col = lerp(col, limbal_c, lim)
 
     # pupil ruff: thin crenellated dark-brown rim at the pupil edge
     ruff_t = np.clip(0.035 + 0.012 * polar_noise(rng, (1, nth), (0, 4))[0], 0.018, 0.06)
     ruff = 1 - smoothstep(ruff_t * 0.6, ruff_t, t)
     col = lerp(col, ruff_c, ruff)
+    if R_:
+        # darker stroma close round the pupil
+        col = col * (1 - R_["pupil_ring"] * (1 - smoothstep(0.02, R_["pupil_ring_t"], t)))[..., None]
 
     # low-frequency brightness variation so the iris is not perfectly even
     col = col * (1 + 0.12 * polar_noise(rng, (nt, nth), (60, 200)))[..., None]
@@ -480,7 +505,8 @@ def make_eye(color: str, seed: int, side: str, eye_uv: dict, size: int = 2048) -
     wander = 1 + 0.08 * polar_noise(rng, (1, 1024), (0, 40))[0]
     wander = np.interp(TH / (2 * np.pi) * 1024, np.arange(1025), np.append(wander, wander[0]))
     ring = smoothstep(LIMBAL_START * rl, rl, R) * (1 - smoothstep(rl, rl + LIMBAL_FADE, R))
-    col = col * (1 - (1 - LIMBAL_GAIN) * np.clip(ring * wander, 0, 1))[..., None]
+    gain = P["radial"]["limbal_gain"] if P.get("radial") else LIMBAL_GAIN
+    col = col * (1 - (1 - gain) * np.clip(ring * wander, 0, 1))[..., None]
 
     # sclera: darker toward the fornix, away from the lit front
     f0, f1, fk = FORNIX

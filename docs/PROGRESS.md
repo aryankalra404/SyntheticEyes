@@ -21,6 +21,101 @@ what the next session needs to know.
 
 ## Log
 
+### Sat 14 Nov 2026 — M7 eye close-up: grown brows, clumped lashes, deeper warmer shadows (Opus)
+Closing the gap to "Eye Piece" (0:11, 0:14, 0:19 looked at: near-black shadow side, dense clumped
+lashes with pale highlights, deep shadow under the brow) in brows, lashes and shadow depth.
+Textures untouched; the `eye` look, the nose flag, the catchlight card and `tools/vellus.py` kept,
+only the listed numbers changed. Code: new `tools/brows.py`; `tools/build_scene.py`,
+`tools/lashes.py`, `tools/vellus.py`, `tools/check_lids.py`, `tools/render_stills.py` (brows.py is a
+rebuild dependency), `wrapper/eyes.py` (`use_texture`, `apply_look`); docs in the shading recipe and
+the `check_lids` line of CLAUDE.md. `scene.blend`, the nine stills and eye stills, the sheet and
+`renders/` regenerated and committed; `metadata.json` and `outputs/direction_check.json` came out
+byte-identical.
+
+Method: baseline and every step = eye still (`cam_test_eye`) and face still (`cam_test_face`) of
+tex_09, tex_03, tex_06 on their own heads, 1024², 128 spp, in `outputs/tmp/m7/<step>/`; each
+sheet is previous | current, rows 09 / 03 / 06, columns eye, eye, face, face:
+`outputs/tmp/m7/sheet_base_vs_step1.png`, `sheet_step1_vs_step2.png`, `sheet_step2_vs_step3.png`,
+`sheet_step3_vs_step4.png` (not committed; outputs/tmp is ignored).
+
+**1. Brows grown per head — kept.** `tools/brows.py` (pure numpy, bound to triangles like the
+lashes, seed fixed). Roots inside GNM's left/right_brow_region where the set's albedo is darker
+than the skin round it (`1 - L / skin level`, skin level = a ~6 mm blur of the luminance with the
+dark pixels left out; no hair under 0.10, full weight at 0.30, roots drawn in proportion). 450-600
+per brow (549 + 560 on these heads; 9,000-20,000 of 40,000 candidate roots fall on the paint),
+6 points, 6-11 mm in the body, 4-6 at both ends, 35 → 8 um. Inner third 60 deg up and out, body
+along the arch, rows leaning 20 deg toward the middle line, 12 deg scatter, 1 in 15 a stray up to
+30 deg. 8-15 deg off the skin at the root, tip 0.3-0.8 mm up, each point laid on the plane of the
+nearest skin vertex so the hair follows the brow ridge; crossing test from `tools/lashes.py`, a
+crossing hair is lifted ×1.3 up to 12 times, else dropped (tex_09 left brow: 10 dropped, all tail
+hairs that dive into the lid fold; none on 03 and 06). Colour `eyebrows.color_linear` from set.json,
+else (0.05, 0.032, 0.02) (tex_09). The object is `brows_grown` with `brow_set` = the `--texture` the
+scene is built with; `use_texture` shows it only for that set and the carried Mindfront brows for
+any other. Result: the brow reads as strands sitting on the paint instead of a painted smear, on
+all three heads and all nine stills.
+Rim: tested with the rim reaching the grown brows (`outputs/tmp/m7/step1_rim/`): it greys the tail
+further (tex_06's tail goes nearly white), so they stay in `keep_rim_off`.
+
+**2. Lashes — kept.** Upper up to 10 mm, lower 80 lashes up to 6.5 mm, 60 → 6 um, clumps of 3-5
+with tips pulled 60-80 % together, 1 in 10 alone; a lash the pull would push through the lid skin
+keeps its own shape (8-28 per eye). `lash_hair` colour (0.03, 0.02, 0.013), roughness 0.25; the rim
+lights the lashes again. They read as dark clumped strands with a pale highlight, as in the
+reference. `tools/check_lids.py` now also measures the evaluated lash carrier past each root
+(the root starts 0.15 mm under the margin skin by design): on `scene.blend`, deepest lash point
+0.017 mm (L) / 0.025 mm (R) inside the globe, at gaze -12.5 / ±30 deg, lid 0.17-0.33 closed.
+That is under half a lash radius and less than the lid skin's own 0.026 / 0.032 mm, but **not
+zero**. With roots counted it is 0.05 / 0.06 mm (25 deg up, 30 deg side, lid 2/3 closed).
+
+**3. Shadow depth and colour — kept, fill at 0.4 W, not 0.2.** Fill colour (1.0, 0.92, 0.85);
+skin subsurface radius (1.0, 0.30, 0.15), scale 2.0 mm; `view_look` in `LOOKS`, set on each camera
+(`look_view`) and applied by `apply_look`: "AgX - Medium High Contrast" for `eye`, "None" for
+`face`. Eye shots: warmer skin, deeper shadow under the brow and round the eye. At 0.2 W
+tex_06's face still went black on the shadow side (cheek and jaw lost against the backdrop);
+0.3 W still lost the jaw; **0.4 W** (warm) reads (`outputs/tmp/m7/step3_fill/`). In the tex_09 eye
+shot 0.2 and 0.4 W look the same: the contrast and the warmth do the work there.
+Clockwise renders: `cam_face` gets look "None" (checked: after an `eye` camera, `apply_look(cam_face)`
+puts it back); their mean level is unchanged (82.6-82.7 / 255), and they differ only round the
+brows and lashes (about 9,000 px per frame) and through the subsurface change.
+
+**4. Sclera strip and longer fine hair — kept.** `sheen_eye`, a second reflection-only card made by
+`build_catch` (30 × 60 cm, 0.8 m, 70 deg temple side, 10 deg up, strength 4): a long soft
+reflection on the temple side of the eye and along the tear line. `tools/vellus.py` LENGTH
+1.0-3.5 mm: single pale hairs on the lit cheek and a fuzz on the silhouette, no white frost on
+tex_03 or tex_06. Note the step-4 sheet's step-3 column has the fill at 0.2 W.
+
+**5. Denoising, for the reviewer** (nothing changed): `outputs/tmp/m7/step5/cheek_denoise_vs_raw.png`,
+tex_09 eye at 256 spp, the cheek under the eye at full size. OIDN smooths the fine relief there
+into a waxy patch; raw keeps the pores with visible grain.
+
+**Rebuild and cost.** `solve_lids.py` + `build_scene.py --npz assets/gnm/id_male_white_9.npz`.
+Cycles 64 spp, `--input left --frames 45 150 245`: both eyes 34.0 s, face 15.4 s, eye 28.3 s
+(check_lids was running on the CPU at the same time). Three videos about **2.0 + 2.0 + 2.4 =
+6.4 h** (was 6.3), under 7.5 h.
+
+**Checks**: 38 unit tests pass; directions unchanged (left -13.8 / -14.2 px, right +14.2 / +13.8,
+up -14.0, down +14.0); `tools/validate.py --blender` passes all but "README: no TODO left"
+(5 lines), as before. Nine stills rerendered and the sheet looked at (01 and 08 at full size too:
+grown brows on every set). Clockwise set looked at (frame 0 before / after). Draft videos (EEVEE,
+`outputs/videos/`, not committed) rerendered, 9.00 / 9.00 / 10.70 s; five frames of each looked at
+across all three framings and a blink.
+
+**For Fable**
+- Step 1 grown brows: kept. `sheet_base_vs_step1.png`, `step1_rim/`. Unsure: the brow tail nearest
+  the key reads ash-blond on tex_09 and grey on tex_06 (the key's highlight on the hair, not the
+  rim); a darker colour or a rougher hair for the brows would fix it but was not on my list.
+  Ten tex_09 tail hairs dropped. The darkness threshold (0.10-0.30) and the 6 mm skin blur were
+  chosen by plotting tex_09, 03 and 06 only.
+- Step 2 lashes: kept. `sheet_step1_vs_step2.png`. Unsure: the lower outer lashes on tex_03 and
+  tex_06 go a little frosty under the key and rim; lash past-root depth in the globe 0.017 / 0.025
+  mm, not zero (see above).
+- Step 3 shadows: kept with the fill at 0.4 W instead of 0.2. `sheet_step2_vs_step3.png`,
+  `step3_fill/`.
+- Step 4 sclera strip and vellus 1.0-3.5 mm: kept. `sheet_step3_vs_step4.png`. The strip also shows
+  as a tall bright window on the temple edge of the cornea in the eye close-up; looks wet to me,
+  may be too strong.
+- Step 5: `step5/cheek_denoise_vs_raw.png`, your call.
+- Final videos not rendered.
+
 ### Sat 14 Nov 2026, early — the `eye` look: hard raking key on black, skin, fine facial hair (Fable)
 The videos, the nine stills and the eye close-ups now share one look, after "Eye Piece": one hard
 raking light on black. Code: `tools/build_scene.py`, `wrapper/eyes.py`, new `tools/vellus.py`;

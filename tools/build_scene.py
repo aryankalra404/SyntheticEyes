@@ -74,6 +74,7 @@ SKIN_SSS = 0.0016                         # skin subsurface scale in metres (--s
 SKIN_NORMAL = 1.8                         # strength of the set's normal map: pores must catch a raking light
 SKIN_ROUGH = 1.0                          # x the set's roughness map
 NOSE_ROUGH = 0.22                         # added on the nose, so it never shows a hard highlight
+NOSE_NORMAL = 0.6                         # normal map strength on the nose and between the brows
 SKIN_SHEEN = 0.18                         # weight of the thin sharp gloss that sparkles on the micro-relief
 SHEEN_ROUGH = 0.2
 MICRO_SIZE = 0.0005                      # m, grain of the procedural micro-relief the sheen reflects off
@@ -424,6 +425,7 @@ def skin_textured(sss_scale=None, dims=(0.25, 0.25, 0.35)):
       lips  smoother, with a thin coat
       lids  thin skin round the eye: a touch more subsurface
       nose  rougher, so the ridge and tip show a broad sheen and never a hard highlight
+      calm  the nose and between the brows, spread wide: a weaker normal map
     Pores catching the light: the set's normal map carries relief down to about a millimetre,
     and a sharp gloss on that alone shows as blobs (a coat floor of 0.22 turned the nose ridge
     into blobby dots). So the sharp gloss (the coat, SKIN_SHEEN) reflects off a finer procedural
@@ -436,7 +438,7 @@ def skin_textured(sss_scale=None, dims=(0.25, 0.25, 0.35)):
     bsdf = nt.nodes["Principled BSDF"]
     uv = nt.nodes.new("ShaderNodeUVMap")
     uv.uv_map = "UDIM"
-    wet, pink, lips, lids, nose = (attr(nt, k) for k in ("wet", "pink", "lips", "lids", "nose"))
+    wet, pink, lips, lids, nose, calm = (attr(nt, k) for k in ("wet", "pink", "lips", "lids", "nose", "calm"))
 
     alb = image_node(nt, "tex_albedo", uv)
     col = nt.nodes.new("ShaderNodeMix")
@@ -449,7 +451,10 @@ def skin_textured(sss_scale=None, dims=(0.25, 0.25, 0.35)):
     nrm = image_node(nt, "tex_normal", uv, colour=False)
     nm = nt.nodes.new("ShaderNodeNormalMap")
     nm.uv_map = "UDIM"
-    nm.inputs["Strength"].default_value = SKIN_NORMAL
+    # The nose and the skin between the brows are the nearest things to the eye camera and out of
+    # its focus: at full strength the blurred pore relief there read as coarse lumps, like orange peel.
+    nt.links.new(mnode(nt, "SUBTRACT", SKIN_NORMAL, mnode(nt, "MULTIPLY", calm, SKIN_NORMAL - NOSE_NORMAL)),
+                 nm.inputs["Strength"])
     nt.links.new(nrm.outputs["Color"], nm.inputs["Color"])
     nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
 
@@ -505,7 +510,7 @@ def skin_textured(sss_scale=None, dims=(0.25, 0.25, 0.35)):
 
 
 def build_masks(D, ob):
-    """Per-vertex float attributes wet, pink, lips, lids, nose on the head mesh (see skin_textured).
+    """Per-vertex float attributes wet, pink, lips, lids, nose, calm on the head mesh (see skin_textured).
     They are topology, not UV: the same on every identity, and they follow the lids."""
     V, n = D.V, len(D.V)
     sock, skin, eye = D.mask("eye_sockets"), D.mask("skin"), D.mask("eyes")
@@ -532,7 +537,8 @@ def build_masks(D, ob):
     lips = soften((D.mask("upper_lip") | D.mask("lower_lip")).astype(np.float64), 1)
     lids = soften((D.mask("left_orbital_region") | D.mask("right_orbital_region")).astype(np.float64), 2)
     nose = soften(D.mask("nose_region").astype(np.float64), 3)
-    for name, w in (("wet", wet), ("pink", pink), ("lips", lips), ("lids", lids), ("nose", nose)):
+    calm = np.clip(soften((D.mask("nose_region") | D.mask("middle_brow_region")).astype(np.float64), 8) * 1.6, 0.0, 1.0)
+    for name, w in (("wet", wet), ("pink", pink), ("lips", lips), ("lids", lids), ("nose", nose), ("calm", calm)):
         a = ob.data.attributes.new(name, "FLOAT", "POINT")
         a.data.foreach_set("value", w.astype(np.float32))
 

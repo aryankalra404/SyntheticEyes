@@ -11,10 +11,12 @@ millimetre off GNM's lid edge, stand off the upper lid and leave a tuft at the o
 Here each lash is rooted on the front edge of the lid margin of the head being built.
 
 Lash shape (numbers from anatomy texts: about 100-150 upper lashes of 8-12 mm, 50-75 lower of
-6-8 mm, base diameter about 0.1 mm; kept at the short, sparse end, which reads as natural at
-1024 px): a planar arc that leaves the margin along the globe's outward direction and curls away
-from the eye, fanned toward the outer corner, with jittered length and direction, a share of
-short lashes still growing, and neighbours leaning into loose groups of two or three.
+6-8 mm, base diameter about 0.1 mm; 14 Nov: longer and thicker than at first, after the
+reference, where the lashes read as dark clumped strands with a pale highlight): a planar arc
+that leaves the margin along the globe's outward direction and curls away from the eye, fanned
+toward the outer corner, with jittered length and direction, a share of short lashes still
+growing, and neighbours gathered into clumps of three to five whose tips are pulled most of the
+way together; one lash in ten stays out of any clump.
 """
 
 from __future__ import annotations
@@ -23,12 +25,15 @@ import numpy as np
 
 LIDS = {
     #          count  s0    s1    length m  curl deg (root, tip)  fan deg (inner, outer)
-    "upper": dict(n=135, s0=0.14, s1=0.97, length=0.0085, curl=(-8.0, 58.0), fan=(-4.0, 36.0)),
-    "lower": dict(n=62, s0=0.22, s1=0.95, length=0.0045, curl=(-10.0, 30.0), fan=(-6.0, 30.0)),
+    "upper": dict(n=135, s0=0.14, s1=0.97, length=0.0100, curl=(-8.0, 58.0), fan=(-4.0, 36.0)),
+    "lower": dict(n=80, s0=0.22, s1=0.95, length=0.0065, curl=(-10.0, 30.0), fan=(-6.0, 30.0)),
 }
 POINTS = 7                 # per lash
-ROOT_RADIUS = 0.000048     # m
-TIP_RADIUS = 0.000008
+ROOT_RADIUS = 0.000060     # m
+TIP_RADIUS = 0.000006
+CLUMP = (3, 5)             # lashes per clump, inclusive
+CLUMP_PULL = (0.6, 0.8)    # share of the way each tip is pulled to the clump's mean tip
+CLUMP_ALONE = 0.1          # share of lashes left out of any clump
 ROOT_SINK = 0.00015        # m the root starts under the skin
 
 
@@ -117,7 +122,7 @@ def grow(V, quads, triangles, sock, skin, eye, joint, side, seed=0):
     rims = lid_rims(V, quads, sock, skin, eye, side)
     close = triangles[(np.linalg.norm(V[triangles].mean(1) - joint, axis=1) < 0.035)]
     lid_tris = (V[close[:, 0]], V[close[:, 1]], V[close[:, 2]])       # skin round this eye
-    uncurled = 0
+    uncurled = unclumped = 0
     tri_o, bary_o, off_o, rad_o, cnt_o, pts_o = [], [], [], [], [], []
     for li, (lid, spec) in enumerate(LIDS.items()):
         back, _, rim = rims[lid]              # lashes root on the margin's front edge
@@ -169,14 +174,29 @@ def grow(V, quads, triangles, sock, skin, eye, joint, side, seed=0):
             c1[hit] -= np.radians(5.0)
             c0[hit] -= np.radians(1.5)
         uncurled += int((c1 < np.radians(spec["curl"][1] - 25.0)).sum())
-        # loose groups: tips of two or three neighbours lean toward their shared middle
-        g = np.cumsum(rng.random(n) < 0.42)
+        # clumps: runs of CLUMP neighbours whose tips are pulled together; a lash that the pull
+        # would push through the lid skin keeps its own shape
+        alone = rng.random(n) < CLUMP_ALONE
+        g, cur, left = np.empty(n, dtype=int), -1, 0
+        for k in range(n):
+            if alone[k]:
+                cur, left = cur + 1, 0
+            elif left == 0:
+                cur, left = cur + 1, int(rng.integers(CLUMP[0], CLUMP[1] + 1)) - 1
+            else:
+                left -= 1
+            g[k] = cur
+        free = pts.copy()
         for k in np.unique(g):
             m = g == k
             if m.sum() > 1:
                 tip = pts[m, -1].mean(0)
-                pull = rng.uniform(0.25, 0.5)
+                pull = rng.uniform(*CLUMP_PULL)
                 pts[m] += (tip - pts[m, -1])[:, None, :] * pull * (q ** 2)[None, :, None]
+        hit = crosses(pts[:, 1:-1].reshape(-1, 3), pts[:, 2:].reshape(-1, 3),
+                      *lid_tris).reshape(n, POINTS - 2).any(1)
+        pts[hit] = free[hit]
+        unclumped += int(hit.sum())
         radius = ROOT_RADIUS + (TIP_RADIUS - ROOT_RADIUS) * q ** 1.4
         radius = radius[None, :] * rng.uniform(0.8, 1.1, (n, 1))
         for k in range(n):
@@ -204,6 +224,8 @@ def grow(V, quads, triangles, sock, skin, eye, joint, side, seed=0):
             pts_o.append(pts[k])
     if uncurled:
         print(f"[lashes] {side}: {uncurled} lashes uncurled to clear the lid fold")
+    if unclumped:
+        print(f"[lashes] {side}: {unclumped} lashes left out of their clump to clear the lid skin")
     return (np.concatenate(tri_o).astype(np.int32), np.concatenate(bary_o), np.concatenate(off_o),
             np.concatenate(rad_o).astype(np.float32), np.array(cnt_o, dtype=np.int32),
             np.concatenate(pts_o))

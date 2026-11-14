@@ -133,8 +133,11 @@ Work in polar coordinates around the tile centre, then warp to the disc.
 As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
 
 - **Skin**: Principled BSDF, random-walk (skin) subsurface at weight 1, radius (1, 0.35, 0.18),
-  scale 2.5 mm, 1.5× on the thin skin round the eyes. Albedo, tangent normal and roughness from
-  the set. Four per-vertex masks on the head mesh steer it: `wet` (lid margin and the pocket
+  scale 1.6 mm, 1.5× on the thin skin round the eyes. Albedo, tangent normal (strength 1.8) and
+  roughness (as it is) from the set. A thin sharp coat (weight 0.18, roughness 0.2) reflects off
+  a procedural 0.5 mm micro-relief laid in rest coordinates, so pores sparkle under a raking
+  light without the millimetre blobs a sharp gloss shows on the map's own normal. The nose
+  (`nose` mask) gets + 0.22 roughness and no coat. Four more per-vertex masks on the head mesh: `wet` (lid margin and the pocket
   behind the lids: roughness × 0.25 under a clear coat with a fine ripple, which breaks the
   highlight into glints), `pink` (the same pocket and the inner corner: red wet tissue instead
   of the skin fill in the albedo), `lips` (roughness × 0.7, coat 0.25), `lids`.
@@ -148,12 +151,30 @@ As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
   between the lower lid margin and the globe, 0.75 mm up the globe.
 - **Lashes**: grown per head on the front edge of the lid margin (`tools/lashes.py`), 135 upper
   and 62 lower per eye, Principled Hair. Brow hair is the carried Mindfront strands.
-- **Lighting**, two looks picked by the camera (`LOOKS`, `wrapper/eyes.py apply_look`):
-  `face` = HDRI at 0.24 plus a 45 × 60 cm key up and to image left, plain dark backdrop; used for
-  whole-face shots and the 10 clockwise renders, constant. `eye` = HDRI at 0.14, black backdrop,
-  a 10 × 15 cm key from the nose side, shallow depth of field; for the eye close-up and inset.
-- **Camera**: 40 cm from the eye midpoint, about 50 mm lens on a 36 mm sensor, 1024×1024.
-  A second close-up camera on the eyes for the demo video.
+- **Fine facial hair**: grown per head on the face front (`tools/vellus.py`), about 8,100 hairs of
+  0.4–2.4 mm, 9 → 3 µm radius, none on lips, lid margins or brows. Each takes the skin texture's
+  colour under its root (less saturated, lifted a little), so it suits every set.
+- **Lighting**, two looks picked by the camera (`LOOKS`, `wrapper/eyes.py apply_look`).
+  `face` = HDRI at 0.24, a 45 × 60 cm key up and to image left and a rim, plain dark backdrop:
+  the constant light of `cam_face` and the 10 clockwise renders.
+  `eye` = everything else (videos, stills, eye close-ups), on black with the HDRI at 0.03
+  (`EYE_LIGHTS`; places are from the subject's left pupil):
+  - key: 5 cm disk, 3.0 W, warm, 0.5 m, 78° to the temple side and 30° up. Hard and raking.
+    (88° / 42° leaves the globe of the tex_09 head in the shadow of the brow and orbital rim.)
+  - fill: 50 cm disk, 0.4 W, cool, 60° to the nose side, hidden from glossy rays (its reflection
+    is a pale patch over half the cornea).
+  - rim: 6 × 30 cm strip, 2.5 W, 155° round and 20° up, behind the temple; it backlights the fine
+    hair on the silhouette. Light linking keeps it off the brow hair and lashes (it greyed them).
+  - iris spots: one 5.5° spot per eye, 3.0 W, diffuse only, on the head bone. A raking key
+    leaves a deep-set iris dull.
+  - catchlight: a 6 × 10 cm card 30° to the temple side and 28° up whose material emits only
+    into singular reflection rays: the cornea and the tear line see it, nothing else is lit.
+  - flag: a scrim (65 % dense) shaped as the nose's outline seen from the key, 24 % of the way
+    from the nose to the key, held on the key-to-nose lines by a Geometry Nodes step as the head
+    moves. Shadow rays only. It keeps the key from making the nose the brightest thing in frame.
+- **Camera**: `cam_face` 40 cm from the eye midpoint, 50 mm lens on a 36 mm sensor, 1024×1024.
+  Stills: `cam_test_face` (126 mm from 0.56 m, mid forehead to chin, no scalp) and `cam_test_eye`
+  (the videos' eye framing). Videos: `cam_move` (see PROGRESS, M4).
 - **Colour**: AgX view transform
 
 ## Calibrated control (`eyes.move`)

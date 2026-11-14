@@ -10,8 +10,8 @@ what the next session needs to know.
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
-| M3 Look | done (13 Nov) on solved lids and the reworked iris tiles; nine stills re-rendered; brow hair thinned and a rim light added (13 Nov, late) |
-| M4 Motion | gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 4.8 h at 64 spp), and nobody has watched a draft at playback speed yet |
+| M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
+| M4 Motion | gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 6.3 h at 64 spp in the new look), and nobody has watched a draft at playback speed yet |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -21,61 +21,92 @@ what the next session needs to know.
 
 ## Log
 
-### Sat 14 Nov 2026, early — the `eye` look: hard raking key on black, skin, fine facial hair (Fable) — NOT FINISHED
-Stopped by a usage limit before the final rerun. Code and `scene.blend` are in; **the nine stills,
-`renders/`, `outputs/direction_check*` and the draft videos were not regenerated** and still show
-the old look. Code: `tools/build_scene.py`, `wrapper/eyes.py`, new `tools/vellus.py`, docs in
-`tools/look_shots.py`, `tools/render_stills.py`, `CLAUDE.md`, `README.md` (build command, `--frames`).
+### Sat 14 Nov 2026, early — the `eye` look: hard raking key on black, skin, fine facial hair (Fable)
+The videos, the nine stills and the eye close-ups now share one look, after "Eye Piece": one hard
+raking light on black. Code: `tools/build_scene.py`, `wrapper/eyes.py`, new `tools/vellus.py`;
+docs in `tools/look_shots.py`, `tools/render_stills.py`, `CLAUDE.md`, `README.md` (build command,
+`--frames`) and the shading recipe in `docs/TECH_NOTES.md`. `scene.blend`, the nine stills and eye
+stills, `renders/`, `metadata.json` and `outputs/direction_check.json` regenerated and committed.
+Textures untouched.
 
-**0. Build.** `scene.blend` is now built on the tex_09 identity:
+**0. Build.** `scene.blend` is built on the tex_09 identity, so the videos show the hero still's head:
 `$BLENDER -b --factory-startup -P tools/build_scene.py -- --npz assets/gnm/id_male_white_9.npz`
-(CLAUDE.md, README). On this head the both-eyes framing cut an eye in `right` (outer lashes reach
-6.1 cm from the frame centre in the 12-13 deg turns; the frame was 11 cm), so `MOVE_EYES` is 13 cm
-wide. The eye and face framings fit as they were.
+(CLAUDE.md, README). It also carries the sway / partial-blink motion on the Timeline now.
+On this head the both-eyes framing cut an eye in half in `right` (the outer lashes reach 6.1 cm
+from the frame centre in the 12-13 deg turns; the frame was 11 cm, sized on the template), so
+`MOVE_EYES` is 13 cm wide: it now shows the face from the lower forehead to the top lip, edge to
+edge. The eye and face framings fit as they were. `metadata.json` and the direction-check pixels
+changed because the head did; the shifts are as before (left -13.8 / -14.2 px, right +14.2 / +13.8,
+up -14.0, down +14.0).
 
-**1. The `eye` look** (`EYE_LIGHTS`, `LOOKS["eye"]`; every camera but `cam_face` uses it now,
-`cam_video` and `cam_test_face` included). The 13 Nov numbers did not carry over as given:
-- key at 88 / 42 deg left the whole globe in the shadow of the brow and orbital rim on this head.
-  Now 78 deg to the temple side, 30 deg up, 5 cm disk, 0.5 m, warm, 3.0 W.
-- fill 50 cm disk, cool, 60 deg nose side, 0.4 W, hidden from glossy rays (its reflection was the
-  pale patch on the cornea and a sheen down the nose). HDRI 0.03, black.
-- catchlight: a 6 x 10 cm card (`catch_eye`) whose material emits only into singular reflection
-  rays, so only the cornea and tear line see it. As a glossy-only lamp it glazed the whole face.
-  30 deg temple side, 28 deg up: stays on the cornea in all three framings.
-- `iris_eye.L/.R`: a 5.5 deg spot per eye, 3.0 W, diffuse only, on the head bone. Without them the
-  iris is dull under a side key. An area lamp with a narrow spread blotched at 64 spp; spots are clean.
-- `flag_eye`: a black card, shadow only, shaped as the nose's outline seen from the key, kept on
-  the key-to-nose lines by a Geometry Nodes step so it holds through head turns (looked at +-12 deg).
-- `rim_eye`: strip behind the temple, 140 / 20 deg, 3.5 W, so the fuzz on the silhouette glows.
+**1. The `eye` look** (`EYE_LIGHTS`, `LOOKS["eye"]`; every camera but `cam_face` uses it,
+`cam_video` and `cam_test_face` included). The 13 Nov test numbers did not carry over as given:
+- **key** at 88 / 42 deg left the whole globe in the shadow of the brow and orbital rim on this
+  head. Now 78 deg to the temple side, 30 deg up, 5 cm disk, 0.5 m, warm, 3.0 W.
+- **fill** 50 cm disk, cool, 60 deg nose side, 0.4 W, hidden from glossy rays (its reflection was
+  the pale patch on the cornea and a sheen down the nose). HDRI 0.03, black.
+- **catchlight**: a 6 x 10 cm card (`catch_eye`) whose material emits only into singular reflection
+  rays, so only the cornea and the tear line see it and it lights nothing. As a glossy-only lamp
+  it glazed the whole face (that was most of the "wet leather" skin). 30 deg temple side, 28 deg
+  up: on the cornea in all three framings and through the head turns.
+- **iris spots** `iris_eye.L/.R`: a 5.5 deg spot per eye, 3.0 W, diffuse only, on the head bone.
+  Without them the iris is dull under a side key. An area lamp with a narrow spread blotched the
+  skin at 64 spp; spots are clean.
+- **flag** `flag_eye`: a scrim (stops 65 % of the key), shadow rays only, shaped as the nose's
+  outline seen from the key. Its mesh rides on the head bone and a Geometry Nodes step pulls it
+  toward the key, so it stays on the key-to-nose lines: looked at head turns of +-12 deg, the nose
+  keeps its shade. Fully black it read as a dark wedge beside the nose in the face stills.
+- **rim** `rim_eye`: strip behind the temple, 155 / 20 deg, 2.5 W, for the fuzz on the silhouette.
+  Light linking keeps it off the brow hair and lashes (it turned the outer brow hairs grey).
 - `apply_look` also switches objects that carry `look_prop` (flag, catch card).
 
-**2. Skin** (`skin_textured`): normal strength 1.8, subsurface 1.6 mm, roughness x 1.0 (x 0.8 read
-as an oily forehead under the hard key), nose roughness + 0.22 from a new `nose` mask, and a thin
-sharp coat (0.18, roughness 0.2) reflecting off a procedural 0.5 mm micro-relief in rest
-coordinates (Generated x bounding box), none on the nose.
+**2. Skin** (`skin_textured`): normal strength 1.8 and subsurface 1.6 mm as in the test; roughness
+x 1.0, not x 0.8 (x 0.8 read as an oily forehead under the hard key); nose roughness + 0.22 from a
+new `nose` mask; and a thin sharp coat (0.18, roughness 0.2) that reflects off a procedural 0.5 mm
+micro-relief in rest coordinates (Generated x bounding box, so it does not swim), none on the
+nose. Looked at close (cheek, lid) and at face distance (forehead, cheek): pores show as relief
+with a fine sparkle, no blobs.
 
-**3. Frames, Cycles 64 spp**, 17 frames over all framings, glides and blinks of the three videos
-(`--frames`, new: `eyes.py --input left --samples 64 --frames 45 129 150 185 245`), looked at.
-Seconds per frame: both eyes 32-33.5, eye 26-33, face 14.4-17.7. Full set about
-**2.0 + 1.95 + 2.4 = 6.3 h** (was 4.8 h). A first set before the fuzz, rim and wider framing
-measured 25-28 / 20-21.5 / 12-13.5; static frames with the rim off or the fuzz hidden were no
-faster, so the rise is motion-blurred hair or a warm machine, not settled.
+**3. Frames, Cycles 64 spp**: 17 frames over every framing, both glides and three blinks of the
+three videos (`--frames`, new: `eyes.py --input left --samples 64 --frames 45 129 150 185 245`),
+looked at. Seconds per frame, 1024², Metal on the M4:
 
-**4. Stills.** `cam_test_face` is 17.5 cm, mid forehead to chin, no scalp or ears, `eye` look;
-`cam_test_eye` is the videos' eye framing. Not rendered for all sets: only 02 and 09 test frames.
+| framing | s/frame | frames (left / right / generate) |
+|---|---|---|
+| both eyes | 32-33.5 | 112 / 109 / 133 |
+| eye | 26-33 | 79 / 72 / 95 |
+| face | 14.4-17.7 | 79 / 89 / 93 |
 
-**5. Fine facial hair** (`tools/vellus.py`, grown like the lashes): 8,142 hairs on the face front,
-0.4-2.4 mm, 9 to 3 um radius, none on lips, lid margins or brows. Colour comes from the skin
-texture under each root (`skin_uv` attribute, desaturated and lifted): one pale colour was white
-lint on the darker sets. Visible on the temple and cheek silhouette against black.
+  About **2.0 + 1.95 + 2.4 = 6.3 h** for the three final videos (was 4.8 h). A first set, before
+  the fuzz, the rim and the wider framing, measured 25-28 / 20-21.5 / 12-13.5 (about 4.9 h). Static
+  frames with the rim off or the fuzz hidden were no faster (22.8 / 26.3 / 13.2 s either way), so
+  the rise is motion-blurred hair or a warm machine after sustained rendering; not settled. These
+  timings were taken before the last small changes (scrim, rim at 2.5 W, light linking).
 
-**Left, in order**
-- `python3 tools/render_stills.py`, `eyes.py --clockwise`, `--check-directions --render`, the three
-  `--quality draft` videos; look at all of it. EEVEE has not been tried with the new lights (the
-  catch card and flag rely on Cycles ray visibility).
-- `tools/validate.py` not run after these changes. Unit tests: 38 pass.
-- tex_02 test: the outer brow hair goes grey under the rim; the rim was halved since, not re-checked.
-- Nobody has watched a draft at playback speed.
+**4. Stills** (`tools/render_stills.py`, all nine sets on their own heads, 128 spp, looked at as a
+sheet and 02 / 09 at full size). `cam_test_face` is 126 mm from 0.56 m: 16 cm, mid forehead to
+chin, no scalp or ears. `cam_test_eye` is the videos' eye framing. The 10 clockwise renders keep
+the constant `face` look.
+
+**5. Fine facial hair** (`tools/vellus.py`, grown like the lashes, bound to triangles): 8,142
+hairs on the face front, 0.4-2.4 mm, 9 to 3 um radius, none on lips, lid margins or brows. Each
+takes the skin texture's colour under its root (`skin_uv` attribute, less saturated, gamma 0.8):
+one pale colour was white lint on the darker sets. With the rim it shows on the temple and
+cheek silhouette against black and as single hairs on the lit cheek.
+
+**Checks**: `python -m unittest discover tests` 38 pass; `tools/validate.py --blender` passes all
+but "README: no TODO left" (5 lines), as before. Draft videos (EEVEE, `outputs/videos/`, not
+committed) rendered in the new look, 0.74-0.84 s/frame; 18 frames of each looked at: both eyes stay
+in frame through the turns, the flag works in EEVEE. **Drafts show no catchlight** (the card
+needs Cycles' singular rays); the finals have it.
+
+**Left**
+- Final videos not rendered (owner): `--input left|right|generate --samples 64`, about 6.3 h.
+- Nobody has watched a draft at playback speed; the pauses inside a glide are still unjudged.
+- The both-eyes framing at 13 cm is nearly a face shot. If that is too loose, the other way is to
+  let that camera follow the head sideways instead of widening it.
+- tex_06's forehead edge still takes a bright line from the rim in the eye still.
+- The `eye` look is tuned on the tex_09 head; the other eight were only checked as stills.
 
 ### Fri 13 Nov 2026, night — M4 one moving camera for the videos (Opus)
 The face-plus-inset video is gone. Videos are filmed by one camera, `cam_move`, that holds a

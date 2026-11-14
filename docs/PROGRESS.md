@@ -22,6 +22,14 @@ what the next session needs to know.
 ## Log
 
 ### Sat 14 Nov 2026 — brows and skin detail of sets 01-08 (Opus)
+**Superseded for the shipped sets.** This was done on the sets as of `f88a962`. When it was merged,
+`main` already had the bare-head rebuild (`8791849`, entry below: grown painted brows, scalp cap,
+eye area, lips, the back-of-head seam). The rebuilt sets were kept and these refined files were
+dropped; `tools/refine_skin.py` is kept as an opt-in tool, not called by `build_textures.py`.
+Before using it on the new sets: `tools/brows.py` roots the 3D brow hairs on the darkness of the
+painted brow, so the refinement also moves those hairs; rebuild `scene.blend` and look. The
+numbers below are for the old sets.
+
 New `tools/refine_skin.py`, run on the shipped files (no Blender, GNM or source skins needed);
 `tools/build_textures.py` calls it after assembling a set, so a rebuild reproduces it. Sets 01-08
 rewritten (albedo, legacy albedo, normal, roughness, set.json); `tex_09` untouched.
@@ -55,6 +63,11 @@ unchanged, so our own stills change less than a judge's bare-head wrap. Repo siz
 these eight sets adds about 380 MB to the history (measured; the legacy albedo is the same blob).
 
 ### Sat 14 Nov 2026 — audit against the evaluation deck and the organisers' GitHub checklist (Fable)
+Written against `f88a962`. Since then `main` rebuilt `scene.blend` and rerendered `renders/`
+(`7156ec7`, 13:47), rebuilt the nine texture sets and rerendered the stills (`8791849`, 16:55), so
+"Stale outputs" and the texture observations below describe that older state. `metadata.json`
+and `outputs/direction_check.json` were last changed in `110c5f6` (05:31), before that rebuild.
+
 Done on a Windows machine with no Blender, so nothing was rendered and `scene.blend` was not
 opened (it is zstd-compressed and could not be read as text either). `tools/validate.py` was not
 run. Everything below was read from the files or computed with numpy.

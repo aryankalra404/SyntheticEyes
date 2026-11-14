@@ -4,8 +4,13 @@
     python3 tools/refine_skin.py --sets 01 05 --preview outputs/tmp/refine   # before/after crops
 
 Runs on the shipped files of textures/tex_NN, so it needs neither Blender, GNM nor the source
-skins. tools/build_textures.py calls it as the last step of assembling a set. Sets with the
-scan's own skin (tex_09) are left alone: their brows and skin are photographed.
+skins. Sets with the scan's own skin (tex_09) are left alone: their brows and skin are
+photographed.
+
+Opt-in, not part of tools/build_textures.py and not applied to the shipped sets. It was written
+against the sets before the 14 Nov bare-head rebuild. tools/brows.py roots the 3D brow hairs on
+the darkness of the painted brow in the albedo, so running this on a set also moves where those
+hairs grow: rebuild scene.blend and look at the eye close-up after trying it.
 
 Eyebrows. The drawn brows of sets 01-08 are opaque strands pasted on untouched skin, with a
 hard outline. A real brow (tex_09) has a soft layer of pigment and shadow under the hairs,

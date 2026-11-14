@@ -286,6 +286,12 @@ def main():
         "eye_front": (eyeL + Vector((0, -0.012, 0.0)), 0, 0, 0.11, 85, 20, 30, 6),
         "profile": (face + Vector((0.03, 0.03, 0)), 90, 0, 0.60, 85, 60, 35, 14),
         "back": (face + Vector((0, 0.06, 0.03)), 180, 10, 0.60, 85, 150, 35, 14),
+        # seam views: the other profile, behind each ear, the scalp from above, the neck from behind
+        "profile_r": (face + Vector((-0.03, 0.03, 0)), -90, 0, 0.60, 85, -60, 35, 14),
+        "rear_l": (face + Vector((0.03, 0.06, 0.0)), 135, 5, 0.60, 85, 110, 30, 14),
+        "rear_r": (face + Vector((-0.03, 0.06, 0.0)), -135, 5, 0.60, 85, -110, 30, 14),
+        "top": (face + Vector((0, 0.07, 0.09)), 0, 65, 0.60, 85, -30, 70, 14),
+        "neck": (face + Vector((0, 0.07, -0.07)), 180, -10, 0.60, 85, 150, 15, 14),
         "wrap_front": (face, 0, 0, 0.42, 50, -25, 25, 6),
         "wrap_three_quarter": (face, 40, 0, 0.42, 50, -10, 25, 6),
     }

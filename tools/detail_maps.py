@@ -88,6 +88,9 @@ REDNESS = (0.016, 0.16, 0.136)              # 1.6x: at 2x the cheeks read as a b
 SCAN_HEIGHT = REPO / "assets/gnm/scan_height.npz"
 SCAN_TILT_DEG = 4.5                         # mean normal tilt it is scaled to on nose, cheeks, forehead
 SCAN_HIGHPASS_PX = 14                       # about 1.6 mm on the face: keeps pores and furrows only
+LINE_WINDOW_PX = 7                          # window of the single-groove test on the scan relief
+LINE_COHERENCE = (0.45, 0.75)               # coherence where the cut starts and where it is full
+LINE_CUT = 0.85
 
 
 # --------------------------------------------------------------------------- fields
@@ -114,6 +117,7 @@ def region_fields(d, T: tc.Texels, scan_brows: bool = False) -> dict[str, np.nda
     res = {f: T.attr(out[f] / total) for f in FIELDS}
     res["lips"] = T.attr(W["lips"] / total)
     res["veins"] = T.attr(np.clip(W["temple"] * 1.5 + W["lids"], 0, 1) / total)
+    res["cheek"] = T.attr(np.clip(W["cheek"] + W["nose"], 0, 1) / total)
     res["lid_s"], res["lid_w"] = lid_coords(d, T)
     # where a scanned relief may be used: not around the eyes (the scan's are closed), not the
     # brows (its own brow hair is in the relief), not the ears or the lips
@@ -237,9 +241,24 @@ def scan_relief(T, F, size):
         raise SystemExit(f"{SCAN_HEIGHT.name} is {raw.shape[0]} px; rebake with --size {size}")
     valid = (hit & T.mask).astype(np.float32)
     s = SCAN_HIGHPASS_PX
-    hp = (raw - gaussian_filter(raw * valid, s) / np.maximum(gaussian_filter(valid, s), 1e-3)) * valid
-    # away from island borders and misses, where the high-pass has only one side to look at
+    from scipy.ndimage import distance_transform_edt
+
+    def highpass(sigma):
+        return (raw - gaussian_filter(raw * valid, sigma) / np.maximum(gaussian_filter(valid, sigma), 1e-3)) * valid
+
+    hp = highpass(s)
+    # next to an island border the high-pass has one side only and cannot take out a slope
+    # across the border: down the back of the head it left +1 sd on one side of the UV seam
+    # and -1.2 sd on the other, a small cliff along the seam. The error grows with the filter
+    # width, so toward the border the relief comes from narrower high-passes (the furrows
+    # fade first, the pores last) and from the generated grain alone on the last half millimetre.
+    border = distance_transform_edt(T.mask)
+    for sigma in (s / 2, s / 4):
+        t = (1 - smoothstep(2 * sigma, 4 * sigma, border)).astype(np.float32)
+        hp = hp + t * (highpass(sigma) - hp)
+    # away from island borders and misses
     inner = smoothstep(0.90, 0.99, gaussian_filter(valid, 3)) * valid
+    inner = inner * smoothstep(1.5, 5.0, border).astype(np.float32)
     ok = T.image(F["scan_ok"], 0.0) * inner
     core = ok > 0.5
     sd = float(hp[core].std())
@@ -251,6 +270,16 @@ def scan_relief(T, F, size):
     w = np.minimum(gaussian_filter(w, 4), ok).astype(np.float32)
     # even out the local contrast a little: stubble on the scan's jaw is much rougher than its cheeks
     hp = hp * np.clip(np.maximum(rel, 1e-3) ** -0.6, 0.75, 1.3)
+    # the scan has a few long single grooves on the cheeks and beside the nose (sculpt strokes);
+    # under a raking light they read as worm tracks. Where one direction carries nearly all the
+    # local slope (structure tensor coherence) the relief is turned down; pores and crossing
+    # furrows have no single direction and pass. Forehead and neck lines are left alone.
+    sm = gaussian_filter(hp, 1.5)
+    sy, sx = np.gradient(sm)
+    jxx, jyy, jxy = (gaussian_filter(a, LINE_WINDOW_PX) for a in (sx * sx, sy * sy, sx * sy))
+    coherence = np.sqrt((jxx - jyy) ** 2 + 4 * jxy ** 2) / np.maximum(jxx + jyy, 1e-12)
+    line = smoothstep(LINE_COHERENCE[0], LINE_COHERENCE[1], coherence) * T.image(F["cheek"], 0.0)
+    hp = hp * (1 - LINE_CUT * gaussian_filter(line, 3)).astype(np.float32)
     # the map's displacement scale is unknown: set it from the slope it gives on the face
     hpad = np.pad(hp, 1, mode="edge")
     gx = (hpad[1:-1, 2:] - hpad[1:-1, :-2]) * 0.5 / np.maximum(T.image(np.linalg.norm(T.jac[:, :, 0], axis=1), 1.0), 1e-4)
@@ -351,13 +380,24 @@ def smoothstep(e0, e1, x):
 
 def normal_map(T, h, size):
     """Tangent-space normals from height (mm). T along +u, B along +v (= up in the image)."""
-    hp = np.pad(h, 1, mode="edge")
+    # outside the islands the height is zero; carried on from the nearest island texel instead,
+    # the border texels get no slope toward it. That slope was a groove two texels wide along
+    # the UV seam down the back of the head, a hard line in any highlight.
+    hp = np.pad(tc.fill_nearest(h, T.mask), 1, mode="edge")
     dhdx = (hp[1:-1, 2:] - hp[1:-1, :-2]) * 0.5
     dhdy = (hp[2:, 1:-1] - hp[:-2, 1:-1]) * 0.5
-    lu = T.image(np.linalg.norm(T.jac[:, :, 0], axis=1), 1.0)     # mm per texel along +x (= +u)
-    lv = T.image(np.linalg.norm(T.jac[:, :, 1], axis=1), 1.0)     # mm per texel along +y (= -v)
-    gx = dhdx / np.maximum(lu, 1e-4)
-    gy = -dhdy / np.maximum(lv, 1e-4)
+    # slope along the tangent (+u on the surface) and along the bitangent, which Blender takes
+    # at right angles to the tangent, not along +v. Where the unwrap is sheared (the scalp:
+    # u and v are about 17 degrees off square, opposite ways left and right of the seam)
+    # reading the v slope as the bitangent slope lit the two halves of the back of the head
+    # differently, with a line between them.
+    ju, jv = T.jac[:, :, 0], T.jac[:, :, 1]                       # mm per texel right (+u), down (-v)
+    a = T.image((ju * ju).sum(1), 1.0)
+    b = T.image((ju * jv).sum(1), 0.0)
+    det = np.maximum(a * T.image((jv * jv).sum(1), 1.0) - b * b, 1e-10)
+    a = np.maximum(a, 1e-8)
+    gx = dhdx / np.sqrt(a)
+    gy = (b * dhdx - a * dhdy) / np.sqrt(a * det)
     n = np.stack([-gx, -gy, np.ones_like(gx)], -1)
     n /= np.linalg.norm(n, axis=-1, keepdims=True)
     n[~T.mask] = (0, 0, 1)

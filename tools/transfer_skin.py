@@ -12,10 +12,11 @@ sheets (eye pockets, mouth cavity) are removed first so no ray can land on them.
 Target: GNM skin wrapped onto the MakeHuman head, GNM's own UVs.
 Cycles bake, Selected to Active with a cage, into 32-bit float images:
   skin colour (diffuse colour only) and a hit mask.
-Strand eyebrows are not baked: each hair's centreline is projected onto the wrapped skin,
-taken to UV and drawn there as a tapered, anti-aliased stroke, with extra hairs seeded
-around the modelled ones and a soft shadow underneath. A hair is under a texel wide, so a
-ray bake of the strand tubes gives broken, hatched strokes. Card eyebrows (textured) are
+Strand eyebrows are not baked: each strand's centreline is projected onto the wrapped skin
+and taken to UV, where the strands mark the brow's place and outline. Inside that outline
+hairs are grown with the directions real brow hair has and drawn as tapered, anti-aliased
+strokes with skin showing between them. A hair is under a texel wide, so a ray bake of the
+strand tubes gives broken, hatched strokes. Card eyebrows (textured) are
 still baked. Brows are composited in linear light, texels with no trustworthy source
 (inside of the lids, mouth rim, misses) are filled from their neighbours by push-pull, and
 the result is written as an 8-bit sRGB PNG. --check renders it on the unwrapped GNM template from front,
@@ -294,14 +295,117 @@ def draw_hairs(size, hairs):
     return T, C
 
 
+def smooth1(x, sigma):
+    """Gaussian smoothing of a 1D array, edges held."""
+    r = int(3 * sigma) + 1
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    return np.convolve(np.pad(x, r, mode="edge"), k / k.sum(), mode="valid")
+
+
+def sstep(e0, e1, x):
+    t = np.clip((x - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def brow_hairs(rng, foot, reach, scale, args, base):
+    """Hairs for one brow, grown inside its footprint (bool image); `reach` is how far tips may go.
+
+    The footprint is described by its long axis (inner end to tail), a centre line and a
+    thickness along it. Hairs root at random inside it, thinner toward the upper edge, the
+    inner end and the tail, and take the direction real brow hair has: upright at the inner
+    end, up and out along the lower edge, down and out along the upper edge so the two rows
+    meet on a ridge, and flat along the arch in the tail.
+    """
+    size = foot.shape[0]
+    ys, xs = np.nonzero(foot)
+    if len(xs) < 50:
+        return []
+    P = np.stack([xs + 0.5, ys + 0.5], 1)
+    mean = P.mean(0)
+    _, _, vt = np.linalg.svd(P - mean, full_matrices=False)
+    e1 = vt[0]
+    if (e1[0] > 0) != (mean[0] > size / 2):          # e1 runs from the inner end to the tail
+        e1 = -e1
+    e2 = np.array([e1[1], -e1[0]])
+    if e2[1] > 0:                                     # e2 points up the face (image up)
+        e2 = -e2
+    # sums, not matmul: numpy on Apple silicon raises spurious matmul warnings here
+    a = (P - mean)[:, 0] * e1[0] + (P - mean)[:, 1] * e1[1]
+    b = (P - mean)[:, 0] * e2[0] + (P - mean)[:, 1] * e2[1]
+    a0, a1 = a.min(), a.max()
+    nb = 48
+    k = np.minimum(((a - a0) / (a1 - a0) * nb).astype(int), nb - 1)
+    centre, half = np.full(nb, np.nan), np.full(nb, np.nan)
+    for i in range(nb):
+        v = b[k == i]
+        if len(v) > 8:
+            lo_, hi_ = np.percentile(v, [4, 96])
+            centre[i], half[i] = 0.5 * (lo_ + hi_), 0.5 * (hi_ - lo_)
+    ok = ~np.isnan(centre)
+    bins = np.arange(nb)
+    centre = smooth1(np.interp(bins, bins[ok], centre[ok]), 1.5)
+    half = np.maximum(smooth1(np.interp(bins, bins[ok], half[ok]), 1.5), 1.0)
+    slope = np.gradient(centre) / ((a1 - a0) / nb)
+
+    area_mm2 = len(xs) / scale ** 2
+    n = int(2.3 * args.brow_density / 1.4 * area_mm2 / 0.62)         # before thinning (keeps ~62 %)
+    pick = rng.integers(0, len(xs), n)
+    hairs = []
+    for i in pick:
+        root = P[i] + rng.uniform(-0.5, 0.5, 2)
+        t = (a[i] - a0) / (a1 - a0)
+        fb = np.clip(t * nb - 0.5, 0, nb - 1)
+        c, h, sl = (np.interp(fb, bins, v) for v in (centre, half, slope))
+        s_ = np.clip((b[i] - c) / h, -1.2, 1.2)
+        head, tail = 1 - sstep(0.06, 0.26, t), sstep(0.68, 1.0, t)
+        keep = (1 - 0.65 * sstep(0.35, 1.0, s_)) * (1 - 0.35 * sstep(0.6, 1.0, -s_)) \
+            * (1 - 0.45 * head) * (1 - 0.5 * tail)
+        if rng.random() > keep:
+            continue
+        thick = np.clip(h / scale / 3.5, 0.4, 1.0)                    # a thin brow lies along its arch
+        body = (14 - 30 * s_) * thick
+        ang = head * (92 - 30 * t / 0.26) + (1 - head) * body
+        ang = ang * (1 - 0.75 * tail) - 6 * tail
+        ang += rng.normal(0, 9) if rng.random() > 1 / 14 else rng.normal(0, 28)
+        length = (rng.uniform(5.0, 9.0) * (1 - head) * (1 - tail) + rng.uniform(3.0, 5.5) * head
+                  + rng.uniform(3.5, 6.0) * tail * (1 - head)) * np.clip(0.55 + 0.45 * thick, 0.55, 1)
+        tangent = e1 + sl * e2
+        tangent /= np.linalg.norm(tangent)
+        up = np.array([tangent[1], -tangent[0]])
+        if up @ e2 < 0:
+            up = -up
+        pts, p = [root], root
+        steps = 7
+        for j in range(steps):
+            th = math.radians(ang * (1 - 0.55 * (j + 0.5) / steps))      # bends over toward the tail
+            p = p + (math.cos(th) * tangent + math.sin(th) * up) * length * scale / steps
+            x_, y_ = int(p[0]), int(p[1])
+            if not (0 <= x_ < size and 0 <= y_ < size and reach[y_, x_]):
+                break
+            pts.append(p)
+        if len(pts) < 3 or np.linalg.norm(pts[-1] - pts[0]) < 1.8 * scale:
+            continue
+        fine = rng.random() < 0.2
+        width = args.brow_width * scale * rng.uniform(0.8, 1.15) * (0.65 if fine else 1.0)
+        opacity = args.brow_opacity * rng.uniform(0.6, 1.0) * (0.6 if fine else 1.0)
+        tone = base * rng.lognormal(0, 0.28) * (1 + rng.normal(0, 0.05, 3))
+        hairs.append((smooth_curve(np.array(pts), 3), width, opacity, np.clip(tone, 0, 1)))
+    return hairs
+
+
 def strand_brows(args, lines_bl, co, tris, tri_uv, size):
-    """Draws strand eyebrows in UV. lines_bl: hair centrelines in Blender coordinates (m)."""
+    """Draws strand eyebrows in UV. lines_bl: hair centrelines in Blender coordinates (m).
+
+    The modelled strands give the brow's place and outline only. Drawn one for one they read
+    as a dark slab where the set is dense and as a few pen lines where it is thin, so the
+    hairs are grown afresh inside the outline (brow_hairs).
+    """
     rng = np.random.default_rng(args.brow_seed)
     counts = [len(p) for p in lines_bl]
     uv = surface_uv(co, tris, tri_uv, np.concatenate(lines_bl))
     px = np.stack([uv[:, 0] * size, (1 - uv[:, 1]) * size], 1)
     base = np.array(args.brow_color, dtype=np.float64)
-    hairs, start = [], 0
+    outline, scales, start = [], [], 0
     for n, P3 in zip(counts, lines_bl):
         P = px[start:start + n]
         start += n
@@ -309,25 +413,23 @@ def strand_brows(args, lines_bl, co, tris, tri_uv, size):
         length_m = np.linalg.norm(np.diff(P3, axis=0), axis=1).sum()
         if length_px > 0.2 * size or length_px < 2 or length_m <= 0:      # crosses a UV seam, or degenerate
             continue
-        scale = length_px / (length_m * 1000)                             # texels per mm at this hair
-        copies = 1 + int(args.brow_density - 1) + (rng.random() < (args.brow_density - 1) % 1)
-        stray = rng.random() < 0.3                                        # a short fine hair off the edge
-        for c in range(copies + stray):
-            Q, thin = P.copy(), 1.0
-            if c:                                                         # a neighbour of the modelled hair
-                fine = stray and c == copies
-                root = Q[0] + rng.normal(0, (1.0 if fine else 0.35) * scale, 2)
-                ang = rng.normal(0, math.radians(9 if fine else 5))
-                rot = np.array([[math.cos(ang), -math.sin(ang)], [math.sin(ang), math.cos(ang)]])
-                Q = root + (Q - Q[0]) @ rot.T * (rng.uniform(0.4, 0.7) if fine else rng.uniform(0.7, 1.1))
-                thin = 0.5 if fine else 1.0
-            width = args.brow_width * scale * rng.uniform(0.8, 1.15) * (0.5 + 0.5 * thin)
-            tone = base * rng.lognormal(0, 0.3) * (1 + rng.normal(0, 0.05, 3))
-            opacity = args.brow_opacity * rng.uniform(0.55, 0.95) * thin
-            hairs.append((smooth_curve(Q), width, opacity, np.clip(tone, 0, 1)))
+        scales.append(length_px / (length_m * 1000))                      # texels per mm at this hair
+        outline.append(P)
+    scale = float(np.median(scales))
+    # outline: where the modelled strands are dense; lone strays off the edge do not count
+    T0, _ = draw_hairs(size, [(P, 0.45 * scale, 1.0, (0, 0, 0)) for P in outline])
+    dense = box_blur(1 - T0, max(2, round(0.5 * scale)), 2)
+    foot, reach = dense > 0.42, dense > 0.10
+    half = size // 2
+    hairs = []
+    for sl in (np.s_[:, :half], np.s_[:, half:]):
+        side = np.zeros_like(foot)
+        side[sl] = foot[sl]
+        hairs += brow_hairs(rng, side, reach, scale, args, base)
     order = rng.permutation(len(hairs))
     T, C = draw_hairs(size, [hairs[i] for i in order])
-    print(f"[transfer] brows: {len(lines_bl)} modelled hairs, {len(hairs)} drawn")
+    print(f"[transfer] brows: {len(outline)} modelled strands give the outline "
+          f"({foot.sum() / scale ** 2:.0f} mm2), {len(hairs)} hairs grown")
     return T, C
 
 
@@ -481,7 +583,12 @@ def transfer(args, d, name):
         cover = 1 - through
         # skin under a brow is darker than bare skin: a tight and a wide soft shadow of the hair density
         k = size / 4096
-        shade = 0.8 * box_blur(cover, max(2, round(6 * k))) + 0.35 * box_blur(cover, max(4, round(20 * k)))
+        if btex is not None and btex.exists():
+            shade = 0.8 * box_blur(cover, max(2, round(6 * k))) + 0.35 * box_blur(cover, max(4, round(20 * k)))
+        else:
+            # grown hairs: only the close shade of the follicles and the hair lying on the skin.
+            # A wide soft shadow under them was the smudge that made the brow a slab.
+            shade = 0.9 * box_blur(cover, max(2, round(4 * k)))
         shade = np.clip(shade * args.brow_shadow, 0, 0.6)
         colour = colour * (1 - shade[..., None]) + shade[..., None] * np.array(args.brow_color, dtype=np.float32)
         colour = colour * through[..., None] + hair

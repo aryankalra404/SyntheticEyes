@@ -62,7 +62,9 @@
  "detail_maps": {
   "seed": 2,
   "flags": {
-   "redness": 0.8
+   "redness": 0.8,
+   "pore_tint": 0.6,
+   "stubble": 0.3
   }
  },
  "gnm_identity": {

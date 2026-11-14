@@ -61,7 +61,8 @@
    "redness": 0.5,
    "pore_strength": 1.15,
    "lid_lines": 1.3,
-   "micro_strength": 1.15
+   "micro_strength": 1.15,
+   "grain": 0
   }
  },
  "gnm_identity": {

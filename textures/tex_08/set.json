@@ -59,7 +59,9 @@
   "seed": 8,
   "flags": {
    "lid_lines": 1.3,
-   "micro_strength": 1.15
+   "micro_strength": 1.15,
+   "pore_tint": 0.6,
+   "stubble": 0.3
   }
  },
  "gnm_identity": {

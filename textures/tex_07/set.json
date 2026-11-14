@@ -58,7 +58,8 @@
  "detail_maps": {
   "seed": 7,
   "flags": {
-   "freckles": 1.6
+   "freckles": 1.6,
+   "pore_tint": 0.6
   }
  },
  "gnm_identity": {

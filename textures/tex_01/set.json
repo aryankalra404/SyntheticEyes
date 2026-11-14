@@ -57,7 +57,10 @@
  },
  "detail_maps": {
   "seed": 1,
-  "flags": {}
+  "flags": {
+   "pore_tint": 0.6,
+   "stubble": 0.3
+  }
  },
  "gnm_identity": {
   "sampler": "IdentitySampler",

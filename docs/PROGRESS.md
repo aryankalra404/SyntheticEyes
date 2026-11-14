@@ -9,7 +9,7 @@ what the next session needs to know.
 |---|---|
 | M0 Setup and spikes | done |
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
-| M2 Texture pipeline | done (13 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
+| M2 Texture pipeline | done (13 Nov), audited on the bare head and rebuilt (14 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; brows painted as grown hairs, shaved-scalp cap removed, back-of-head seam fixed; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
 | M4 Motion | gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 6.3 h at 64 spp in the new look), and nobody has watched a draft at playback speed yet |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
@@ -20,6 +20,90 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Sat 14 Nov 2026 — M2 bare-head audit of the nine sets: seam, brows, scalp cap, painted skin (Fable)
+The sets were looked at the way the judges get them: `tools/check_detail.py --wrap` on the bare
+template, plain Principled, neutral light, nothing of ours on it. Ten views per set (front,
+three-quarter, both profiles, back, behind each ear, top, neck from behind, eye close-up; the last
+five are new shots in `check_detail.py`), before and after, all looked at. Then the nine lit stills
+and `outputs/stills/eye/sheet.png`. Code: `tools/detail_maps.py`, `tools/transfer_skin.py`,
+`tools/build_textures.py`, `tools/check_detail.py`, new `tools/skin_fix.py`; `docs/TECH_NOTES.md`
+(skin transfer). All nine sets rebuilt once (`skin.1001.png`, normal, roughness, `preview.png`,
+`set.json`; eye tiles byte-identical), `outputs/stills/` and both sheets rerendered. `scene.blend`,
+`renders/` and the videos were not touched. Build, lash, brow, vellus and wrapper code not edited.
+
+Before / after: `outputs/tmp/m9/before_after.png` (all nine, front and eye), `outputs/tmp/m9/after/
+sheet_NN.png` (per set, all ten views, before on top), `stills_face_before_after.png` and
+`stills_eye_before_after.png` (the lit stills). Not committed (outputs/tmp).
+
+**What read least real, worst first, and what was done**
+
+1. **A seam down the back of the head** (the only UV seam on the skin: the midline from the crown
+   to the neck base). On 03 and 06 a hard line through the highlight; on 02 and 04 the two halves
+   of the nape shaded differently with a straight edge between them. Not the albedo (2 px either
+   side of the seam the colour agrees within 3 %). It was the scanned relief: its high-pass (14 px)
+   has one side only next to an island border and cannot remove a slope across it, which left
+   +1.0 sd on one side of the seam and -1.2 sd on the other, a small cliff. `scan_relief` now uses
+   narrower high-passes toward the border (7 and 3.5 px, generated grain alone on the last half
+   millimetre). Two smaller errors fixed on the way: the height outside the islands was zero, so
+   border texels sloped toward it; and normals were written with the v slope as the bitangent
+   slope, while Blender's bitangent is at right angles to the tangent (the scalp unwrap is sheared
+   about 17 degrees, opposite ways left and right). **Left:** a soft band about 3 mm wide with
+   finer grain, visible on 03 and 06 only when the highlight sits on it.
+   Hairline, behind the ears and nape: no UV seam there. What showed was the edge of the painted
+   shaved-scalp cap (item 3). Neck base: the mesh ends there, nothing to fix.
+2. **Brows** (02 to 06 a dark slab, 01 / 05 / 08 a few pen lines). `transfer_skin.py` no longer
+   draws one stroke per modelled strand. The strands give the outline (382 mm2 for Mindfront 01,
+   843 for 08, 963 for 05, both brows); inside it hairs are grown: upright at the inner end, up
+   and out along the lower edge, down and out along the upper edge, flat in the tail, thinner
+   toward the upper edge and both ends, about a texel wide, 1,225 to 2,554 per set. The wide soft
+   shadow under the hair (the smudge) is gone; a 4 px follicle shade stays. Same place, same
+   outline: nothing moved. Recipe changes: 01 and 08 width 0.14 / density 1.8, 05 opacity 0.85 /
+   density 1.5, 06 width 0.15 / density 2.0, 07 density 1.4.
+3. **The shaved-scalp cap** of the MakeHuman skins (01, 02, 04, 05, 07, 08): red-orange on the
+   scalp, with an edge across the top of the forehead, behind the ears and round the nape, and the
+   soft forehead patches on 02 and 04 where it is uneven. `skin_fix.py` `scalp` (0.75 on those six)
+   pulls the cap's tone at 2 mm and coarser toward the tone of the skin round it, carried inward
+   over the mesh from the forehead, temples and neck. Stubble dots stay (04 still reads as a
+   shaved head). 03 and 06 keep their dark cropped hair, which reads as hair.
+4. **Painted skin.** `skin_fix.py`, strengths per set in the recipe's `fix` (also in `set.json`):
+   - tex_04: confirmed orange on the bare head, worst round the eyes. Tone saturation 0.82, hue -3
+     degrees; `orbital` 0.6 evens the blotchy lower lid.
+   - tex_03: two things. Crow's feet drawn in the colour (`delines` 0.8 fades thin dark lines
+     round the eye, lash line kept), and long single grooves on the cheek in the **normal map**,
+     which are the scan's sculpt strokes and were on every set. `detail_maps.py` turns the scan
+     relief down where one direction carries the local slope (structure tensor, cheeks and nose
+     only; forehead and neck lines kept). Gone in the lit stills of 01, 03, 05, 07, 08.
+   - Lips (`lips`): the light sets had lips the colour of the skin. Redder, darker toward the line
+     between the lips, fine vertical streaks and soft blotches. 0.8 to 0.9 on 01, 05, 08.
+   - Redness at the nose wings, lower lid rim and inner corner (`flush`), 0.4 to 0.8.
+   tex_09: colour untouched (`skin.1001.png` byte-identical); only its normal and roughness maps
+   changed (seam, cheek grooves).
+
+**Stills** (`tools/render_stills.py`, all nine, scenes rebuilt by it): looked at as grids and 04 at
+full size. The grown brow strands still sit on the repainted brows on all nine. On 04 and 07 the
+strands come out thinner than before, as the paint under them is lighter now and `tools/brows.py`
+roots by darkness (0.10 to 0.30, chosen on the slab paint). Not changed here: for the look session.
+The stills were rendered with the working tree's uncommitted `build_scene.py`, `lashes.py` and
+`brows.py` of the other sessions; the tex_09 brow strands are darker than in the committed still.
+
+**Checks**: `tools/validate.py` passes all but "README: no TODO left" (5 lines), as before; 38 unit
+tests pass. Trial build and final build of every set are byte-identical (md5 of albedo and normal).
+`textures/` is 659 MB (was 554): the corrected albedos compress less; largest file 24.6 MB.
+`python3 tools/build_textures.py --out-root DIR` now builds trial sets without touching `textures/`.
+
+**Still reads as CG on the bare head**
+- Irises: flat grey-brown discs on 02, 03, 05, 06 under plain light (no cornea in the judges'
+  material); the eye tiles were not part of this pass.
+- 03: an ashy patch on the inner lower lid is fainter but there; dark lines outside the orbital
+  region (toward the temple) were not faded.
+- 04: cheeks are blotchy red rather than orange; plausible for the age, the reddest set.
+- 01 and 08: jaw and chin still slightly grey-green; brows thin by design (thin arched outline).
+- 06: brows low in contrast against the skin.
+- 09: a pale dash 1 cm long on the back of the head, in the scan's colour, near the seam; ears
+  yellowish inside. Not touched (photographed skin).
+- Lips are smooth in colour next to real lips; the relief carries the creases.
+- Back of 03 / 06: the soft band of item 1.
 
 ### Sat 14 Nov 2026 — M7 eye close-up: grown brows, clumped lashes, deeper warmer shadows (Opus)
 Closing the gap to "Eye Piece" (0:11, 0:14, 0:19 looked at: near-black shadow side, dense clumped

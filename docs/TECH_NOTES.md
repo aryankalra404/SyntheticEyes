@@ -103,6 +103,22 @@ Method (the "bake by comparing UV maps" route from the evaluation PPT):
 
 The registration is done once; each further skin is a bake of a few seconds.
 
+What the bake alone gets wrong on a bare head, and where it is put right (14 Nov audit):
+- **Brows** (`tools/transfer_skin.py`): the modelled strands give the place and outline only.
+  Hairs are grown inside it (upright at the inner end, up and out along the lower edge, down
+  and out along the upper edge, flat in the tail) and drawn about a texel wide with skin
+  between them. One stroke per modelled strand was a slab or a few pen lines.
+- **Painted scalp, eye area, lips** (`tools/skin_fix.py`, strengths per set in the recipe's
+  `fix`): the red-orange shaved cap is pulled to the tone of the skin round it, carried inward
+  over the mesh (the hairline, the band behind the ears and round the nape, and the forehead
+  patches were all its edge); broad tone and drawn lines round the eye; lip colour; redness at
+  the nose wings and lid rims. Placed on the surface, never in UV, so it cannot open a seam.
+- **The UV seam** runs down the back midline from the crown to the neck base. Anything
+  filtered in UV has one side only there: the scan relief's high-pass left a cliff along it,
+  so `tools/detail_maps.py` narrows that filter toward island borders. Normals are written in
+  Blender's frame (bitangent at right angles to the tangent, not along +v): the scalp unwrap
+  is sheared about 17 degrees, opposite ways on the two sides.
+
 Optional extra source: FFHQ-UV, 50,000+ face UV maps derived from photos, HiFi3D++
 topology. Stated as research use, so only use if time allows and note it in the README.
 https://github.com/csbhr/FFHQ-UV

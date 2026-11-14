@@ -21,6 +21,39 @@ what the next session needs to know.
 
 ## Log
 
+### Sat 14 Nov 2026 — brows and skin detail of sets 01-08 (Opus)
+New `tools/refine_skin.py`, run on the shipped files (no Blender, GNM or source skins needed);
+`tools/build_textures.py` calls it after assembling a set, so a rebuild reproduces it. Sets 01-08
+rewritten (albedo, legacy albedo, normal, roughness, set.json); `tex_09` untouched.
+
+**Brows.** Before: opaque drawn strands on untouched skin, a hard outline, crossed strands at the
+tails of 03 and 05, a solid block at each head. Now: the brow is found by darkness, the skin under
+it is inpainted and each texel unmixed into skin + hair; rebuilt with a soft pigment and shadow
+under-layer, per-strand coverage and shade (noise smeared along the hair flow), crossing strands
+thinned, the head faded to 55 % coverage over 70 px, 80 fine stray hairs per brow growing out of
+the edge, strand relief in the normal map, roughness up to +0.10 under the brow. The residual of
+the unmixing goes back in, so the pores between hairs stay.
+Bugs found by looking and fixed: a pale streak along the dense core (coherence is meaningless
+where there are no edges), and a pale block under the brow head on the dark sets (the socket's
+shadow was read as faint hair; hair now has to be line-like or very dark).
+
+**Skin.** Measured on cheeks and forehead, the light sets had 1.05-1.14 % rms of fine detail
+(log-luminance band at 1.5 px) against 1.6 % on the scan, and 1.7-2.6 % mid detail (1.5-6 px)
+against 3.7 %. The two bands are raised by a per-set gain, capped at 1.45 / 1.6, soft-limited,
+chroma kept, brows excluded. After: fine 1.38-1.46 %, mid 2.30-2.70 %. 03 and 06 already sit at
+the scan's level and get gain 1.0. This amplifies detail that is there; it cannot make the soft
+MakeHuman sources sharp, and pushing further brought out blotches rather than pores.
+
+**Checked:** before/after crops of every set's brows, brow heads at 4x, lips and nostrils (no
+halos), the whole map, the brow normal lit from the side; `legacy/skin.png` byte-identical to
+`skin.1001.png`; a second run is skipped (`refine` in set.json). Unit tests 43 pass.
+
+**Not done / stale:** nothing was rendered. `preview.png` in each set, `outputs/stills/` and
+`texture_sheet.png` still show the old brows: rerun `tools/build_textures.py --sheet-only` after
+the wrap checks, and `tools/render_stills.py`. The 3D brow hair in `scene.blend` is separate and
+unchanged, so our own stills change less than a judge's bare-head wrap. Repo size: committing
+these eight sets adds about 380 MB to the history (measured; the legacy albedo is the same blob).
+
 ### Sat 14 Nov 2026 — audit against the evaluation deck and the organisers' GitHub checklist (Fable)
 Done on a Windows machine with no Blender, so nothing was rendered and `scene.blend` was not
 opened (it is zstd-compressed and could not be read as text either). `tools/validate.py` was not

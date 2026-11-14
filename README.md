@@ -213,7 +213,10 @@ The nine sets. The label, the skin source and the iris colour are in each set's 
 | `tex_09` | man, light skin with stubble, photographed skin | Infinite head scan, colour map (CC BY 3.0) | hazel |
 
 Sets 01 to 08 take their skin colour from MakeHuman CC0 skins and have drawn eyebrows; `tex_09`
-takes its colour from the head scan, eyebrows included. All nine share the scan's pore-scale
+takes its colour from the head scan, eyebrows included. On 01 to 08, `tools/refine_skin.py`
+rebuilds the drawn brows: a soft layer of pigment under the hairs, uneven strands, fine stray
+hairs, a little relief in the normal map and a rougher brow. It also raises the fine skin detail
+toward the scan's level. Each `set.json` records what it did under `refine`. All nine share the scan's pore-scale
 relief in the normal map. The stills in `outputs/stills/` show each set on its own GNM identity.
 
 ### Putting a set on a bare GNM head

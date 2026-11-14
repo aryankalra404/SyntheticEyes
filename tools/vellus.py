@@ -12,7 +12,8 @@ catches from behind, on the silhouette of the temple, cheek and nose and across 
 Numbers (dermatology texts: vellus hair is under 2 mm long and under 30 um thick, a few hundred
 per square centimetre on the face; kept sparser and with a share of longer hairs, which is what
 reads at 1024 px): about 30 hairs per cm2 on the cheeks and temples, fewer on the nose, forehead
-and lids, none on the lips, the lid margins or inside the brows; 0.6 to 2.4 mm long; 9 um radius
+and lids, none on the lips, the lid margins or inside the brows; 1.0 to 3.5 mm long (0.6 to
+2.4 until 14 Nov; longer reads as fuzz on the silhouette in the eye close-up); 9 um radius
 at the root, 3 um at the tip. Each hair leaves the skin at 20 to 50 degrees, leaning down and
 outward (toward the ear) with a wide scatter, and curves back a little toward the skin.
 """
@@ -23,7 +24,7 @@ import numpy as np
 
 DENSITY = 30.0e4            # hairs per m2 where the weight is 1
 POINTS = 4                  # per hair
-LENGTH = (0.0006, 0.0024)   # m
+LENGTH = (0.0010, 0.0035)   # m
 ROOT_RADIUS = 0.000009      # m
 TIP_RADIUS = 0.000003
 MARGIN_CLEAR = 0.005        # m around the lid margins left bare (the lashes own that strip)

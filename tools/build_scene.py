@@ -50,6 +50,7 @@ GNM is +Y up / +Z forward; Blender is +Z up / -Y forward: (x, y, z) -> (x, -z, y
 """
 
 import argparse
+import json
 import math
 import sys
 from pathlib import Path
@@ -61,6 +62,7 @@ from mathutils import Matrix, Vector
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tools"))
+import brows as brow_gen  # noqa: E402  (pure numpy)
 import lashes as lash_gen  # noqa: E402  (pure numpy)
 import solve_lids  # noqa: E402  (pure numpy)
 import vellus as vellus_gen  # noqa: E402  (pure numpy)
@@ -70,7 +72,7 @@ REST_PUPIL = -1.2                       # GNM pupils_000; about a 3.5 mm pupil
 REST_LID_OPEN = 1.0                     # cam_eyes reset frame: lid 4.0 mm above the pupil centre, top of the iris just under it
 TILE_MATERIALS = ("skin", "eye_interior.L", "cornea.L", "eye_interior.R", "cornea.R",
                   "teeth", "tongue")
-SKIN_SSS = 0.0016                         # skin subsurface scale in metres (--sss), 0 = off
+SKIN_SSS = 0.0020                         # skin subsurface scale in metres (--sss), 0 = off
 SKIN_NORMAL = 1.8                         # strength of the set's normal map: pores must catch a raking light
 SKIN_ROUGH = 1.0                          # x the set's roughness map
 NOSE_ROUGH = 0.22                         # added on the nose, so it never shows a hard highlight
@@ -414,6 +416,7 @@ def mnode(nt, op, a, b=None, clamp=False):
     return n.outputs[0]
 
 
+SSS_RADIUS = (1.0, 0.30, 0.15)  # x the scale, per channel: red reaches furthest
 PINK = (0.50, 0.16, 0.13)        # wet tissue inside the lids and at the inner corner (linear)
 
 
@@ -501,7 +504,7 @@ def skin_textured(sss_scale=None, dims=(0.25, 0.25, 0.35)):
     if scale > 0:
         bsdf.subsurface_method = "RANDOM_WALK_SKIN"
         bsdf.inputs["Subsurface Weight"].default_value = 1.0
-        bsdf.inputs["Subsurface Radius"].default_value = (1.0, 0.35, 0.18)
+        bsdf.inputs["Subsurface Radius"].default_value = SSS_RADIUS
         bsdf.inputs["Subsurface IOR"].default_value = 1.4
         bsdf.inputs["Subsurface Anisotropy"].default_value = 0.8
         nt.links.new(mnode(nt, "MULTIPLY", mnode(nt, "ADD", 1.0, mnode(nt, "MULTIPLY", lids, 0.5)), scale),
@@ -723,7 +726,7 @@ def hair_node_group():
     return ng
 
 
-def hair_material(name, colour):
+def hair_material(name, colour, rough=0.35):
     """Principled Hair BSDF, direct colouring: fine dark hair with a soft sheen, not wire."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -732,7 +735,7 @@ def hair_material(name, colour):
     h = nt.nodes.new("ShaderNodeBsdfHairPrincipled")
     h.parametrization = "COLOR"
     h.inputs["Color"].default_value = (*colour, 1.0)
-    h.inputs["Roughness"].default_value = 0.35
+    h.inputs["Roughness"].default_value = rough
     h.inputs["Radial Roughness"].default_value = 0.55
     h.inputs["Random Roughness"].default_value = 0.3
     nt.links.new(h.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
@@ -815,12 +818,44 @@ def grow_vellus(D):
     return H
 
 
-def build_hair(D, deltas, head, rig, path):
-    """Eyelashes and fine facial hair (both grown here) and the three carried Mindfront brow sets
-    as driven hair objects."""
+LASH_COLOUR = (0.03, 0.02, 0.013)          # linear
+LASH_ROUGH = 0.25
+BROW_GROWN_COLOUR = (0.05, 0.032, 0.02)   # linear, for a set whose set.json gives no brow colour
+
+
+def grow_brows(D, nn):
+    """Brow strands on the brow painted in textures/tex_NN's albedo (tools/brows.py), as binding
+    arrays, and the set's brow colour. None when the set is missing."""
+    folder = REPO / "textures" / f"tex_{nn:02d}"
+    if not (folder / "skin.1001.png").exists():
+        print(f"[build] textures/tex_{nn:02d} not found: no grown brows")
+        return None, None
+    img = bpy.data.images.load(str(folder / "skin.1001.png"))
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    bpy.data.images.remove(img)
+    k = max(1, w // 1024)
+    alb = px.reshape(h // k, k, w // k, k, 4).mean((1, 3))[::-1, :, :3]       # rows top to bottom
+    tile = D.d["triangle_udim_tiles"] == 1001
+    out = brow_gen.grow(D.V, D.d["triangles"][tile], D.d["triangle_uvs_udim"][tile].astype(np.float64),
+                        D.names, D.masks, alb)
+    meta = json.loads((folder / "set.json").read_text()) if (folder / "set.json").exists() else {}
+    colour = tuple(meta.get("eyebrows", {}).get("color_linear", BROW_GROWN_COLOUR))
+    return {f"brows_grown_{k}": v for k, v in zip(("tri", "bary", "off", "radius", "count"), out)}, colour
+
+
+def build_hair(D, deltas, head, rig, path, texture):
+    """Eyelashes, fine facial hair and the brows of set `texture` (all grown here) and the three
+    carried Mindfront brow sets as driven hair objects. wrapper/eyes.py use_texture shows the
+    grown brows for the set they were grown for (`brow_set`) and a carried set for any other."""
     H = grow_lashes(D)
     H.update(grow_vellus(D))
     names = ["lashes", "vellus"]
+    grown, brow_colour = grow_brows(D, texture)
+    if grown:
+        H.update(grown)
+        names.append("brows_grown")
     if path.exists():
         B = np.load(path, allow_pickle=False)
         H.update({k: B[k] for k in B.files if k.startswith("brows_")})
@@ -831,9 +866,13 @@ def build_hair(D, deltas, head, rig, path):
     else:
         print(f"[build] {path.name} not found (run tools/carry_hair.py): no brow hair")
     ng = hair_node_group()
-    mats = {"lashes": hair_material("lash_hair", (0.016, 0.011, 0.008)),
+    # lashes: a smoother, lighter brown than the hair colour alone suggests, so the key lays a
+    # pale highlight along them as in the reference
+    mats = {"lashes": hair_material("lash_hair", LASH_COLOUR, rough=LASH_ROUGH),
             "vellus": vellus_material(),
             "brows": hair_material("brow_hair", (0.045, 0.028, 0.018))}
+    if grown:
+        mats["brows_grown"] = hair_material("brow_hair_grown", brow_colour)
     made = []
     for name in names:
         tri, bary, off = H[f"{name}_tri"], H[f"{name}_bary"], H[f"{name}_off"]
@@ -864,6 +903,8 @@ def build_hair(D, deltas, head, rig, path):
         mod[ids["NodeSocketMaterial"]] = mat
         if name not in mats:
             ob.hide_render = ob.hide_viewport = name != "brows_01"
+        if name == "brows_grown":
+            ob["brow_set"] = int(texture)
         print(f"[build] {ob.name}: {len(count)} hairs, {len(base)} points, {len(shapes)} driven keys")
         made.append(ob)
     return made
@@ -1007,21 +1048,24 @@ def build_globe_guard(D, head, rig, followers):
 # ---- cameras, light, render settings --------------------------------------------------------
 
 # A camera carries its own look as custom properties; wrapper/eyes.py apply_look() switches the
-# lights and the world when that camera renders. `face`: the constant light of the 10 clockwise
+# lights, the world and the AgX look (view_look: contrast) when that camera renders. `face`: the constant light of the 10 clockwise
 # renders (cam_face): a soft key, and a rim from behind on the side away from it.
 # `eye`: one hard raking light on black, for the videos (all three framings of cam_move), the
 # stills and the eye close-ups; see EYE_LIGHTS.
 LOOKS = {
-    "face": dict(lights="key,rim", env=0.24, backdrop=(0.028, 0.028, 0.030)),
-    "eye": dict(lights="key_eye,fill_eye,rim_eye,iris_eye.L,iris_eye.R,catch_eye,flag_eye", env=0.03, backdrop=(0.0, 0.0, 0.0)),
+    "face": dict(lights="key,rim", env=0.24, backdrop=(0.028, 0.028, 0.030), view_look="None"),
+    "eye": dict(lights="key_eye,fill_eye,rim_eye,iris_eye.L,iris_eye.R,catch_eye,sheen_eye,flag_eye", env=0.03,
+                backdrop=(0.0, 0.0, 0.0), view_look="AgX - Medium High Contrast"),
 }
 
 # The `eye` look. Places are offset(az, el, dist) from the subject's left pupil: az > 0 is that
 # eye's temple side (image right), az < 0 its nose side.
 # key: a 5 cm disk half a metre away, almost square to the side and well above, so it rakes
 #   across the lid, cheek and temple and every pore and wet edge catches it.
-# fill: a 50 cm disk from the nose side, cool, an eighth of the key's power. It keeps the shadow
-#   side of the face readable in the both-eyes and whole-face framings. It is hidden from glossy
+# fill: a 50 cm disk from the nose side, warm (as light bounced off skin is), an eighth of the key's
+#   power. It keeps the shadow side of the face readable in the both-eyes and whole-face framings
+#   under the `eye` look's contrast: at 0.2 W tex_06's shadow cheek and jaw went black; in the eye
+#   close-up 0.2 and 0.4 W look the same. It is hidden from glossy
 #   rays: its reflection is a pale patch over half the cornea and a sheen down the nose.
 # rim: an upright strip behind the temple. From the eye camera it is behind the edge of the face,
 #   so the fine facial hair there (tools/vellus.py) is lit from behind and glows against the
@@ -1036,7 +1080,7 @@ LOOKS = {
 EYE_LIGHTS = {
     "key_eye": dict(shape="DISK", size=0.05, watts=3.0, colour=(1.0, 0.93, 0.82),
                     az=78.0, el=30.0, dist=0.50),
-    "fill_eye": dict(shape="DISK", size=0.50, watts=0.4, colour=(0.80, 0.90, 1.0),
+    "fill_eye": dict(shape="DISK", size=0.50, watts=0.4, colour=(1.0, 0.92, 0.85),
                      az=-60.0, el=12.0, dist=0.50, glossy=False),
     "rim_eye": dict(shape="RECTANGLE", size=0.06, size_y=0.30, watts=2.5, colour=(1.0, 0.96, 0.90),
                     az=155.0, el=20.0, dist=0.60),
@@ -1050,6 +1094,9 @@ IRIS_LIGHT = dict(cone=5.5, radius=0.01, watts=3.0, colour=(1.0, 0.97, 0.92),
                   az=30.0, el=28.0, dist=0.50)
 
 CATCH = dict(width=0.06, height=0.10, strength=80.0, az=30.0, el=28.0, dist=0.50)
+# sheen: a second card made the same way, a soft upright strip far round to the temple side and
+#   a little up, so the sclera on that side carries a long soft reflection as in the reference.
+SHEEN = dict(width=0.30, height=0.60, strength=4.0, az=70.0, el=10.0, dist=0.80)
 FLAG_AT = 0.76          # the flag sits this far along the way from the key to the nose
 FLAG_SHRINK = 0.004     # m (at the face) its outline is pulled in from the nose's own
 FLAG_DENSITY = 0.65     # share of the key it stops: the nose is shaded, not blacked out
@@ -1060,6 +1107,7 @@ def set_look(cam, look, focus=None, fstop=None):
     cam["look_lights"] = LOOKS[look]["lights"]
     cam["look_env"] = LOOKS[look]["env"]
     cam["look_backdrop"] = list(LOOKS[look]["backdrop"])
+    cam["look_view"] = LOOKS[look]["view_look"]
     if focus:
         cam.data.dof.use_dof = True
         cam.data.dof.focus_distance = focus
@@ -1112,7 +1160,8 @@ def spot_light(name, spec, origin):
 
 def keep_rim_off(objects):
     """Light linking: rim_eye lights everything but these. The rim is there for the fine facial
-    hair; from behind it turned the dark outer brow hairs and lashes grey."""
+    hair; from behind it turned the dark outer carried brow hairs grey. The lashes are lit by it
+    again since they are thicker and glossier (14 Nov): it edges them as in the reference."""
     coll = bpy.data.collections.new("rim_eye_excluded")
     for ob in objects:
         coll.objects.link(ob)
@@ -1121,19 +1170,18 @@ def keep_rim_off(objects):
     bpy.data.objects["rim_eye"].light_linking.receiver_collection = coll
 
 
-def build_catch(origin):
+def build_catch(origin, c=CATCH, name="catch_eye"):
     """The catchlight: an upright card whose material emits only into singular (mirror-sharp)
     reflection rays, so it shows in the cornea and the tear line and nowhere else. It is left
     out of light sampling and casts no shadow, so the rest of the picture is the same with or
-    without it. Part of the `eye` look (`look_prop`)."""
-    c = CATCH
-    me = bpy.data.meshes.new("catch_eye")
+    without it. Part of the `eye` look (`look_prop`). The sclera strip (SHEEN) is made the same way."""
+    me = bpy.data.meshes.new(name)
     w, h = c["width"] / 2, c["height"] / 2
     me.from_pydata([(-w, -h, 0), (w, -h, 0), (w, h, 0), (-w, h, 0)], [], [(0, 1, 2, 3)])
-    ob = bpy.data.objects.new("catch_eye", me)
+    ob = bpy.data.objects.new(name, me)
     ob.location = origin + offset(c["az"], c["el"], c["dist"])
     aim(ob, origin)
-    mat = bpy.data.materials.new("catch_eye")
+    mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
     nt.nodes.remove(nt.nodes["Principled BSDF"])
@@ -1305,6 +1353,7 @@ def build_cameras_and_light(D, rig, mid, eye_l, hdri):
         on_head_bone(spot_light(f"iris_eye.{side}", IRIS_LIGHT, Vector(to_blender(D.pupil(side)))), rig)
     build_flag(D, lights["key_eye"], rig)
     build_catch(eye_l)
+    build_catch(eye_l, SHEEN, "sheen_eye")
 
     # world: the HDRI lights the scene and shows in reflections; the camera sees a plain backdrop
     world = bpy.data.worlds.new("world")
@@ -1476,8 +1525,8 @@ def main():
     mid = Vector(eyes.mean(axis=0))
     build_cameras_and_light(D, rig, mid, Vector(to_blender(D.pupil("L"))), args.hdri)
     build_test_cameras(D, rig)
-    hair = build_hair(D, deltas, ob, rig, args.hair)
-    keep_rim_off(h for h in hair if h.name != "vellus")
+    hair = build_hair(D, deltas, ob, rig, args.hair, args.texture)
+    keep_rim_off(h for h in hair if h.name not in ("vellus", "lashes"))
     tears = build_tear_lines(D, deltas, ob, rig)
     if not args.no_guard:
         build_globe_guard(D, ob, rig, [bpy.data.objects["lashes_carrier"]] + tears)

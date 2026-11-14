@@ -127,7 +127,8 @@ def apply_look(cam):
     cameras the `eye` look, one hard raking light on black. Custom properties on the camera:
     look_lights (names, comma separated: lights, and props such as the flag that shades the
     nose, which carry `look_prop`), look_env (HDRI strength), look_backdrop (colour the camera
-    sees behind the head). A camera without them leaves the scene as it is.
+    sees behind the head), look_view (the AgX look: "AgX - Medium High Contrast" for `eye`,
+    "None" for `face`). A camera without them leaves the scene as it is.
     """
     if "look_lights" not in cam:
         return
@@ -141,6 +142,7 @@ def apply_look(cam):
         nodes["env_light"].inputs["Strength"].default_value = float(cam["look_env"])
     if "backdrop" in nodes:
         nodes["backdrop"].inputs["Color"].default_value = (*cam["look_backdrop"], 1.0)
+    scene.view_settings.look = str(cam.get("look_view", "None"))
 
 
 # ---- camera ---------------------------------------------------------------------------------
@@ -228,7 +230,9 @@ def use_texture(nn):
     scene.blend (tools/build_scene.py) has image nodes named tex_albedo, tex_normal, tex_rough on
     the skin material and tex_eye on each eye interior, on the UDIM UVs. This points them at the
     set's files; images are never packed, and paths saved in the .blend are relative.
-    set.json names the set's Mindfront brow set and colour, which pick the brow hair object.
+    The brows grown on the set the scene was built with (`brows_grown`, tools/brows.py) show only
+    for that set (`brow_set`); for any other set, set.json names its carried Mindfront brow set and
+    colour, which pick the brow hair object.
     """
     folder = REPO / "textures" / f"tex_{int(nn):02d}"
     if not folder.is_dir():
@@ -255,12 +259,16 @@ def use_texture(nn):
                 node.image = image(fname, colour)
 
     meta_path = folder / "set.json"
+    grown = bpy.data.objects.get("brows_grown")
+    own = grown is not None and int(grown.get("brow_set", -1)) == int(nn)
+    if grown is not None:
+        grown.hide_render = grown.hide_viewport = not own
     if meta_path.exists():
         brows = json.loads(meta_path.read_text()).get("eyebrows", {})
         tag = brows.get("source", "")[-2:]
         for ob in bpy.data.objects:
             if ob.type == "CURVES" and ob.name.startswith("brow_hair_"):
-                ob.hide_render = ob.hide_viewport = ob.name[-2:] != tag
+                ob.hide_render = ob.hide_viewport = own or ob.name[-2:] != tag
         mat = bpy.data.materials.get("brow_hair")
         if mat is not None and "color_linear" in brows:
             for node in mat.node_tree.nodes:

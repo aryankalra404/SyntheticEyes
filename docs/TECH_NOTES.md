@@ -132,8 +132,8 @@ Work in polar coordinates around the tile centre, then warp to the disc.
 
 As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
 
-- **Skin**: Principled BSDF, random-walk (skin) subsurface at weight 1, radius (1, 0.35, 0.18),
-  scale 1.6 mm, 1.5× on the thin skin round the eyes. Albedo, tangent normal (strength 1.8) and
+- **Skin**: Principled BSDF, random-walk (skin) subsurface at weight 1, radius (1, 0.30, 0.15),
+  scale 2.0 mm, 1.5× on the thin skin round the eyes. Albedo, tangent normal (strength 1.8) and
   roughness (as it is) from the set. A thin sharp coat (weight 0.18, roughness 0.2) reflects off
   a procedural 0.5 mm micro-relief laid in rest coordinates, so pores sparkle under a raking
   light without the millimetre blobs a sharp gloss shows on the map's own normal. The nose
@@ -151,9 +151,17 @@ As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
 - **Tear line**: a concave strip of water (Glass IOR 1.34 plus a tenth of mirror) in the angle
   between the lower lid margin and the globe, 0.75 mm up the globe.
 - **Lashes**: grown per head on the front edge of the lid margin (`tools/lashes.py`), 135 upper
-  and 62 lower per eye, Principled Hair. Brow hair is the carried Mindfront strands.
+  (up to 10 mm) and 80 lower (up to 6.5 mm) per eye, 60 → 6 µm radius, in clumps of 3–5 with the
+  tips pulled 60–80 % together (one in ten alone). Principled Hair, colour (0.03, 0.02, 0.013),
+  roughness 0.25, so the key lays a pale highlight along them; the rim lights them.
+- **Brows**: grown per head on the brow painted in the albedo of the set the scene is built with
+  (`tools/brows.py`, `brows_grown`, `brow_set` = that set): 450–600 hairs per brow inside GNM's
+  brow regions where the albedo is darker than the skin round it; inner third up and out, body
+  along the arch, top and bottom rows meeting in the middle; 4–11 mm, 35 → 8 µm, lying 8–15° off
+  the skin at the root with the tip 0.3–0.8 mm up. Colour from set.json `eyebrows.color_linear`,
+  else (0.05, 0.032, 0.02). Kept out of the rim. For any other set the carried Mindfront strands.
 - **Fine facial hair**: grown per head on the face front (`tools/vellus.py`), about 8,100 hairs of
-  0.4–2.4 mm, 9 → 3 µm radius, none on lips, lid margins or brows. Each takes the skin texture's
+  0.6–3.5 mm, 9 → 3 µm radius, none on lips, lid margins or brows. Each takes the skin texture's
   colour under its root (less saturated, lifted a little), so it suits every set.
 - **Lighting**, two looks picked by the camera (`LOOKS`, `wrapper/eyes.py apply_look`).
   `face` = HDRI at 0.24, a 45 × 60 cm key up and to image left and a rim, plain dark backdrop:
@@ -162,21 +170,26 @@ As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
   (`EYE_LIGHTS`; places are from the subject's left pupil):
   - key: 5 cm disk, 3.0 W, warm, 0.5 m, 78° to the temple side and 30° up. Hard and raking.
     (88° / 42° leaves the globe of the tex_09 head in the shadow of the brow and orbital rim.)
-  - fill: 50 cm disk, 0.4 W, cool, 60° to the nose side, hidden from glossy rays (its reflection
-    is a pale patch over half the cornea).
+  - fill: 50 cm disk, 0.4 W, warm (1.0, 0.92, 0.85), 60° to the nose side, hidden from glossy
+    rays (its reflection is a pale patch over half the cornea). 0.2 W blacked out tex_06's
+    shadow side under the contrast look.
   - rim: 6 × 30 cm strip, 2.5 W, 155° round and 20° up, behind the temple; it backlights the fine
-    hair on the silhouette. Light linking keeps it off the brow hair and lashes (it greyed them).
+    hair on the silhouette. Light linking keeps it off the brow hair (it greyed them); the lashes
+    take it since 14 Nov.
   - iris spots: one 5.5° spot per eye, 3.0 W, diffuse only, on the head bone. A raking key
     leaves a deep-set iris dull.
   - catchlight: a 6 × 10 cm card 30° to the temple side and 28° up whose material emits only
     into singular reflection rays: the cornea and the tear line see it, nothing else is lit.
+  - sclera strip (`sheen_eye`): a second card made the same way, 30 × 60 cm, 0.8 m away, 70° to
+    the temple side and 10° up, strength 4: a long soft reflection on the temple side of the eye.
   - flag: a scrim (65 % dense) shaped as the nose's outline seen from the key, 24 % of the way
     from the nose to the key, held on the key-to-nose lines by a Geometry Nodes step as the head
     moves. Shadow rays only. It keeps the key from making the nose the brightest thing in frame.
 - **Camera**: `cam_face` 40 cm from the eye midpoint, 50 mm lens on a 36 mm sensor, 1024×1024.
   Stills: `cam_test_face` (126 mm from 0.56 m, mid forehead to chin, no scalp) and `cam_test_eye`
   (the videos' eye framing). Videos: `cam_move` (see PROGRESS, M4).
-- **Colour**: AgX view transform
+- **Colour**: AgX view transform; the look is per camera (`view_look` in `LOOKS`): "AgX - Medium
+  High Contrast" for `eye`, "None" for `face`.
 
 ## Calibrated control (`eyes.move`)
 

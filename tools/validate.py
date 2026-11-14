@@ -220,6 +220,10 @@ def check_docs(r):
             r.check(re.search(pat, text, re.I | re.S) is not None, f"README: {topic}")
         todos = [ln.strip() for ln in text.splitlines() if "TODO" in ln]
         r.check(not todos, "README: no TODO left", f"{len(todos)} line(s)")
+    disclosure = REPO / "AI_DISCLOSURE.md"       # on the organisers' GitHub checklist
+    if r.check(disclosure.exists(), "AI_DISCLOSURE.md exists"):
+        todos = [ln for ln in disclosure.read_text().splitlines() if "TODO" in ln]
+        r.check(not todos, "AI_DISCLOSURE: no TODO left", f"{len(todos)} line(s)")
     docker = REPO / "Dockerfile"
     if r.check(docker.exists(), "Dockerfile exists"):
         text = docker.read_text()

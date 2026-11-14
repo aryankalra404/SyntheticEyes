@@ -138,18 +138,31 @@ Execution & efficiency 40 (calibration 20, automation 20); quality & movement 60
 - Not following the guideline means disqualification
 - 23 Nov top 15 announced, 27 Nov live demo to a Samsung R&D jury, 2 Dec results
 
+### GitHub checklist from the organisers (received 14 Nov 2026)
+
+The repository must hold, in the organisers' words:
+
+- Submission Package, as per theme (refer to the initial slides): section B's bundle
+- Source Code
+- Presentation
+- Video
+- AI Disclosure: `AI_DISCLOSURE.md`. Sections A to C never mention it; this list does
+- README
+- APK/SDK (if any): none for this track, which is Blender and Python
+
 ## D. Deliverables checklist
 
 - [ ] `scene.blend` — GNM head, eye bones, materials, expression keyframed on the Timeline
 - [ ] `wrapper/eyes.py` — `move`, `reset`, `render`, plus `--input left|right|generate`,
       `--texture NN`, `--clockwise`, `--seed`, `--quality`
-- [ ] `textures/tex_01 … tex_08` — skin + left eye + right eye, UDIM and legacy names
+- [ ] `textures/tex_01 … tex_09` — skin + left eye + right eye, UDIM and legacy names
 - [ ] `outputs/stills/` — one render per texture set (5–10)
 - [ ] `outputs/videos/left.mp4`, `right.mp4`, `generate.mp4` — each ≤ 15 s
 - [ ] `renders/` — 10 clockwise 1024×1024 PNGs
 - [ ] `metadata.json` — 10 records, schema above
 - [ ] `README.md` — setup, run, conventions, licences
 - [ ] `Dockerfile`
-- [ ] Demo video ≤ 3 min
-- [ ] Deck `CollegeName_TeamName.pdf`
+- [ ] `AI_DISCLOSURE.md`, checked by the team
+- [ ] Demo video ≤ 3 min, in the repo or linked from the README
+- [ ] Deck `CollegeName_TeamName.pdf`, in the repo
 - [ ] Zip named `team_name.zip`, tested from a clean unzip

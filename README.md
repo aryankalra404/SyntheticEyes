@@ -16,18 +16,20 @@ scene.blend            GNM head, armature (neck, head, eye.L, eye.R), lid and br
 wrapper/eyes.py        public API and command line: move(h, v), reset(), render(), videos
 wrapper/rig.py         poses bones and shape keys from the gaze channels
 wrapper/gaze/          gaze engine: saccades, fixations, blinks, lids, brows, head (numpy only)
+wrapper/camera_move.py when the video camera glides between framings (numpy only)
+wrapper/device.py      picks the Cycles GPU backend, or the CPU
 renders/               10 clockwise 1024×1024 PNGs (PDF spec)
 metadata.json          one record per clockwise render
-textures/tex_NN/       texture sets in GNM UV space (UDIM tiles and per-region names)
+textures/tex_01 … 09/  nine texture sets in GNM UV space (UDIM tiles and per-region names)
 outputs/videos/        left.mp4, right.mp4, generate.mp4 (each ≤ 15 s)
-outputs/stills/        one render per texture set
-tests/                 gaze engine unit tests (no Blender needed)
+outputs/stills/        one render per texture set; eye/ has one eye close-up per set
+tests/                 unit tests: gaze engine, camera move, device choice (no Blender needed)
 tools/                 build pipeline and validator (not needed to run the wrapper)
 Dockerfile             renders one draft frame on CPU with the pinned Blender
+AI_DISCLOSURE.md       which parts were made with AI tools
 ```
 
-> TODO: `textures/` and `outputs/stills/` are not in the repo yet (texture sets, milestone M2
-> section 5). `outputs/videos/` holds drafts on stand-in lid shapes until the final renders.
+> TODO: `outputs/videos/` is not in the repo yet; the three final videos have not been rendered.
 
 ## Setup
 
@@ -40,7 +42,8 @@ Dockerfile             renders one draft frame on CPU with the pinned Blender
 
 Paths are relative to the repo root, so the bundle runs from wherever it is unzipped.
 In the commands below `blender` is the Blender executable, for example
-`/Applications/Blender.app/Contents/MacOS/Blender` on macOS.
+`/Applications/Blender.app/Contents/MacOS/Blender` on macOS or
+`"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"` on Windows.
 
 ## Run
 
@@ -76,7 +79,7 @@ blender -b scene.blend -P wrapper/eyes.py -- --check-directions --render
 | `--fps N` | video frame rate (default 30) |
 | `--limit N` | render only the first N video frames (for quick looks) |
 | `--frames F [F ...]` | videos: render only these Timeline frames, as stills, into `outputs/frames/<input>/<camera>_stills/`; no video is encoded |
-| `--cpu` | force Cycles onto the CPU (default uses Metal on Apple GPUs when present) |
+| `--cpu` | force Cycles onto the CPU. Without it the first GPU backend that has a device is used, tried in the order OptiX, CUDA, HIP, oneAPI, Metal; with no GPU, the CPU. The log line `[eyes] Blender …` names the one in use. Only Metal on an Apple M4 has been rendered with; use `--cpu` if a GPU backend fails on your machine |
 
 Rough timings on an Apple M4 (Metal): `--clockwise` about 60 s; a draft video about 2 min.
 Final Cycles videos take much longer; use `--quality draft` to try things out.
@@ -195,7 +198,23 @@ preview.png            the set on the bare GNM template
 The pupil is geometry (GNM's pupil coefficient), so the texture keeps the pupil region dark and
 the mesh sets its size.
 
-> TODO: list the 8 sets (skin source, tone, iris colour) once `textures/` lands.
+The nine sets. The label, the skin source and the iris colour are in each set's `set.json`:
+
+| Set | Label | Skin source | Iris |
+|---|---|---|---|
+| `tex_01` | young woman, light skin | MakeHuman `onlytheghosts_young_eurasian_female` | hazel |
+| `tex_02` | young woman, South Asian, medium brown skin | MakeHuman `cutoff3d_indian_female_skin` | dark brown |
+| `tex_03` | middle-aged man, Black | MakeHuman `mindfront_skin_male_african_middleage` | dark brown |
+| `tex_04` | old man, light skin, ash brows | MakeHuman `onlytheghosts_old_eurasian_male` | blue |
+| `tex_05` | young man, East Asian | MakeHuman `young_asian_male` | brown |
+| `tex_06` | old woman, Black, deep brown skin | MakeHuman `old_african_female` | brown |
+| `tex_07` | young man, light freckled skin, auburn brows | MakeHuman `toigo_light_skin_male_freckles` | green |
+| `tex_08` | middle-aged woman, light skin | MakeHuman `onlytheghosts_middle_aged_eurasian_female` | grey |
+| `tex_09` | man, light skin with stubble, photographed skin | Infinite head scan, colour map (CC BY 3.0) | hazel |
+
+Sets 01 to 08 take their skin colour from MakeHuman CC0 skins and have drawn eyebrows; `tex_09`
+takes its colour from the head scan, eyebrows included. All nine share the scan's pore-scale
+relief in the normal map. The stills in `outputs/stills/` show each set on its own GNM identity.
 
 ### Putting a set on a bare GNM head
 
@@ -315,13 +334,15 @@ $BLENDER -b --factory-startup -P tools/build_scene.py -- --npz assets/gnm/id_mal
 | Blender 4.5.1 | renderer (tool only, not redistributed) | GPL |
 
 Irises, sclera, the rest of the detail maps (lips, lids, ears, roughness, colour variation), the
-gaze engine and all code are our own work. The scan's geometry and original files are not
+gaze engine and all code were made for this project, with AI coding tools; see
+[AI_DISCLOSURE.md](AI_DISCLOSURE.md). The scan's geometry and original files are not
 redistributed; each `set.json` names what it takes from the scan.
 
 Code licence: TODO (pick one before submission, e.g. MIT).
 
 ## Docs
 
+- [AI_DISCLOSURE.md](AI_DISCLOSURE.md): which parts were made with AI tools
 - [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md): what the organisers ask for
 - [docs/PLAN.md](docs/PLAN.md): plan and architecture
 - [docs/TECH_NOTES.md](docs/TECH_NOTES.md): technical notes, reference bar, asset sources

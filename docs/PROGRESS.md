@@ -21,6 +21,79 @@ what the next session needs to know.
 
 ## Log
 
+### Sat 14 Nov 2026 — audit against the evaluation deck and the organisers' GitHub checklist (Fable)
+Done on a Windows machine with no Blender, so nothing was rendered and `scene.blend` was not
+opened (it is zstd-compressed and could not be read as text either). `tools/validate.py` was not
+run. Everything below was read from the files or computed with numpy.
+
+**Missing from the checklist** (Submission Package, Source Code, Presentation, Video, AI
+Disclosure, README, APK/SDK; now in `docs/REQUIREMENTS.md`, section C)
+- Presentation: no deck in the repo.
+- Video: no demo video or link, and `outputs/videos/` has never been committed, so the three
+  rubric videos are missing too.
+- AI disclosure: there was none. `AI_DISCLOSURE.md` is a draft written from `CLAUDE.md` and this
+  log; it has a TODO for the team to add names and check it.
+- No `LICENSE` file; the README still says the code licence is a TODO. Owner's choice.
+
+**Stale outputs.** `scene.blend` was last committed 14 Nov 00:07 on the tex_09 identity.
+`renders/` and `outputs/stills/` date from 13 Nov 22:10, `metadata.json` and
+`outputs/direction_check.json` from 13 Nov 16:58, on the earlier head. A judge who runs
+`--clockwise` gets other pixels and other pupil coordinates than the committed ones. Rerun all of
+them from the final scene (the list under "Left, in order" in the entry below).
+
+**Checked and correct**
+- `metadata.json`: 10 records, every key of the PDF schema, theta, h = sin, v = cos exact;
+  `camera_matrix` equals `K [R | t]` rebuilt from `camera_world_matrix` to 5e-4; K gives a 50 mm
+  lens. Eye rotations recomputed from the stated geometry (target at (h, v) x 5 cm on a plane
+  35 cm ahead, half IPD 30.8 mm from the vergence angle) agree with the file to 0.01 deg in all
+  10 frames, both eyes. The pupil spacing puts the pupils 40.1 cm from the camera.
+- `renders/`: 10 PNGs, 1024 x 1024. A dark-pixel centroid in each frame follows the metadata
+  pupil (correlation 0.98 or better, both axes, both eyes) but sits 2 to 7 px higher, most likely
+  the lash shadow in so crude a measure; it does not test pixel accuracy.
+- Direction check: left and right +-14 px, up and down +-14 px on `cam_eyes`, reset back to
+  0.00. On `cam_face` (the 10 renders) the same gaze moves the pupil +-6.6 px: right for the
+  geometry, small to the eye.
+- Textures: 9 sets, each skin 4096 x 4096, normal 4096 x 4096, roughness 2048 x 2048, two eye
+  tiles 2048 x 2048; `legacy/` files byte-identical to the UDIM ones; left and right eye differ.
+- Gaze engine, seeds 0 to 19: left and right 9.0 s, generate 10.4 to 11.1 s (limit 15 s); first
+  large shift -25.6 to -28.8 deg for left, +24.9 to +28.6 for right; same seed gives identical
+  arrays; saccade durations 24 / 30 / 41 / 54 / 68 / 99 ms at 2 / 5 / 10 / 15 / 20 / 30 deg
+  against the 2.2 ms/deg + 21 ms line (25 / 32 / 43 / 54 / 65 / 87); blinks 190 to 250 ms above
+  5 % closure, about 27 a minute counting the scripted and gaze-evoked ones.
+- Dockerfile: the Blender 4.5.1 sha256 matches download.blender.org.
+
+**Looked at, as a judge would** (opinion, from the committed stills)
+- The eye close-ups are the strongest images: iris structure, lashes, tear line, sclera veins.
+- `tex_09` reads as a real face. 01 to 08 read as CG: thin drawn brows on 01, 05 and 08; the
+  01 albedo is soft at 1:1 (4096 px of file, less than that of detail); the sets labelled as
+  women sit on heavy heads and 01 has stubble-like specks on the upper lip.
+- No hard seam on any frontal still. No still shows the back of the head or behind the ears.
+- The normal and roughness maps have streaked padding along the bottom and top edges, outside
+  the face.
+
+**Changed**
+- `wrapper/device.py` (new), `wrapper/eyes.py`: Cycles picks the first GPU backend with a device,
+  in the order OptiX, CUDA, HIP, oneAPI, Metal, else the CPU. Before, only Metal was tried, so a
+  Windows or Linux machine rendered the final videos on the CPU. `tests/test_device.py` (5 tests,
+  a stand-in for the Cycles preferences). **Not run in Blender**: run one `--move 0 0` on the
+  M4 and check the log line still says Metal.
+- `README.md`: the stale "textures are not in the repo" note is gone; a table of the nine sets
+  from their `set.json`; `--cpu` row; Windows path; AI disclosure linked; "our own work" reworded.
+  Four TODO lines left: team and college name, demo link and deck, the videos, the code licence.
+- `tools/validate.py`: checks that `AI_DISCLOSURE.md` exists and has no TODO. Not run.
+- `docs/REQUIREMENTS.md`: the GitHub checklist; `tex_09` in section D.
+- Unit tests: 43 pass.
+
+**Not verified**
+- That `scene.blend` opens and plays the motion on the Timeline after the 14 Nov rebuild.
+- The 18 Nov deadline: the evaluation deck says "Submission Due: Oct 28, 2026" and neither the PDF
+  nor the organisers' mail is in the repo.
+- The CC BY 3.0 licence of the head scan (the archive's page returned no content when fetched).
+  Google's GNM repository is public and Apache-2.0; its README names neither "Head v3" nor the
+  UDIM tiles.
+- Peak saccade velocity runs high for mid-size shifts (446 deg/s at 10 deg); durations are on
+  the published line and at 30 fps a 40 ms saccade is one frame, so it does not show.
+
 ### Sat 14 Nov 2026 — M2 bare-head audit of the nine sets: seam, brows, scalp cap, painted skin (Fable)
 The sets were looked at the way the judges get them: `tools/check_detail.py --wrap` on the bare
 template, plain Principled, neutral light, nothing of ours on it. Ten views per set (front,

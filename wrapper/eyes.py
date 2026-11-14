@@ -49,6 +49,7 @@ import numpy as np  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
 from wrapper import camera_move  # noqa: E402
+from wrapper.device import pick_gpu  # noqa: E402
 from wrapper.gaze import generate  # noqa: E402
 from wrapper.rig import Rig  # noqa: E402
 
@@ -208,20 +209,14 @@ def setup_render(quality="final", cpu=False, samples=None):
     scene.render.resolution_percentage = 100
     if samples:
         scene.cycles.samples = samples
-    device = "CPU"
+    backend = None                      # OPTIX, CUDA, HIP, ONEAPI or METAL; None renders on the CPU
     if not cpu:
         try:
-            prefs = bpy.context.preferences.addons["cycles"].preferences
-            prefs.compute_device_type = "METAL"
-            prefs.get_devices()
-            for d in prefs.devices:
-                d.use = d.type == "METAL"
-            if any(d.type == "METAL" for d in prefs.devices):
-                device = "GPU"
-        except (KeyError, TypeError, ValueError):
+            backend = pick_gpu(bpy.context.preferences.addons["cycles"].preferences)
+        except KeyError:
             pass
-    scene.cycles.device = device
-    return f"Cycles {device} {scene.cycles.samples} spp"
+    scene.cycles.device = "GPU" if backend else "CPU"
+    return f"Cycles {backend or 'CPU'} {scene.cycles.samples} spp"
 
 
 def use_texture(nn):

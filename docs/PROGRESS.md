@@ -21,6 +21,85 @@ what the next session needs to know.
 
 ## Log
 
+### Sat 14 Nov 2026, evening — M7 review against "Eye Piece": dark hair shading, tidier brows, dimmer eye lamps (Fable)
+Judged the five M7 steps against the reference at 0:11 and 0:14 (looked at again in the browser
+pane, full frame and a crop of the eye) on tex_09, tex_03 and tex_06, and tuned the numbers that
+fell short. No new systems. Code: `tools/build_scene.py`, `tools/brows.py`, `tools/lashes.py`;
+recipe in `docs/TECH_NOTES.md`. `scene.blend`, the nine stills and eye stills, the sheet and
+`renders/` regenerated on the rebuilt textures of `8791849`; `metadata.json` and
+`outputs/direction_check.json` byte-identical. Working sheets in `outputs/tmp/m8/` (not committed).
+**Final videos not rendered, drafts not rerendered.**
+
+**Verdict per step**
+1. **Grown brows: closer in shape, wrong in shading, now fixed.** The tail read straw on 09 and
+   grey felt on 03 / 06. Cause, tested on 03: a pure black fibre colour rendered the same grey,
+   and only a lower IOR took it off, so it is the hard key reflecting off the fibre surface, which
+   Principled Hair (Chiang) does not tie to the colour and has no weight for. Roughness alone
+   (0.2 to 0.6) and thicker strands alone did not help. Now IOR 1.2 (`DARK_HAIR_IOR`), roughness
+   0.25, random roughness 0.15, for grown and carried brows. On 09 the straw was also the fibre
+   colour letting the key through: `BROW_GROWN_COLOUR` (0.05, 0.032, 0.02) → (0.020, 0.013, 0.008).
+   Strands 35 → 8 um became 45 → 14 um (the tips were under a third of a pixel and blended into
+   the lit skin). Direction: scatter 12 → 8 deg, strays 1 in 15 up to 30 deg → 1 in 25 up to
+   20 deg, end hairs 4-6 → 3.5-5 mm; the tail was tangled wool, now it lies along the arch.
+   Density unchanged (549 + 560 on every head, also on the repainted brows of 04 and 07).
+   IOR 1.2 is not hair's real 1.55: it is a look choice, written up in TECH_NOTES.
+2. **Lashes: clumps kept, colour and highlight changed.** They read as a pale brown fringe (09)
+   and frosty (03 / 06 lower outer); the reference has dark spikes with small glints. Same cause
+   as the brows. Now colour (0.03, 0.02, 0.013) → (0.015, 0.010, 0.0065), roughness 0.25 → 0.15,
+   IOR 1.2. Clump pull 60-80 % → 75-95 % so clumps close into spikes, upper length 10 → 9 mm
+   (false-lash look on the male heads), tip 6 → 8 um. Taking the lashes out of the rim was tried
+   and made little difference once the IOR was down; they stay lit by it. `check_lids` on the new
+   `scene.blend`: lash past-root depth in the globe 0.017 / 0.025 mm, as before (not zero).
+3. **Shadows: kept as they are.** Fill 0.4 W warm: at 0.25 W tex_06's shadow cheek goes again;
+   cool against warm hardly shows in the eye shot and warm is what the reference has. Contrast
+   "AgX - Medium High Contrast": "None" is flat, "High" crushes tex_06's socket to black.
+   Subsurface (1.0, 0.30, 0.15) × 2.0 mm against the old (1.0, 0.35, 0.18) × 1.6 mm: mean
+   difference 0.3 / 255, I cannot tell them apart. Kept, but it is not doing visible work.
+4. **Sclera strip: kept, weaker.** The reference has the same tall window on the temple side of
+   the cornea. At strength 4 it crossed the dark irises of 03 / 06 as a hard white bar as bright
+   as the catchlight: now 2.5. Fine hair 1.0-3.5 mm: kept.
+5. **Outside the handover list, changed:** iris spots 3.0 → 1.5 W (my own number from the `eye`
+   look entry). On 03 and 06 the whites were the brightest thing in frame and glowed out of the
+   shadow side of the face; 2.0 and 1.2 W were both rendered, 1.5 sits between them and was
+   looked at in the final stills only. The 09 iris is a little duller for it.
+
+**Denoising (step 5): no change to the denoiser and no more depth.** The 256-sample crop misled:
+most of what it shows as pores in the raw half is sampling grain. Test: the cheek under the tex_09
+eye, 399 px square, against a 2048-sample render with no denoiser and no adaptive sampling
+(`outputs/tmp/m8/denoise/sheet_0.png`, `sheet_1.png`). RMS error on a 0-255 scale:
+
+| | 64 spp | 128 | 256 |
+|---|---|---|---|
+| no denoiser | 12.4 | | 6.6 |
+| OIDN as now (albedo + normal, prefilter accurate) | 3.8 | 3.4 | 3.1 |
+| OIDN prefilter fast / none / colour only, 64 spp | 4.1 / 4.3 / 4.3 | | |
+
+The 2048-sample patch is itself smooth with faint pores: that cheek is lit by the fill and the
+subsurface, and the sparkle lives in the coat, which needs the key. Micro-relief ×2 and ×3 changed
+nothing there through the denoiser. Cost, eye still at 64 spp: 26.0 s with the denoiser, 23.4 s
+without, so it is 2.6 s a frame, about 0.6 h of the 6.4 h for three videos. Matching it without a
+denoiser needs about 685 spp (error falls with the square root of the count), near 10 times the
+render time; 256 spp raw is about 3.3 times the time and still worse. Prefilter none keeps a
+touch more of the faint pores and saves 2.5 s a frame, but the render seed is fixed, so what it
+lets through would sit still on the screen while the face moves. Not tested in motion, not used.
+Measured on one patch of one head in a still pose.
+
+**Rerendered and looked at**: nine stills on their own heads (875 s) and the sheet; 03, 06, 09 eye
+stills at full size, 01 / 04 / 05 / 07 as crops; clockwise frame 0 before / after (226 s, about
+10,000 px differ per frame, mean level 82.4, was 82.6); direction check (unchanged); `left`
+frames 45 / 150 / 245 at 64 spp: 34.3 / 15.5 / 28.4 s, so the three videos stay at about **6.4 h**.
+**Checks**: 43 unit tests pass; `tools/validate.py --blender $BLENDER` passes all but the two
+"no TODO left" lines (README 4, AI_DISCLOSURE 1), not from this session.
+
+**Left**
+- Final videos (owner). Nobody has watched the new look in motion; the drafts in
+  `outputs/videos/` are from before this pass.
+- 04's brow tail is still a little ashy and 07's is ginger straw: both are the set's own brow
+  colour (grey-brown, red), not the reflection. Not changed.
+- The whites of 03 are still bright next to the skin at 1.5 W.
+- The stills committed in `8791849` were rendered while this session's edits were half done;
+  the ones committed now replace them.
+
 ### Sat 14 Nov 2026 — brows and skin detail of sets 01-08 (Opus)
 **Superseded for the shipped sets.** This was done on the sets as of `f88a962`. When it was merged,
 `main` already had the bare-head rebuild (`8791849`, entry below: grown painted brows, scalp cap,

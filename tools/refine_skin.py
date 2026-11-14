@@ -192,7 +192,10 @@ def refine_brows(lin, normal, rough, seed, p=BROW):
     alpha = np.where(region, np.clip((Ys - Y) / np.maximum(Ys - Yh, 1e-4), 0.0, 1.0), 0.0)
     # only texels that are clearly darker than their surroundings are hair; a skin estimate a
     # little too light (in the socket's shadow) must not turn plain skin into faint hair
-    alpha *= smoothstep(0.12, 0.3, dark)
+    # Hair is either thin dark lines (dark against a 9 px closing) or the very dark core of the
+    # brow; smooth moderate darkness, like the socket's shadow under the brow head, is skin.
+    thin = np.clip(1.0 - Y / np.maximum(nd.grey_closing(Y, size=(9, 9)), 1e-4), 0.0, 1.0)
+    alpha *= np.maximum(smoothstep(0.08, 0.25, thin), smoothstep(0.35, 0.55, dark))
     model_old = skin * (1 - alpha[..., None]) + hair * alpha[..., None]
     residual = crop - model_old
 
@@ -235,6 +238,13 @@ def refine_brows(lin, normal, rough, seed, p=BROW):
     under = (skin * (1 - p["under_tint"] * D) + hair * p["under_tint"] * D) * (1 - p["under_dark"] * D)
     model_new = under * (1 - A[..., None]) + hair_new * A[..., None]
     new = np.clip(model_new + residual, 0, 1)
+    # thinning hair reveals skin; never let that skin come out lighter than the skin right next to
+    # it (the wider estimate runs light at the brow head, which sits in the socket's shadow)
+    near, den_near = blur_masked(crop, clean.astype(np.float32), 5)
+    Y_near = np.where(den_near > 0.05, luma(near), Ys)
+    cap = np.maximum(Y, np.minimum(Ys, Y_near))
+    Yn = luma(new)
+    new *= np.minimum(1.0, cap / np.maximum(Yn, 1e-5))[..., None]
     feather = nd.gaussian_filter(M.astype(np.float32), 4)[..., None]
     lin[y0:y1, x0:x1] = crop * (1 - feather) + new * feather
 

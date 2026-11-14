@@ -733,11 +733,14 @@ def hair_material(name, colour):
     return mat
 
 
+VELLUS_GAMMA = 0.8      # < 1 lifts the skin colour the fine hair takes
+
+
 def vellus_material():
     """Fine facial hair has almost no pigment of its own: it reads as a paler, greyer version of
     the skin it grows on. So its colour is the set's skin colour at the root (attribute skin_uv,
     the same image wrapper/eyes.py use_texture loads into the skin), with less saturation and
-    lifted (gamma 0.6). One fixed pale colour looked like white lint on the darker sets."""
+    lifted a little (VELLUS_GAMMA). One fixed pale colour looked like white lint on the darker sets."""
     mat = hair_material("vellus_hair", (0.6, 0.5, 0.42))
     nt = mat.node_tree
     h = next(n for n in nt.nodes if n.bl_idname == "ShaderNodeBsdfHairPrincipled")
@@ -747,10 +750,10 @@ def vellus_material():
     img.name = img.label = "tex_albedo"
     nt.links.new(uv.outputs["Vector"], img.inputs["Vector"])
     hsv = nt.nodes.new("ShaderNodeHueSaturation")
-    hsv.inputs["Saturation"].default_value = 0.6
+    hsv.inputs["Saturation"].default_value = 0.7
     nt.links.new(img.outputs["Color"], hsv.inputs["Color"])
     gam = nt.nodes.new("ShaderNodeGamma")
-    gam.inputs["Gamma"].default_value = 0.6
+    gam.inputs["Gamma"].default_value = VELLUS_GAMMA
     nt.links.new(hsv.outputs["Color"], gam.inputs["Color"])
     nt.links.new(gam.outputs["Color"], h.inputs["Color"])
     return mat
@@ -1029,8 +1032,8 @@ EYE_LIGHTS = {
                     az=78.0, el=30.0, dist=0.50),
     "fill_eye": dict(shape="DISK", size=0.50, watts=0.4, colour=(0.80, 0.90, 1.0),
                      az=-60.0, el=12.0, dist=0.50, glossy=False),
-    "rim_eye": dict(shape="RECTANGLE", size=0.06, size_y=0.30, watts=3.5, colour=(1.0, 0.96, 0.90),
-                    az=140.0, el=20.0, dist=0.60),
+    "rim_eye": dict(shape="RECTANGLE", size=0.06, size_y=0.30, watts=2.5, colour=(1.0, 0.96, 0.90),
+                    az=155.0, el=20.0, dist=0.60),
 }
 # iris: one small spot per eye, a 5.5 deg cone from where the catchlight is, that lights a pool
 #   about 5 cm across the eyeball and lids, fading from its middle. This head's eyes are deep set: a key that rakes the
@@ -1043,6 +1046,7 @@ IRIS_LIGHT = dict(cone=5.5, radius=0.01, watts=3.0, colour=(1.0, 0.97, 0.92),
 CATCH = dict(width=0.06, height=0.10, strength=80.0, az=30.0, el=28.0, dist=0.50)
 FLAG_AT = 0.76          # the flag sits this far along the way from the key to the nose
 FLAG_SHRINK = 0.004     # m (at the face) its outline is pulled in from the nose's own
+FLAG_DENSITY = 0.65     # share of the key it stops: the nose is shaded, not blacked out
 
 
 def set_look(cam, look, focus=None, fstop=None):
@@ -1098,6 +1102,17 @@ def spot_light(name, spec, origin):
     ob.hide_render = True
     bpy.context.scene.collection.objects.link(ob)
     return ob
+
+
+def keep_rim_off(objects):
+    """Light linking: rim_eye lights everything but these. The rim is there for the fine facial
+    hair; from behind it turned the dark outer brow hairs and lashes grey."""
+    coll = bpy.data.collections.new("rim_eye_excluded")
+    for ob in objects:
+        coll.objects.link(ob)
+    for item in coll.collection_objects:
+        item.light_linking.link_state = "EXCLUDE"
+    bpy.data.objects["rim_eye"].light_linking.receiver_collection = coll
 
 
 def build_catch(origin):
@@ -1183,6 +1198,18 @@ def build_flag(D, key, rig):
     me = bpy.data.meshes.new("flag_eye")
     me.from_pydata(verts, [], [tuple(range(len(verts)))])
     ob = bpy.data.objects.new("flag_eye", me)
+    mat = bpy.data.materials.new("flag_eye")          # a scrim: lets 1 - FLAG_DENSITY of the light through
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.remove(nt.nodes["Principled BSDF"])
+    clear, black, mix = (nt.nodes.new(k) for k in ("ShaderNodeBsdfTransparent", "ShaderNodeBsdfDiffuse",
+                                                   "ShaderNodeMixShader"))
+    black.inputs["Color"].default_value = (0.0, 0.0, 0.0, 1.0)
+    mix.inputs[0].default_value = FLAG_DENSITY
+    nt.links.new(clear.outputs[0], mix.inputs[1])
+    nt.links.new(black.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], nt.nodes["Material Output"].inputs["Surface"])
+    me.materials.append(mat)
     ob.visible_camera = ob.visible_diffuse = ob.visible_glossy = ob.visible_transmission = False
     ob.visible_volume_scatter = False
     ob.display_type = "WIRE"
@@ -1310,8 +1337,8 @@ def build_cameras_and_light(D, rig, mid, eye_l, hdri):
 
 def build_test_cameras(D, rig):
     """The two fixed shots the stills are made from, both in the `eye` look. face: mid forehead
-    to chin, straight on, with the bare scalp and the ears out of frame (17.5 cm from 5.5 cm
-    above the eye centres). eye: the subject's left eye in the videos' eye framing (MOVE_EYE: from the nose
+    to chin, straight on, with the bare scalp and the ears out of frame (126 mm from 0.56 m:
+    16 cm, from 4.2 cm above the eye centres). eye: the subject's left eye in the videos' eye framing (MOVE_EYE: from the nose
     side, the temple against black), about the "Eye Piece" crop. Plus cam_video, the videos'
     face framing."""
     eyeL = Vector(to_blender(D.pupil("L")))
@@ -1319,7 +1346,7 @@ def build_test_cameras(D, rig):
     scene = bpy.context.scene
     out = {}
     for name, target, lens, dist, az, el in (
-            ("cam_test_face", mid + Vector((0, -0.01, -0.0325)), 85.0, 0.413, 0.0, 0.0),
+            ("cam_test_face", mid + Vector((0, -0.01, -0.038)), 126.0, 0.56, 0.0, 0.0),
             ("cam_video", mid + Vector((0, -0.01, -0.04)), 72.0, 0.56, 0.0, 0.0),
             ("cam_test_eye", eyeL, MOVE_EYE["lens"], MOVE_EYE["dist"], MOVE_EYE["az"], MOVE_EYE["el"])):
         cd = bpy.data.cameras.new(name)
@@ -1443,7 +1470,8 @@ def main():
     mid = Vector(eyes.mean(axis=0))
     build_cameras_and_light(D, rig, mid, Vector(to_blender(D.pupil("L"))), args.hdri)
     build_test_cameras(D, rig)
-    build_hair(D, deltas, ob, rig, args.hair)
+    hair = build_hair(D, deltas, ob, rig, args.hair)
+    keep_rim_off(h for h in hair if h.name != "vellus")
     tears = build_tear_lines(D, deltas, ob, rig)
     if not args.no_guard:
         build_globe_guard(D, ob, rig, [bpy.data.objects["lashes_carrier"]] + tears)

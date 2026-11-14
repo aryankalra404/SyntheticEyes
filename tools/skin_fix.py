@@ -162,7 +162,7 @@ def fix_albedo(albedo_srgb_u8: np.ndarray, fix: dict | None, seed: int = 0, d=No
         n1 /= n1.std()
         streak = np.interp(pos[:, 0] + 0.3 * fbm3(rng, pos, lo, hi, [1.5], [1.0]), xgrid, n1)
         blotch = fbm3(rng, pos, lo, hi, [2.0, 5.0], [0.7, 1.0])
-        lum = 0.05 * streak + 0.06 * blotch - 0.30 * inner
+        lum = 0.035 * streak + 0.06 * blotch - 0.30 * inner
         tint = np.array([0.0, -0.20, -0.17]) * (1.0 + 0.25 * blotch[:, None] + 0.5 * inner[:, None])
         log[ys[on], xs[on]] += (lip_w[on, None] * k * (tint + lum[:, None])).astype(np.float32)
 
@@ -184,7 +184,10 @@ def fix_albedo(albedo_srgb_u8: np.ndarray, fix: dict | None, seed: int = 0, d=No
         w = (np.clip(w, 0, 1.3) * (1 - lip_w) * fix["flush"]).astype(np.float32)
         log[ys, xs] += w[:, None] * np.array([0.0, -0.13, -0.11], dtype=np.float32)
 
-    out = albedo_srgb_u8.copy()
-    out[ys, xs, :3] = tc.to_u8(tc.linear_to_srgb(np.exp(log[ys, xs])))
-    # outside the islands: carried from the nearest island texel, as the bake's fill was
-    return np.ascontiguousarray(tc.fill_nearest(out, T.mask))
+    out = albedo_srgb_u8[..., :3].copy()
+    out[ys, xs] = tc.to_u8(tc.linear_to_srgb(np.exp(log[ys, xs])))
+    # outside the islands: a soft continuation of the corrected borders, as the bake's own fill
+    # was (a nearest-texel fill leaves streaks across the padding of the shipped file)
+    pad = tc.fill_smooth(out.astype(np.float32) / 255.0, T.mask)
+    out[~T.mask] = tc.to_u8(pad)[~T.mask]
+    return np.ascontiguousarray(out)

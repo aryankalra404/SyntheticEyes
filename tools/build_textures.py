@@ -51,6 +51,9 @@ WORK = REPO / "outputs/tmp/m2/sets"
 TEX = REPO / "textures"
 
 # Brow colours are linear RGB. Detail flags are multipliers on detail_maps.py's defaults.
+# The six light MakeHuman skins take the relief grain (default 1) with the pore specks at 0.6;
+# the two dark ones and the photographed skin already carry that much fine detail (grain 0).
+# stubble: how much of the scanned man's stubble relief the sets made as women's skin keep.
 # tone (optional): saturation about each texel's luminance (1 = unchanged), hue rotation in
 # degrees about the grey axis (+ turns red toward yellow), gain; applied to the bake in linear
 # light before the detail layer, so brows and lips shift with the skin.
@@ -65,7 +68,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
         brow=dict(color=[0.060, 0.038, 0.024], opacity=0.85, width=0.14, density=1.8, shadow=0.40),
         iris="hazel", seed=1,
-        detail={},
+        detail={"pore_tint": 0.6, "stubble": 0.3},
         fix=dict(scalp=0.75, lips=0.9, flush=0.8),
         identity=dict(gender="female", ethnicity="white", seed=1)),
     "02": dict(
@@ -74,7 +77,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_05",
         brow=dict(color=[0.022, 0.015, 0.011], opacity=0.8, width=0.11, density=1.3, shadow=0.35),
         iris="dark_brown", seed=2,
-        detail={"redness": 0.8},
+        detail={"redness": 0.8, "pore_tint": 0.6, "stubble": 0.3},
         # the source bakes light-medium (cheek Y 0.34); taken to medium brown, Y 0.15
         tone=dict(saturation=1.3, hue=0.0, gain=0.44),
         fix=dict(scalp=0.75, lips=0.3, flush=0.4),
@@ -85,7 +88,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_08",
         brow=dict(color=[0.012, 0.009, 0.007], opacity=0.9, width=0.14, density=1.6, shadow=0.45),
         iris="dark_brown", seed=3,
-        detail={"redness": 0.5, "pore_strength": 1.15, "lid_lines": 1.3, "micro_strength": 1.15},
+        detail={"redness": 0.5, "pore_strength": 1.15, "lid_lines": 1.3, "micro_strength": 1.15, "grain": 0},
         # the source draws crow's feet in the colour and leaves an ashy patch on the lower lid
         fix=dict(orbital=0.8, delines=0.8, lips=0.2),
         identity=dict(gender="male", ethnicity="black", seed=3)),
@@ -95,7 +98,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_05",
         brow=dict(color=[0.075, 0.062, 0.050], opacity=0.7, width=0.12, density=1.3, shadow=0.25),
         iris="blue", seed=4,
-        detail={"pore_strength": 1.15, "lid_lines": 1.6, "micro_strength": 1.3},
+        detail={"pore_strength": 1.15, "lid_lines": 1.6, "micro_strength": 1.3, "pore_tint": 0.6},
         # the source is orange, most of all round the eyes, with a blotchy lower lid
         tone=dict(saturation=0.82, hue=-3.0, gain=1.0),
         fix=dict(scalp=0.75, orbital=0.6, delines=0.5, lips=0.5, flush=0.5),
@@ -106,7 +109,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_08",
         brow=dict(color=[0.014, 0.011, 0.009], opacity=0.85, width=0.12, density=1.5, shadow=0.35),
         iris="brown", seed=5,
-        detail={"pore_strength": 1.1, "freckles": 0.5},
+        detail={"pore_strength": 1.1, "freckles": 0.5, "pore_tint": 0.6},
         fix=dict(scalp=0.75, lips=0.8, flush=0.8),
         identity=dict(gender="male", ethnicity="asian", seed=5)),
     "06": dict(
@@ -115,7 +118,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
         brow=dict(color=[0.010, 0.007, 0.006], opacity=0.9, width=0.15, density=2.0, shadow=0.45),
         iris="brown", seed=6,
-        detail={"redness": 0.5, "lid_lines": 1.6, "micro_strength": 1.3},
+        detail={"redness": 0.5, "lid_lines": 1.6, "micro_strength": 1.3, "grain": 0, "stubble": 0.3},
         # the source is a saturated red-brown (cheek sRGB 96/39/20); to deep brown, about 86/53/37
         tone=dict(saturation=0.6, hue=6.0, gain=1.1),
         fix=dict(orbital=0.3, lips=0.2),
@@ -127,7 +130,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_05",
         brow=dict(color=[0.13, 0.055, 0.025], opacity=0.7, width=0.11, density=1.4, shadow=0.25),
         iris="green", seed=7,
-        detail={"freckles": 1.6},
+        detail={"freckles": 1.6, "pore_tint": 0.6},
         fix=dict(scalp=0.75, lips=0.5, flush=0.5),
         identity=dict(gender="male", ethnicity="white", seed=7)),
     "08": dict(
@@ -136,7 +139,7 @@ SETS = {
         eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
         brow=dict(color=[0.075, 0.052, 0.036], opacity=0.85, width=0.14, density=1.8, shadow=0.40),
         iris="grey", seed=8,
-        detail={"lid_lines": 1.3, "micro_strength": 1.15},
+        detail={"lid_lines": 1.3, "micro_strength": 1.15, "pore_tint": 0.6, "stubble": 0.3},
         fix=dict(scalp=0.75, lips=0.9, flush=0.8),
         identity=dict(gender="female", ethnicity="white", seed=8)),
     "09": dict(
@@ -146,7 +149,7 @@ SETS = {
         scan=True,
         iris="hazel", seed=9,
         detail={"mottle_strength": 0, "redness": 0, "freckles": 0, "moles": 0, "veins": 0,
-                "pore_tint": 0, "variation": 0, "scan_brows": True},
+                "pore_tint": 0, "grain": 0, "variation": 0, "scan_brows": True},
         identity=dict(gender="male", ethnicity="white", seed=9)),
 }
 SCAN_CREDIT = "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com"

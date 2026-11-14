@@ -164,6 +164,30 @@ def fill_nearest(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
     return img[iy, ix]
 
 
+def fill_smooth(img: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Texels inside `mask` are kept; the rest is filled by push-pull (averaged down until
+    full, pulled back up with a small blur), so the padding outside the UV islands is a soft
+    continuation of their borders instead of the streaks a nearest-texel fill leaves.
+    img: (S, S, C) float, S a power of two."""
+    levels = [(img * mask[..., None], mask.astype(np.float64))]
+    while levels[-1][1].shape[0] > 1:
+        c, w = levels[-1]
+        h, wd = w.shape
+        levels.append((c.reshape(h // 2, 2, wd // 2, 2, -1).sum((1, 3)), w.reshape(h // 2, 2, wd // 2, 2).sum((1, 3))))
+    c, w = levels[-1]
+    filled = c / np.maximum(w, 1e-8)[..., None]
+    for c, w in reversed(levels[:-1]):
+        up = np.repeat(np.repeat(filled, 2, 0), 2, 1)
+        for axis in (0, 1):
+            pad = np.pad(up, [(1, 1) if a == axis else (0, 0) for a in range(3)], mode="edge")
+            lo = pad[:-2] if axis == 0 else pad[:, :-2]
+            hi = pad[2:] if axis == 0 else pad[:, 2:]
+            up = 0.25 * lo + 0.5 * up + 0.25 * hi
+        k = np.clip(w, 0, 1)[..., None]
+        filled = k * (c / np.maximum(w, 1e-8)[..., None]) + (1 - k) * up
+    return filled
+
+
 def srgb_to_linear(c):
     c = np.asarray(c, dtype=np.float64)
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)

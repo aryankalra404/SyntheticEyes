@@ -79,6 +79,12 @@ PORE_NORM_MM = PORE_DEPTH_MM * 1.17          # typical pore height, for tint and
 MICRO_DEPTH_MM = 0.028
 LID_LINE_DEPTH_MM = 0.022
 MOTTLE = 0.07
+# Relief grain in the colour: a photographed skin (tex_09) is darker in its pores and furrows and
+# lighter on the ridges between them, texel by texel. The baked MakeHuman skins have none of that
+# (fine band of log-luminance 1.0-1.1 % rms on cheeks and forehead against 1.8 % on the scan), so
+# at 1:1 they are soft with a few dark specks. The two finest bands of the height map go into the
+# colour, in log units per standard deviation of the band.
+GRAIN_FINE, GRAIN_MID = 0.016, 0.007
 REDNESS = (0.016, 0.16, 0.136)              # 1.6x: at 2x the cheeks read as a blush patch
 
 # Scanned micro-relief (tools/bake_scan.py): the displacement map of the Infinite head scan
@@ -232,9 +238,11 @@ def scatter(rng, T: tc.Texels, density_per_mm2):
 
 # --------------------------------------------------------------------------- maps
 
-def scan_relief(T, F, size):
-    """Scanned micro-relief in mm (size², locally zero-mean), where to use it (0..1), and how
-    much of its valleys may darken the colour (low where the scan has stubble)."""
+def scan_relief(T, F, size, stubble=1.0):
+    """Scanned micro-relief in mm (size², locally zero-mean), where to use it (0..1), how much of
+    its valleys may darken the colour (low where the scan has stubble), its standard deviation
+    where it is used, and the relief before the stubble cut (None when nothing was cut). The last
+    two keep the strength of everything scaled on the relief the same with and without the cut."""
     z = np.load(SCAN_HEIGHT)
     raw, hit = z["height"], z["hit"]
     if raw.shape[0] != size:
@@ -288,12 +296,25 @@ def scan_relief(T, F, size):
     gain = math.tan(math.radians(SCAN_TILT_DEG)) / float(np.hypot(gx, gy)[face].mean())
     print(f"[detail] scan relief on {100 * w[T.mask].mean():.0f}% of the skin, rms {1000 * gain * sd:.0f} um")
     calm = np.clip((1.45 - rel) / 0.45, 0.15, 1.0).astype(np.float32)
-    return (hp * gain).astype(np.float32), w, calm
+    out = (hp * gain).astype(np.float32)
+    sd_used = float(out[w > 0.9].std())
+    full = None
+    if stubble < 1.0:
+        full = out
+        # the scan is a man's: round the mouth, on the chin, jaw and neck its relief is stubble
+        # follicles, coarser than the rest (rel above 1). On a set made as a woman's skin that
+        # reads as stubble under any raking light, so there it is turned down to `stubble`.
+        jaw_y = float(T.pos[F["cheek"] > 0.5, 1].min())           # bottom of the cheek regions
+        low = T.image(1 - smoothstep(jaw_y + 55, jaw_y + 70, T.pos[:, 1]), 0.0)   # from under the nose down
+        out = out * (1 - (1 - stubble) * low * smoothstep(0.95, 1.35, rel))
+    return out.astype(np.float32), w, calm, sd_used, full
 
 
 def height_map(rng, T, F, size, args, lo, hi):
-    """Height in mm per texel (size², zero outside the islands) and the pore field."""
+    """Height in mm per texel (size², zero outside the islands), the pore field, and the height
+    the stubble cut removed (None without a cut)."""
     t0 = time.time()
+    cut = None
     # pores
     idx = scatter(rng, T, F["density"] * args.pore_density)
     sig = F["sigma"][idx] * rng.uniform(0.7, 1.35, len(idx)) * args.pore_size
@@ -318,13 +339,15 @@ def height_map(rng, T, F, size, args, lo, hi):
     mod = T.image(0.75 + 0.25 * fbm3(rng, T.pos, lo, hi, [6.0], [1.0]))
     h = -pores + micro * micro_amp * mod
     if args.scan_relief > 0 and SCAN_HEIGHT.exists():
-        hs, w, calm = scan_relief(T, F, size)
+        hs, w, calm, sd_used, full = scan_relief(T, F, size, args.stubble)
         hs *= args.scan_relief
+        if full is not None:
+            cut = w * (full * args.scan_relief - hs)             # what the stubble cut took out
         # the scan carries the structure; a third of the generated grain stays on top of it, since
         # the bake cannot hold detail finer than a texel
         h = (1 - w) * h + w * (hs + 0.35 * h)
         # the same valleys drive the pore tint and pore roughness downstream
-        cavity = np.clip(-hs / (1.6 * float(hs[w > 0.9].std())), 0, 1.5)
+        cavity = np.clip(-hs / (1.6 * sd_used * args.scan_relief), 0, 1.5)
         pores = (1 - w) * pores + w * PORE_NORM_MM * cavity * calm
     elif args.scan_relief > 0:
         print(f"[detail] {SCAN_HEIGHT.name} not found: fully generated relief")
@@ -370,7 +393,7 @@ def height_map(rng, T, F, size, args, lo, hi):
         line[on] = (LID_LINE_DEPTH_MM * coarse * broken + 0.35 * LID_LINE_DEPTH_MM * fine * broken2) \
             * F["lid_w"][on] * args.lid_lines
         h -= T.image(line)
-    return h, pores
+    return h, pores, cut
 
 
 def smoothstep(e0, e1, x):
@@ -404,7 +427,7 @@ def normal_map(T, h, size):
     return n
 
 
-def albedo_detail(rng, T, F, pores, size, args, lo, hi):
+def albedo_detail(rng, T, F, pores, size, args, lo, hi, h=None, cut=None):
     """Linear multiply factor per texel and channel; 1 = no change."""
     N = len(T.pos)
     f = np.ones((N, 3), dtype=np.float32)
@@ -421,6 +444,26 @@ def albedo_detail(rng, T, F, pores, size, args, lo, hi):
     pt = pores[T.ys, T.xs] / PORE_NORM_MM
     pt = np.clip(pt, 0, 1.5) * args.pore_tint
     f *= np.stack([1 - 0.10 * pt, 1 - 0.13 * pt, 1 - 0.14 * pt], 1)
+
+    # relief grain: the height map's bands at 1.5 px and between 1.5 and 6 px, valleys darker
+    # and a little redder, ridges lighter (no random numbers drawn: the rest stays as it was)
+    if h is not None and args.grain > 0:
+        hf = tc.fill_nearest(h, T.mask)
+        g1, g6 = gaussian_filter(hf, 1.5), gaussian_filter(hf, 6.0)
+        face = F["density"] > 3.0
+        grain = np.zeros(N, dtype=np.float32)
+        # each band is scaled by its spread over the face; with a stubble cut, by the spread the
+        # uncut relief has, so a set with the cut gets the same grain elsewhere as one without
+        whole = None if cut is None else hf + cut
+        for k, amp in enumerate((GRAIN_FINE, GRAIN_MID)):
+            band = ((hf - g1) if k == 0 else (g1 - g6))[T.ys, T.xs]
+            ref = band
+            if whole is not None:
+                w1 = gaussian_filter(whole, 1.5)
+                ref = ((whole - w1) if k == 0 else (w1 - gaussian_filter(whole, 6.0)))[T.ys, T.xs]
+            grain += amp * np.clip(band / float(ref[face].std()), -3.0, 3.0)
+        grain *= args.grain
+        f *= np.exp(np.stack([0.85 * grain, grain, 1.05 * grain], 1))
 
     # freckles and moles: a few hundred small brown spots, mostly nose and cheeks
     tint = np.zeros(size * size, dtype=np.float32)
@@ -511,8 +554,12 @@ def main():
     ap.add_argument("--moles", type=float, default=1.0)
     ap.add_argument("--veins", type=float, default=1.0)
     ap.add_argument("--pore-tint", type=float, default=1.0)
+    ap.add_argument("--grain", type=float, default=1.0,
+                    help="relief grain in the colour detail (0 for photographed skin)")
     ap.add_argument("--scan-relief", type=float, default=1.0,
                     help="strength of the scanned micro-relief (0 = generated pores only)")
+    ap.add_argument("--stubble", type=float, default=1.0,
+                    help="how much of the scan's stubble relief round the mouth, chin and neck is kept")
     ap.add_argument("--scan-brows", action="store_true",
                     help="keep the scan's relief under the brows (for the set that uses its colour)")
     ap.add_argument("--variation", type=float, default=0.1,
@@ -537,7 +584,7 @@ def main():
     F = region_fields(d, T, args.scan_brows)
     print(f"[detail] {len(T.pos):,} texels, setup {time.time() - t0:.1f} s")
 
-    h, pores = height_map(rng, T, F, size, args, lo, hi)
+    h, pores, cut = height_map(rng, T, F, size, args, lo, hi)
     n = normal_map(T, h, size)
     n = tc.fill_nearest(n, T.mask)
     tc.write_png(out / "skin_normal.1001.png", tc.to_u8(n * 0.5 + 0.5))
@@ -552,7 +599,7 @@ def main():
     tc.write_png(out / "skin_rough.1001.png", tc.to_u8(np.clip(r_img, 0.05, 0.95)))
     print(f"[detail] roughness done {time.time() - t0:.1f} s")
 
-    fac = albedo_detail(rng, T, F, pores, size, args, lo, hi)
+    fac = albedo_detail(rng, T, F, pores, size, args, lo, hi, h, cut)
     a_img = tc.fill_nearest(T.image(fac, 1.0), T.mask)
     tc.write_png(out / "skin_detail.1001.png", np.clip(a_img * 128 + 0.5, 0, 255).astype(np.uint8))
     meta = {k: (round(v, 4) if isinstance(v, float) else v) for k, v in vars(args).items() if k != "out"}

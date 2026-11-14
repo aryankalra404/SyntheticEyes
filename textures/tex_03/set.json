@@ -50,6 +50,11 @@
   }
  },
  "tone": null,
+ "skin_fix": {
+  "orbital": 0.8,
+  "delines": 0.8,
+  "lips": 0.2
+ },
  "detail_maps": {
   "seed": 3,
   "flags": {

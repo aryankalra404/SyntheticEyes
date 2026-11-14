@@ -39,6 +39,7 @@
   }
  },
  "tone": null,
+ "skin_fix": null,
  "detail_maps": {
   "seed": 9,
   "flags": {

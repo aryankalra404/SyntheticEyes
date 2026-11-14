@@ -54,6 +54,11 @@
   "hue": 0.0,
   "gain": 0.44
  },
+ "skin_fix": {
+  "scalp": 0.75,
+  "lips": 0.3,
+  "flush": 0.4
+ },
  "detail_maps": {
   "seed": 2,
   "flags": {

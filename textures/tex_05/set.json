@@ -13,9 +13,9 @@
    0.011,
    0.009
   ],
-  "opacity": 0.75,
+  "opacity": 0.85,
   "width_mm": 0.12,
-  "density": 1.2,
+  "density": 1.5,
   "shadow": 0.35,
   "seed": 5
  },
@@ -50,6 +50,11 @@
   }
  },
  "tone": null,
+ "skin_fix": {
+  "scalp": 0.75,
+  "lips": 0.8,
+  "flush": 0.8
+ },
  "detail_maps": {
   "seed": 5,
   "flags": {

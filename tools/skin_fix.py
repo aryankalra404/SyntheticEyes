@@ -19,6 +19,17 @@ bare GNM template (vertex groups, 3D positions), not in UV, so nothing here can 
                    with fine vertical streaks and soft blotches so it is not one flat tone.
     flush    0..1  Redness where a real face has it and a painted skin often does not: the
                    wings of the nose, the lower lid rim and the inner eye corner.
+    ears     0..1  The ear's colour where the source has none worth keeping (the head scan of
+                   tex_09 does not register on the ears, so they bake as a smeared yellow-orange
+                   fill). Its chroma is replaced by a smooth fill from the skin around the ear
+                   (harmonic over the mesh, so it meets the head without a border); from about
+                   6 mm inside the ear's root on, the fill gives way to the hue of the skin just
+                   in front of the ear (median of the parotid and temple), then it is a little
+                   redder and more saturated toward the rim of the helix and the lobe. The tone at
+                   3 mm and coarser is the fill's (the smear carries the photograph's shadow in the
+                   bowl of the ear); anything finer stays. Nothing is shaded in. Over
+                   detail_maps.ear_weight (the `ears` group and a feather of about 13 mm); every
+                   other texel keeps its bytes.
 
 numpy + scipy only. Same inputs, same pixels.
 """
@@ -35,7 +46,7 @@ from scipy.sparse.linalg import spsolve
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import tex_core as tc  # noqa: E402
-from detail_maps import fbm3, smoothstep  # noqa: E402
+from detail_maps import ear_weight, fbm3, smoothstep  # noqa: E402
 
 TILE = 1001
 KEYS = ("scalp", "orbital", "delines", "lips", "flush")
@@ -103,6 +114,14 @@ def blur_log(log_img, sigma):
 
 
 def fix_albedo(albedo_srgb_u8: np.ndarray, fix: dict | None, seed: int = 0, d=None) -> np.ndarray:
+    ears = float((fix or {}).get("ears", 0.0))
+    out = fix_regions(albedo_srgb_u8, fix, seed, d)
+    if ears > 0:
+        out = fix_ears(out, ears, d)
+    return out
+
+
+def fix_regions(albedo_srgb_u8: np.ndarray, fix: dict | None, seed: int = 0, d=None) -> np.ndarray:
     fix = {k: float((fix or {}).get(k, 0.0)) for k in KEYS}
     if not any(fix.values()):
         return albedo_srgb_u8
@@ -191,3 +210,77 @@ def fix_albedo(albedo_srgb_u8: np.ndarray, fix: dict | None, seed: int = 0, d=No
     pad = tc.fill_smooth(out.astype(np.float32) / 255.0, T.mask)
     out[~T.mask] = tc.to_u8(pad)[~T.mask]
     return np.ascontiguousarray(out)
+
+
+EAR_RED = np.array([0.03, -0.07, -0.06], dtype=np.float32)   # log shift at full rim/lobe weight
+EAR_BLUR_MM = 3.0                                              # tone scale that is replaced
+EAR_INNER_MM = 6.0                                             # fill -> front hue over this much from the root
+EAR_FRONT_MM = 45.0                                            # parotid and temple texels this close to the ear
+
+
+def ear_masks(d):
+    """Per vertex: where the ear's chroma is rebuilt (detail_maps.ear_weight), how far it is
+    inside the ear (0 at the root, 1 from EAR_INNER_MM on, over the mesh) and how much redder
+    it is (0..1: the helix rim, the part of the ear farthest over the mesh from where it meets
+    the head, and the lobe, the lowest quarter of the ear)."""
+    from scipy.sparse.csgraph import dijkstra
+    V = d["template_vertices"] * 1000.0
+    ears = tc.group(d, "ears")
+    E = mesh_edges(d)
+    cross = E[ears[E[:, 0]] != ears[E[:, 1]]]
+    root = np.unique(cross[ears[cross]])
+    inner = E[ears[E[:, 0]] & ears[E[:, 1]]]
+    length = np.linalg.norm(V[inner[:, 0]] - V[inner[:, 1]], axis=1)
+    G = coo_matrix((length, (inner[:, 0], inner[:, 1])), shape=(len(V), len(V))).tocsr()
+    dist = dijkstra(G, directed=False, indices=root, min_only=True)
+    red = np.zeros(len(V))
+    for sign in (1.0, -1.0):
+        m = ears & (np.sign(V[:, 0]) == sign)
+        rim = smoothstep(0.55, 0.95, dist[m] / dist[m].max())
+        y = V[m, 1]
+        y0, span = y.min(), y.max() - y.min()
+        lobe = 1 - smoothstep(y0 + 0.12 * span, y0 + 0.35 * span, y)
+        red[m] = np.maximum(rim, 0.8 * lobe)
+    red = np.clip(tc.smooth_vertex_values(d, red, 2), 0, 1) * ears
+    inner = np.where(ears, smoothstep(0.0, EAR_INNER_MM, np.nan_to_num(dist, posinf=0.0)), 0.0)
+    return ear_weight(d), inner, red
+
+
+def fix_ears(albedo_srgb_u8: np.ndarray, k: float, d=None) -> np.ndarray:
+    d = d or tc.load_base()
+    T = tc.Texels(d, TILE, albedo_srgb_u8.shape[0])
+    w_v, inner_v, red_v = ear_masks(d)
+    tw = T.attr(w_v).astype(np.float32)
+    on = tw > 0
+    ys, xs = T.ys[on], T.xs[on]
+    lin = tc.srgb_to_linear(albedo_srgb_u8[..., :3] / 255.0).astype(np.float32)
+    log = np.log(np.maximum(lin, 1e-4))
+    own = blur_log(log, EAR_BLUR_MM / float(np.median(T.mm_per_px())))
+    vcol = vertex_means(T, own[T.ys, T.xs].astype(np.float64), len(w_v))
+    free = w_v > 0
+    edges = mesh_edges(d)
+    touch = np.isin(edges, np.where(free)[0]).any(1)
+    if np.isnan(vcol[edges[touch]].reshape(-1, 3)).any():
+        raise RuntimeError("ear fill: a vertex next to the ear has no texels")
+    vcol[np.isnan(vcol[:, 0])] = 0.0
+    ref = harmonic_fill(edges, vcol, free)                  # log tone, luminance and chroma
+    # the hue of the skin in front of each ear: parotid and temple texels near it, own chroma
+    V = d["template_vertices"] * 1000.0
+    ears = tc.group(d, "ears")
+    oc = own[T.ys, T.xs]
+    oc = oc - oc.mean(1, keepdims=True)
+    for sign, side in ((1.0, "left"), (-1.0, "right")):
+        centre = V[ears & (np.sign(V[:, 0]) == sign)].mean(0)
+        front = T.attr(region(d, [f"{side}_parotid_region", f"{side}_temple_region"])) > 0.5
+        front &= np.linalg.norm(T.pos - centre, axis=1) < EAR_FRONT_MM
+        hue = np.median(oc[front], 0)
+        m = np.sign(V[:, 0]) == sign
+        ref_c = ref[m] - ref[m].mean(1, keepdims=True)
+        ref[m] += inner_v[m, None] * (hue - ref_c)
+    w = (tw[on] * k)[:, None]
+    red = (T.attr(red_v)[on] * k).astype(np.float32)[:, None]
+    new = log[ys, xs] + w * (T.attr(ref)[on].astype(np.float32) - own[ys, xs]) + red * EAR_RED
+    out = albedo_srgb_u8[..., :3].copy()
+    out[ys, xs] = tc.to_u8(tc.linear_to_srgb(np.exp(new)))
+    return np.ascontiguousarray(out)
+

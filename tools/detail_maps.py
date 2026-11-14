@@ -70,6 +70,12 @@ PROFILE = {
     "ears":     (1.4,       0.040,         0.5,        0.8,   0.48,      0.3,     0.1),
 }
 FIELDS = ["density", "sigma", "depth", "micro", "rough", "red", "freckle"]
+# --ear-skin (M12, off by default): the "ears" row above leaves an ear nearly flat and glossier
+# than the cheek. On the scan set (tex_09) the ear's colour is a smeared fill (the scan does not
+# register there), so its relief and roughness have to carry the skin: fine furrows, very small
+# pores, the cheek's roughness. Blended in with ear_weight(), after everything else is made and
+# from its own random stream, so outside the ear and its feather every texel stays as it was.
+EAR_SKIN = dict(density=3.0, sigma=0.035, depth=0.5, micro=2.0, rough=0.53)
 
 # Relief and colour scales at strength 1.0. Raised 2x (redness 1.6x) on 13 Nov: at the first values (pores
 # 0.024 mm, micro 0.014 mm, mottling 3.5 %, redness 10 %) the grey head read as smooth plastic
@@ -134,7 +140,16 @@ def region_fields(d, T: tc.Texels, scan_brows: bool = False) -> dict[str, np.nda
         near_brow = 0.0
     block = np.clip(near_eye + W["lids"] + near_brow + W["ears"] + W["lips"], 0, 1)
     res["scan_ok"] = T.attr(1 - block)
+    res["ear_w"] = T.attr(ear_weight(d)).astype(np.float32)
     return res
+
+
+def ear_weight(d):
+    """Per vertex, 0..1: 1 on GNM's `ears` group and about 2 mm past it (the scan's smear reaches
+    that far), half at about 5 mm, exactly 0 from about 13 mm. Shared by --ear-skin here and the
+    `ears` fix in tools/skin_fix.py, so colour, relief and roughness change over the same area."""
+    e = tc.group(d, "ears").astype(np.float64)
+    return np.maximum(e, smoothstep(0.03, 0.25, tc.smooth_vertex_values(d, e, 4)))
 
 
 def lid_coords(d, T):
@@ -393,7 +408,28 @@ def height_map(rng, T, F, size, args, lo, hi):
         line[on] = (LID_LINE_DEPTH_MM * coarse * broken + 0.35 * LID_LINE_DEPTH_MM * fine * broken2) \
             * F["lid_w"][on] * args.lid_lines
         h -= T.image(line)
+    if args.ear_skin > 0:
+        h, pores = ear_relief(T, F, size, args, h, pores, micro, mod, T.image(und * (1 - F["lips"])))
     return h, pores, cut
+
+
+def ear_relief(T, F, size, args, h, pores, micro, mod, und):
+    """--ear-skin: the ear's height and pore field blended toward EAR_SKIN by ear_weight. The
+    furrows are the same noise field as everywhere else (only deeper), so they run on across the
+    feather; the pores are new and small, from a random stream of their own."""
+    E = EAR_SKIN
+    ew = F["ear_w"] * np.float32(args.ear_skin)
+    on = np.where(ew > 0)[0]
+    erng = np.random.default_rng([args.seed, 12])
+    p = np.clip(E["density"] * T.mm_per_px()[on] ** 2, 0, 1)
+    idx = on[erng.random(len(on)) < p]
+    sig = E["sigma"] * erng.uniform(0.7, 1.3, len(idx))
+    depth = PORE_DEPTH_MM * E["depth"] * erng.uniform(0.6, 1.4, len(idx))
+    ep = splat(T, idx, sig, depth, size)
+    eh = -ep + micro * np.float32(E["micro"] * MICRO_DEPTH_MM) * mod + und
+    w = T.image(ew, 0.0)
+    print(f"[detail] ear skin: {len(idx):,} pores, {len(on):,} texels")
+    return h + w * (eh - h), pores + w * (ep - pores)
 
 
 def smoothstep(e0, e1, x):
@@ -562,6 +598,9 @@ def main():
                     help="how much of the scan's stubble relief round the mouth, chin and neck is kept")
     ap.add_argument("--scan-brows", action="store_true",
                     help="keep the scan's relief under the brows (for the set that uses its colour)")
+    ap.add_argument("--ear-skin", type=float, default=0.0,
+                    help="0..1: ear relief and roughness from EAR_SKIN (fine furrows, small pores, the "
+                         "cheek's roughness) instead of the faint default ear profile; 0 = off")
     ap.add_argument("--variation", type=float, default=0.1,
                     help="per-seed jitter of the strengths (0.1 = up to ±10 %%)")
     args = ap.parse_args()
@@ -591,7 +630,10 @@ def main():
     print(f"[detail] normal done {time.time() - t0:.1f} s")
 
     # roughness at 2048: region values, a little rougher in pores, low-frequency variation
-    rough = F["rough"] + 0.035 * fbm3(rng, T.pos, lo, hi, [3.0, 10.0], [0.6, 1.0])
+    base = F["rough"]
+    if args.ear_skin > 0:
+        base = base + F["ear_w"] * args.ear_skin * (EAR_SKIN["rough"] - base)
+    rough = base + 0.035 * fbm3(rng, T.pos, lo, hi, [3.0, 10.0], [0.6, 1.0])
     rough = rough + 0.10 * np.clip(pores[T.ys, T.xs] / PORE_NORM_MM, 0, 1)
     r_img = tc.fill_nearest(T.image(rough, 0.5), T.mask)
     f = size // args.rough_size

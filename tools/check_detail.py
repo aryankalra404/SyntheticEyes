@@ -16,7 +16,8 @@ Wrap test (--skin --wrap): the judges' view. The bare template with plain Princi
 and nothing of ours but the texture files: skin = albedo x detail, normal, roughness, no
 subsurface; eye tiles as base colour with default Principled settings; cornea fully
 transparent; no extra geometry. Neutral light: grey world plus one large soft key. Shots:
-front and three-quarter at face size.
+front and three-quarter at face size; `wrap_ear_l` (by --shots) is a closer three-quarter view of
+the subject's left ear.
 
 After each render the 99.5th percentile of the head's brightest channel is printed
 ("peak"), so exposure can be checked without opening the image.
@@ -263,6 +264,8 @@ def main():
     eyes = Vector(to_blender(d["joint_positions"][2:4]).mean(0))
     lips = masks[names.index("upper_lip")] | masks[names.index("lower_lip")]
     mouth = Vector(V[lips].mean(0))
+    ears = masks[names.index("ears")]
+    earL = Vector(V[ears & (V[:, 0] > 0)].mean(0))
 
     cam_data = bpy.data.cameras.new("cam")
     cam_data.sensor_width = 36.0
@@ -295,6 +298,8 @@ def main():
         "neck": (face + Vector((0, 0.07, -0.07)), 180, -10, 0.60, 85, 150, 15, 14),
         "wrap_front": (face, 0, 0, 0.42, 50, -25, 25, 6),
         "wrap_three_quarter": (face, 40, 0, 0.42, 50, -10, 25, 6),
+        # the subject's left ear, camera beside the cheek, close enough to judge its skin
+        "wrap_ear_l": (earL + Vector((0, -0.02, 0)), 60, 5, 0.30, 50, 25, 25, 6),
     }
     tag = "grey" if args.skin is None else ("wrap" if args.wrap else "tex")
     if args.wrap:

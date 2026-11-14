@@ -58,7 +58,7 @@ TEX = REPO / "textures"
 # tone (optional): saturation about each texel's luminance (1 = unchanged), hue rotation in
 # degrees about the grey axis (+ turns red toward yellow), gain; applied to the bake in linear
 # light before the detail layer, so brows and lips shift with the skin.
-# fix (optional): strengths 0..1 for tools/skin_fix.py (scalp, orbital, delines, lips, flush).
+# fix (optional): strengths 0..1 for tools/skin_fix.py (scalp, orbital, delines, lips, flush, ears).
 # identity: the GNM IdentitySampler settings these textures are paired with for stills
 # (ethnicity is the sampler's class name; South Asian has no class of its own, closest is
 # MIDDLE_EASTERN).
@@ -155,8 +155,12 @@ SETS = {
         # the scan's relief stays under its own brows
         scan=True,
         iris="hazel", seed=9,
+        # M12: the scan does not register on the ears, so they bake as a smooth yellow-orange
+        # fill; ear colour rebuilt from the skin round it (fix ears), ear relief and roughness
+        # from detail_maps.EAR_SKIN (ear_skin)
         detail={"mottle_strength": 0, "redness": 0, "freckles": 0, "moles": 0, "veins": 0,
-                "pore_tint": 0, "grain": 0, "variation": 0, "scan_brows": True},
+                "pore_tint": 0, "grain": 0, "variation": 0, "scan_brows": True, "ear_skin": 1.0},
+        fix=dict(ears=1.0),
         identity=dict(gender="male", ethnicity="white", seed=9)),
 }
 SCAN_CREDIT = "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com"

@@ -119,7 +119,7 @@ Rerun both after adoption.
 **Not done**: adoption, scene rebuild, preview and sheet rerender, tex_09 still diff (all blocked
 by the running render). No change to tex_01 or tex_03 ears, the skin shader or the README. The
 `TECH_NOTES` entry for the ear fix waits for adoption. Nothing pushed.
-`outputs/tmp/m12` holds about 0.5 GB.
+`outputs/tmp/m12` holds about 0.3 GB.
 
 ### Sun 15 Nov 2026, early — the owner watched the drafts: fixed camera, head and blink changes (Fable)
 The owner watched the three drafts at playback speed for the first time and rejected them:

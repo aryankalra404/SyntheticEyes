@@ -137,7 +137,8 @@ As built in M3 (13 Nov); every number lives in `tools/build_scene.py`.
   roughness (as it is) from the set. A thin sharp coat (weight 0.18, roughness 0.2) reflects off
   a procedural 0.5 mm micro-relief laid in rest coordinates, so pores sparkle under a raking
   light without the millimetre blobs a sharp gloss shows on the map's own normal. The nose
-  (`nose` mask) gets + 0.22 roughness and no coat. Four more per-vertex masks on the head mesh: `wet` (lid margin and the pocket
+  (`nose` mask) gets + 0.22 roughness and no coat; on the nose and between the brows (`calm`
+  mask, spread wide) the normal map drops to strength 0.6. Four more per-vertex masks on the head mesh: `wet` (lid margin and the pocket
   behind the lids: roughness × 0.25 under a clear coat with a fine ripple, which breaks the
   highlight into glints), `pink` (the same pocket and the inner corner: red wet tissue instead
   of the skin fill in the albedo), `lips` (roughness × 0.7, coat 0.25), `lids`.

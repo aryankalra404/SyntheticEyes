@@ -67,6 +67,14 @@ micro-relief in rest coordinates (Generated x bounding box, so it does not swim)
 nose. Looked at close (cheek, lid) and at face distance (forehead, cheek): pores show as relief
 with a fine sparkle, no blobs.
 
+**2b. Nose side of the eye close-up** (owner's note on the first sheet: the skin at image left
+looked blocky). The nose and the skin between the brows are the nearest things to the eye camera
+and out of its focus; at normal strength 1.8 the blurred pore relief there read as coarse lumps,
+like orange peel. A `calm` mask (nose and mid-brow regions, softened 8 steps) takes the normal map
+down to 0.6 there (`NOSE_NORMAL`). Before / after looked at on 03, 04 and 09: the nose side is
+smooth and soft as in the reference, the cheek and lid keep their relief. Stills, `renders/` and
+the direction check rerendered after it.
+
 **3. Frames, Cycles 64 spp**: 17 frames over every framing, both glides and three blinks of the
 three videos (`--frames`, new: `eyes.py --input left --samples 64 --frames 45 129 150 185 245`),
 looked at. Seconds per frame, 1024², Metal on the M4:

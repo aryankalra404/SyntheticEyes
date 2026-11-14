@@ -21,6 +21,48 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, early — the owner watched the drafts: fixed camera, head and blink changes (Fable)
+The owner watched the three drafts at playback speed for the first time and rejected them:
+brows and lashes "glitchy", white dots round the eye, low quality, "random zoom in zoom out",
+motion not realistic. What each one was, and what changed:
+
+- **Glitchy hair, white dots: the draft renderer, not the scene.** `--quality draft` is EEVEE at
+  512 px upscaled to 1024, with hair as flat strips and the cornea and tear line swapped for a
+  Fresnel gloss. The strips shimmer from frame to frame and the gloss sparkles along the lid
+  margin. Checked on Cycles frames of the same motion (four consecutive 64 spp frames across the
+  gaze shift, and consecutive 768 px preview frames): hair holds still between frames, the lid
+  margin is a smooth wet line, no dots. Drafts are for motion only; the README now says so.
+- **New `--quality preview`**: the Cycles look at 768 px and 32 samples, 12 s/frame on the M4
+  (about 55 min for a 9 s video), so a video can be judged before the long render. Nobody should
+  judge the look on an EEVEE draft again.
+- **Zooming: the camera move is no longer the default.** Videos are now filmed with the fixed
+  `cam_video` (`--camera face`), retuned from 72 mm to 112 mm at 0.56 m: forehead to under the
+  chin, 18 cm across, eyes about 3x larger than before, whole face in frame through the head
+  turn (looked at 12 frames of a fixed-camera draft of `left`). `--camera move` still works.
+  This reopens the M4 decision; reason: the owner, watching at speed, read the glides as zooming
+  for no reason, and the rubric scores the eye, lid and brow motion, which a still frame shows best.
+- **Motion** (`wrapper/gaze`):
+  - `left`/`right`: the head takes half of the held glance (`GLANCE_HEAD = 0.5`, 13 to 16 deg,
+    was 9 to 12), so the eyes lead and then sit about 13 deg in the head instead of holding
+    17 to 18 deg off centre for four seconds.
+  - The head no longer re-aims for a refixation under 9 deg (`head_min_shift`); it used to walk
+    back and forth 3 deg during the hold.
+  - No blink on the way out, so the gaze shift itself is seen. Blinks sit in the hold, on the
+    way back and at the viewer, 2.0 to 2.5 s apart (were 3 inside 2.3 s). Forced blinks keep
+    1.3 s apart (`blink_forced_gap`), spontaneous ones 1.6 s (`blink_min_gap`, was 0.9).
+  - Three new tests (blink spacing, the first shift is not hidden by a blink, the head holds
+    through a small refixation); 46 pass.
+- `scene.blend` rebuilt (camera, new `generate` on the Timeline). `--check-directions` gives the
+  same pupil shifts as before (13.8 to 14.2 px), `cam_face` and the rig are untouched, so
+  `renders/` and `metadata.json` stand.
+
+**Not done**
+- The owner has not yet watched the new motion. A preview of `left` is the thing to watch
+  first; `right` and `generate` previews after it.
+- `outputs/videos/right.mp4` and `generate.mp4` are still the rejected drafts.
+- Final videos: about 48 s/frame expected at 1024 px and 64 spp, so roughly 3.5 h each. Only
+  after the owner accepts the previews.
+
 ### Sat 14 Nov 2026, night — M11 stage 1: labels, brows and brown irises on the bare head, trials only (Opus)
 Stage 1 of 2: trials and a review sheet; nothing under `textures/` changed. **For the Fable
 review: `outputs/tmp/m11/review.png`** (one row per changed set, before | after: bare-head front,

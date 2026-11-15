@@ -169,6 +169,22 @@ Blender runs here only read the scene.
   (holds 2 s where you were, recentres and looks round, back: saccade, blink 0.30 at 70 ms,
   brow 0.26, head back to you in 0.4 s).
 
+**F. Lashes and tear lines** (`tools/export_xr.py`, materials in `app.js`)
+- Lashes: `lashes_carrier` is 430 polylines of 7 points, the same points the scene's lash curves
+  are made from (Mesh to Curve). Each becomes a ribbon (two vertices per point, offset along the
+  lid's tangent, taken round the eye in the frontal plane), with the carrier's skin weights and
+  its 20 shape-key offsets, so the lashes ride the lids through gaze and blink. Width 1.5× the
+  real lash (`hair_radius` × 2): at 1× a lash is a fraction of a headset pixel at 0.7 m; 2.5×
+  read as mascara. Colour twice the Blender lash colour (its hair shader has a sheen a flat
+  ribbon lacks), double-sided, no shadow (lash shadows at a 1024 map only flicker).
+- Tear lines: `tear_line.L/R` exported as they are (110 vertices, skinned, their side's 9
+  keys), drawn like the cornea (black, additive, mirror-smooth): only a glint.
+- glb 3.19 → 5.43 MB (smooth-shaded ribbons and sparse morph accessors; flat shading had split
+  them to 10 320 vertices and 6.94 MB). Head check still **pass**; scene.blend unmodified.
+- Looked at: `F_lashes_strip.png` (cam_eyes: rest, gaze up 15, blink 0.66, 1.0: the lashes
+  follow, no gaps, nothing through the lid), `F_bust_0.7m.png` (a soft lash line at headset
+  distance), `F_face_vs_still.png`. Clean page load: no console messages.
+
 ### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
 - Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as
   M13 (Fable briefs, Opus builds, Fable reviews from `outputs/tmp/m14/`).

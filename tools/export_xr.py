@@ -9,6 +9,11 @@ What it writes to xr/assets/:
   TEXCOORD_0) and legacy (TEXCOORD_1), one primitive per material slot named after the slot.
   No animation, no modifier applied (the globe guard shrinkwraps cannot be exported), plain
   placeholder materials: xr/js/app.js builds the real ones.
+  Also (stage F of docs/BRIEF_M14.md): `lashes`, a ribbon per lash built from lashes_carrier
+  (430 polylines of 7 points: the same points the scene's curves are made from, with their
+  skin weights and the 21 shape keys, so they follow the lids), widened LASH_WIDTH times
+  because a lash at its real 0.1 mm is a fraction of a headset pixel at 0.7 m; and the two
+  tear_line strips as they are in the scene (skinned, their side's keys).
 - rig.json: what xr/js/rig.js needs, in the glTF frame (see "axes" in the file): eye centres,
   bone heads, the rig constants read from wrapper/rig.py and the motion numbers from
   wrapper/gaze/engine.py GazeParams.
@@ -40,6 +45,7 @@ TEXTURES = (
     ("eye.1002.png", "eye_L.jpg", 1024, "JPEG", 92),
     ("eye.1004.png", "eye_R.jpg", 1024, "JPEG", 92),
 )
+LASH_WIDTH = 1.5        # ribbon width = this x the carrier's hair_radius x 2 (2.5 read as mascara)
 AXES = ("glTF frame, metres, Y up. glTF +X = Blender +X = image-right (the subject's left); "
         "glTF +Y = Blender +Z = up; glTF +Z = Blender -Y = toward the viewer (the face looks "
         "along +Z). Point map: (x, y, z)_gltf = (x, z, -y)_blender.")
@@ -97,6 +103,114 @@ def prepare():
     return arm, head
 
 
+def lash_ribbons(arm):
+    """A mesh `lashes`: two vertices per carrier point, offset along the lid's tangent (round the
+    eye in the frontal plane), quads between neighbours; skin weights and key offsets copied."""
+    car = bpy.data.objects["lashes_carrier"]
+    me = car.data
+    n = len(me.vertices)
+    co = np.zeros(n * 3)
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    rad = np.zeros(n)
+    me.attributes["hair_radius"].data.foreach_get("value", rad)
+    adj = [[] for _ in range(n)]
+    for e in me.edges:
+        a, b = e.vertices
+        adj[a].append(b)
+        adj[b].append(a)
+    seen = np.zeros(n, bool)
+    chains = []
+    for v in range(n):
+        if len(adj[v]) != 1 or seen[v]:
+            continue
+        chain, prev, cur = [v], -1, v
+        seen[v] = True
+        while True:
+            nxt = [w for w in adj[cur] if w != prev]
+            if not nxt:
+                break
+            prev, cur = cur, nxt[0]
+            chain.append(cur)
+            seen[cur] = True
+        if rad[chain[-1]] > rad[chain[0]]:      # roots are the thick end
+            chain.reverse()
+        chains.append(chain)
+    eye = {s: np.array(arm[f"eye_rest_{s}"]) for s in ("L", "R")}
+    fwd = np.array([0.0, -1.0, 0.0])
+    verts, faces, src = [], [], []
+    for chain in chains:
+        root = co[chain[0]]
+        c = eye["L"] if root[0] > 0 else eye["R"]
+        base = len(verts)
+        for i, v in enumerate(chain):
+            w = np.cross(fwd, co[v] - c)
+            w /= max(np.linalg.norm(w), 1e-9)
+            half = rad[v] * LASH_WIDTH
+            verts += [co[v] - w * half, co[v] + w * half]
+            src += [v, v]
+            if i:
+                a = base + 2 * (i - 1)
+                faces.append((a, a + 1, a + 3, a + 2))
+    src = np.array(src)
+    rib = bpy.data.meshes.new("lashes")
+    rib.from_pydata([tuple(p) for p in verts], [], faces)
+    rib.shade_smooth()                          # no split vertices: half the morph data
+    mat = bpy.data.materials.new("lashes")
+    rib.materials.append(mat)
+    ob = bpy.data.objects.new("lashes_xr", rib)
+    bpy.context.scene.collection.objects.link(ob)
+    ob.parent = arm
+    mod = ob.modifiers.new("rig", "ARMATURE")
+    mod.object = arm
+    for g in car.vertex_groups:
+        if g.name.startswith("lid_guard"):
+            continue
+        ng = ob.vertex_groups.new(name=g.name)
+        for i, v in enumerate(src):
+            try:
+                wgt = g.weight(int(v))
+            except RuntimeError:
+                continue
+            ng.add([i], wgt, "REPLACE")
+    keys = me.shape_keys.key_blocks
+    basis = np.zeros(n * 3)
+    keys[0].data.foreach_get("co", basis)
+    basis = basis.reshape(-1, 3)
+    ob.shape_key_add(name="Basis")
+    rco = np.array(verts)
+    for kb in keys[1:]:
+        k = np.zeros(n * 3)
+        kb.data.foreach_get("co", k)
+        off = k.reshape(-1, 3) - basis
+        nk = ob.shape_key_add(name=kb.name, from_mix=False)
+        nk.slider_min, nk.slider_max = kb.slider_min, kb.slider_max
+        nk.data.foreach_set("co", (rco + off[src]).ravel())
+        nk.value = 0.0
+    print(f"[export_xr] lashes: {len(chains)} ribbons, {len(verts)} vertices, "
+          f"{len(keys) - 1} keys, width x{LASH_WIDTH}")
+    return ob
+
+
+def tear_lines():
+    out = []
+    for s in ("L", "R"):
+        ob = bpy.data.objects.get(f"tear_line.{s}")
+        if ob is None:
+            continue
+        sk = ob.data.shape_keys
+        if sk:
+            if sk.animation_data:
+                sk.animation_data_clear()        # drivers from the head keys; in memory only
+            for kb in sk.key_blocks:
+                kb.value = 0.0
+        for slot in ob.material_slots:
+            if slot.material:
+                slot.material.use_nodes = False
+        out.append(ob)
+    return out
+
+
 def export_glb(arm, head, extra=()):
     for ob in bpy.context.view_layer.objects:
         ob.select_set(False)
@@ -112,7 +226,8 @@ def export_glb(arm, head, extra=()):
         export_tangents=False, export_materials="EXPORT", export_image_format="NONE",
         export_skins=True, export_def_bones=False, export_all_influences=False,
         export_morph=True, export_morph_normal=True, export_morph_tangent=False,
-        export_animations=False, export_cameras=False, export_lights=False, export_extras=False)
+        export_animations=False, export_cameras=False, export_lights=False, export_extras=False,
+        export_try_sparse_sk=True)
     print(f"[export_xr] head.glb {(OUT / 'head.glb').stat().st_size / 1e6:.2f} MB")
 
 
@@ -176,6 +291,10 @@ def check():
     # the importer makes an icosphere as the bones' display shape; it is not in the file
     shapes = {pb.custom_shape for a in arms for pb in a.pose.bones if pb.custom_shape}
     meshes = [o for o in bpy.data.objects if o.type == "MESH" and o not in shapes]
+    others = {o.name: (len(o.data.vertices), len(o.data.shape_keys.key_blocks) - 1 if o.data.shape_keys else 0)
+              for o in meshes if o.name != "gnm_head"}
+    print(f"[export_xr check] other meshes (vertices, keys): {others}")
+    meshes = [o for o in meshes if o.name == "gnm_head"]
     nv = sum(len(o.data.vertices) for o in meshes)
     keys = [k.name for o in meshes if o.data.shape_keys for k in o.data.shape_keys.key_blocks[1:]]
     bones = [b.name for a in arms for b in a.data.bones]
@@ -195,7 +314,9 @@ def main():
         check()
         return
     arm, head = prepare()
-    export_glb(arm, head)
+    extra = [] if "--no-lashes" in a else [lash_ribbons(arm), *tear_lines()]
+    bpy.context.view_layer.update()
+    export_glb(arm, head, extra)
     write_rig(arm, head)
     if "--no-textures" not in a:
         write_textures()

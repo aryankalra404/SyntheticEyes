@@ -153,6 +153,15 @@ function makeMaterials(tex) {
     'cornea.L': cornea('cornea.L'),
     'cornea.R': cornea('cornea.R'),
     teeth: new THREE.MeshStandardMaterial({ name: 'teeth', color: 0xd8d0c0, roughness: 0.4 }),
+    // lashes: ribbons from the scene's lash carrier, twice the Blender lash colour (0.015,
+    // 0.010, 0.0065 linear; its hair shader adds a sheen a flat ribbon lacks), both sides
+    lashes: new THREE.MeshStandardMaterial({ name: 'lashes', color: new THREE.Color(0.03, 0.02, 0.013),
+                                             roughness: 0.45, side: THREE.DoubleSide }),
+    // the tear meniscus: like the cornea, only its glint (black, additive, mirror-smooth)
+    tear_line: new THREE.MeshPhysicalMaterial({ name: 'tear_line', color: 0x000000, roughness: 0.05,
+                                                specularIntensity: 1.0, envMapIntensity: 0.8,
+                                                transparent: true, blending: THREE.AdditiveBlending,
+                                                depthWrite: false, side: THREE.DoubleSide }),
     tongue: new THREE.MeshStandardMaterial({ name: 'tongue', color: 0x9a4a48, roughness: 0.5 }),
   };
 }
@@ -168,10 +177,10 @@ function buildBust({ gltf, rig, tex }) {
     if (!o.isSkinnedMesh) return;
     const name = o.material.name;
     o.material = mats[name] || o.material;
-    o.castShadow = name === 'skin';
+    o.castShadow = name === 'skin';            // lash shadows at this map size only flicker
     o.receiveShadow = true;
     o.frustumCulled = false;                // skinned bounds do not follow the bones
-    if (name.startsWith('cornea')) o.renderOrder = 2;
+    if (name.startsWith('cornea') || name === 'tear_line') o.renderOrder = 2;
     H.meshes.push(o);
   });
   bust.add(root);

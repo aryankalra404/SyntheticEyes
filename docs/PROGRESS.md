@@ -147,6 +147,28 @@ Blender runs here only read the scene.
 - Watch in the headset: roll is −0.20 per degree of yaw (engine), so −12 deg at the 60 deg
   limit; it reads as a tilt on the curves.
 
+**E. In the headset and on the laptop** (`xr/js/app.js`)
+- `XRButton` (three's standard pattern: `renderer.xr.enabled`, `setAnimationLoop`):
+  `immersive-ar` when offered, else `immersive-vr`; `local-floor` required, hand tracking
+  optional. AR clears the background (passthrough), VR keeps the dark room. Antialias on.
+- Placement: two frames after the session starts, the bust's eye midpoint goes 0.7 m in front
+  of the wearer at their eye height, the bust turned to face them; any `select` on the session
+  (trigger or pinch) places it again. Each frame the XR camera is turned into bust space (the
+  wearer's position, right and up) and fed to the gaze.
+- Laptop: the camera is the wearer on an arc round the eyes (mouse ±50 deg sideways, ±20 up and
+  down, wheel 0.3 to 1.5 m, smoothed 0.25 s so it moves like a person). Touch drag does the same,
+  two-finger pinch the distance. **Taking the mouse off the page is walking away**: the wearer
+  becomes absent, so a jury without a headset can see it lose them and greet them again.
+- Checks: no console errors; gaze + rig cost 0.03 ms a frame in the browser. Placement checked
+  with three mock headset poses (`placeBust` / `viewerFrom` from the console): eyes 0.700 m ahead,
+  0.000 m height difference, the wearer straight ahead in bust space with right = +X. **The real
+  headset path is untested** (checklist below).
+- Laptop screenshots, canvas captures: `E_laptop_five_positions.png` (centre: head 0.5 deg;
+  camera −48: head −36.3, eye −6.1; up-left −34/+18: head −24.3/+12.5; +48: head 38.8, eye 8.9;
+  low right at 0.30 m: head 16.7/−12.6, eyes converged) and `E_laptop_walk_away_and_back.png`
+  (holds 2 s where you were, recentres and looks round, back: saccade, blink 0.30 at 70 ms,
+  brow 0.26, head back to you in 0.4 s).
+
 ### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
 - Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as
   M13 (Fable briefs, Opus builds, Fable reviews from `outputs/tmp/m14/`).

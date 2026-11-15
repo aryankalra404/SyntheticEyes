@@ -1,4 +1,4 @@
-// The bust page: scene, materials, lights, and (later stages) the rig, the gaze and the XR session.
+// The bust page: scene, materials, lights, the rig, the gaze and the XR session.
 //
 // Frames. "Bust space" is the glTF frame of head.glb: metres, +X image-right (the subject's
 // left), +Y up, the face looks along +Z. The bust group (head + plinth) carries that frame into
@@ -13,11 +13,19 @@
 //                          deg, distance in m, default 1.6 as in tools/rig_strips.py), hy hp hr
 //                          (head), blink (or blinkL / blinkR), brow (or browL / browR), widen,
 //                          squint, pupil
+//   seed=0                 the gaze's seed (default 0)
+//   yaw, pitch, dist       laptop wearer's start: deg round the head, deg up, metres
+//
+// Without a headset the camera is the wearer: the mouse moves it on an arc round the head
+// (±50 deg sideways, ±20 up and down), the wheel changes the distance (0.3 to 1.5 m), a touch
+// drag does the same on a phone. Taking the mouse off the page is walking away.
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { XRButton } from 'three/addons/webxr/XRButton.js';
 import { Rig, bonesLocal } from './rig.js';
+import { createGaze, step as gazeStep } from './gaze.js';
 
 const Q = new URLSearchParams(location.search);
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
@@ -42,6 +50,8 @@ renderer.toneMapping = TONES[Q.get('tone')] ?? THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = num('exposure', 0.75);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local-floor');
 stage.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -269,10 +279,21 @@ const VIEWS = {
   eye: { pos: [-0.0305, 0.3197, 0.2466], dir: [0.405, -0.105, -0.909], lens: 100 }, // cam_test_eye
   video: { pos: [-0.0001, 0.2642, 0.6676], dir: [0, 0, -1], lens: 112 },  // cam_video
 };
+const FIXED_VIEW = VIEWS[Q.get('view')];
+
+// The laptop wearer: where the mouse puts the camera (goal) and where it is (smoothed, so the
+// camera moves like a person stepping, not a cursor).
+const D2R = Math.PI / 180;
+const orbit = {
+  goal: { yaw: num('yaw', 0), pitch: num('pitch', 0), dist: num('dist', 0.7) },
+  now: { yaw: num('yaw', 0), pitch: num('pitch', 0), dist: num('dist', 0.7) },
+  present: true,
+};
+const LIMITS = { yaw: 50, pitch: 20, near: 0.3, far: 1.5 };
 
 function setView() {
-  const v = VIEWS[Q.get('view')];
-  if (v) {
+  if (FIXED_VIEW) {
+    const v = FIXED_VIEW;
     // Blender sensor fit is horizontal, 36 mm wide.
     const hfov = 2 * Math.atan(18 / v.lens);
     camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hfov / 2) / camera.aspect));
@@ -281,18 +302,166 @@ function setView() {
     camera.lookAt(camera.position.clone().add(d));
   } else {
     camera.fov = 40;
-    camera.position.set(0, H.eyeHeight, H.eyeZ + num('dist', 0.7));
-    camera.lookAt(0, H.eyeHeight - 0.02, H.eyeZ);
+    placeOrbitCamera();
   }
   camera.updateProjectionMatrix();
+}
+
+function placeOrbitCamera() {
+  const { yaw, pitch, dist } = orbit.now;
+  const y = yaw * D2R, p = pitch * D2R;
+  const c = new THREE.Vector3(0, H.eyeHeight, H.eyeZ);
+  camera.position.set(c.x + dist * Math.sin(y) * Math.cos(p), c.y + dist * Math.sin(p),
+                      c.z + dist * Math.cos(y) * Math.cos(p));
+  camera.lookAt(c.x, c.y - 0.015, c.z);
+}
+
+function pointerToOrbit(x, y) {
+  const r = renderer.domElement.getBoundingClientRect();
+  const u = THREE.MathUtils.clamp((x - r.left) / r.width, 0, 1);
+  const v = THREE.MathUtils.clamp((y - r.top) / r.height, 0, 1);
+  orbit.goal.yaw = (u * 2 - 1) * LIMITS.yaw;           // mouse right: the camera steps right
+  orbit.goal.pitch = (1 - v * 2) * LIMITS.pitch;       // mouse up: the camera rises
+}
+
+function setupLaptopInput() {
+  const el = renderer.domElement;
+  let pinch = null;
+  const touches = new Map();
+  el.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'mouse') { orbit.present = true; pointerToOrbit(e.clientX, e.clientY); return; }
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (touches.size === 1) pointerToOrbit(e.clientX, e.clientY);
+    else if (touches.size === 2 && pinch) {
+      const [a, b] = [...touches.values()];
+      const d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+      orbit.goal.dist = THREE.MathUtils.clamp(pinch.dist * pinch.d0 / d, LIMITS.near, LIMITS.far);
+    }
+  });
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return;
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (touches.size === 1) pointerToOrbit(e.clientX, e.clientY);
+    if (touches.size === 2) {
+      const [a, b] = [...touches.values()];
+      pinch = { d0: Math.hypot(a[0] - b[0], a[1] - b[1]), dist: orbit.goal.dist };
+    }
+  });
+  const up = (e) => { touches.delete(e.pointerId); if (touches.size < 2) pinch = null; };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    orbit.goal.dist = THREE.MathUtils.clamp(orbit.goal.dist * Math.exp(e.deltaY * 0.0012), LIMITS.near, LIMITS.far);
+  }, { passive: false });
+  // taking the mouse off the page is walking away; coming back is being seen again
+  document.documentElement.addEventListener('mouseleave', () => { orbit.present = false; });
+  document.documentElement.addEventListener('mouseenter', () => { orbit.present = true; });
+}
+
+function smoothOrbit(dt) {
+  const a = 1 - Math.exp(-dt / 0.25);
+  for (const k of ['yaw', 'pitch', 'dist']) orbit.now[k] += (orbit.goal[k] - orbit.now[k]) * a;
+}
+
+// ---- XR ------------------------------------------------------------------------------------
+
+const xrState = { place: false, ar: false, frames: 0 };
+
+function setupXR() {
+  const button = XRButton.createButton(renderer, { requiredFeatures: ['local-floor'],
+                                                   optionalFeatures: ['hand-tracking'] });
+  document.body.appendChild(button);
+  const lift = () => {                                   // sit above the credits line
+    const c = document.getElementById('credits');
+    button.style.bottom = `${(c ? c.offsetHeight : 0) + 22}px`;
+  };
+  lift();
+  window.addEventListener('resize', lift);
+  renderer.xr.addEventListener('sessionstart', () => {
+    const session = renderer.xr.getSession();
+    // passthrough when the session blends with the room; a dark room otherwise (immersive-vr)
+    xrState.ar = session.environmentBlendMode !== undefined && session.environmentBlendMode !== 'opaque';
+    scene.background = xrState.ar ? null : DARK;
+    xrState.place = true;
+    xrState.frames = 0;
+    // the trigger or a pinch (any input's select) places the bust again
+    session.addEventListener('select', () => { xrState.place = true; });
+  });
+  renderer.xr.addEventListener('sessionend', () => {
+    scene.background = DARK;
+    bust.position.set(0, 0, 0);
+    bust.quaternion.identity();
+    bust.updateMatrixWorld(true);
+    setView();
+  });
+}
+
+/** Stand the bust 0.7 m in front of the wearer, its eyes at their eye height, facing them. */
+function placeBust(xrCam) {
+  const pos = new THREE.Vector3(), q = new THREE.Quaternion();
+  xrCam.getWorldPosition(pos);
+  xrCam.getWorldQuaternion(q);
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+  fwd.y = 0;
+  if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+  fwd.normalize();
+  const eyesAt = pos.clone().addScaledVector(fwd, 0.7);
+  eyesAt.y = pos.y;
+  // the bust faces +Z in its own space; turn it so +Z points back at the wearer
+  const yaw = Math.atan2(-fwd.x, -fwd.z);
+  bust.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+  const mid = new THREE.Vector3(...H.rig.eye_mid).applyQuaternion(bust.quaternion);
+  bust.position.copy(eyesAt).sub(mid);
+  bust.updateMatrixWorld(true);
+}
+
+// ---- the wearer, in bust space ---------------------------------------------------------------
+
+const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _bq = new THREE.Quaternion();
+function viewerFrom(cam) {
+  bust.updateMatrixWorld(true);
+  cam.getWorldPosition(_p);
+  cam.getWorldQuaternion(_q);
+  bust.getWorldQuaternion(_bq).invert();
+  const local = bust.worldToLocal(_p.clone());
+  const toBust = _bq.clone().multiply(_q);
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(toBust);
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(toBust);
+  return { pos: local.toArray(), right: right.toArray(), up: up.toArray() };
 }
 
 // ---- loop ----------------------------------------------------------------------------------
 
 const POSE = Q.get('pose') === '1';
+const timer = { last: null };
 
-function frame() {
-  if (POSE) applyChannels(debugChannels());
+function frame(time) {
+  const now = time / 1000;
+  const dt = timer.last === null ? 1 / 60 : Math.min(Math.max(now - timer.last, 0), 0.1);
+  timer.last = now;
+  if (POSE) {
+    applyChannels(debugChannels());
+  } else {
+    let viewer = null;
+    if (renderer.xr.isPresenting) {
+      const xrCam = renderer.xr.getCamera();
+      xrState.frames += 1;
+      // the XR camera carries the headset pose once a frame has been rendered with it
+      if (xrState.place && xrState.frames > 2) {
+        placeBust(xrCam);
+        xrState.place = false;
+      }
+      if (!xrState.place) viewer = viewerFrom(xrCam);
+    } else {
+      if (!FIXED_VIEW) { smoothOrbit(dt); placeOrbitCamera(); }
+      camera.updateMatrixWorld(true);
+      viewer = orbit.present ? viewerFrom(camera) : null;
+    }
+    H.channels = gazeStep(H.gaze, viewer, dt);
+    applyChannels(H.channels);
+  }
   renderer.render(scene, camera);
 }
 
@@ -304,10 +473,13 @@ async function main() {
     status('could not load the head: ' + e.message);
     throw e;
   }
+  H.gaze = createGaze({ seed: Math.round(num('seed', 0)), rig: H.rigMaths });
   resize();
+  setupLaptopInput();
+  if (!POSE && !Q.has('noxr')) setupXR();
   status('');
   renderer.setAnimationLoop(frame);
-  window.__xr = { THREE, scene, camera, renderer, bust, H, applyChannels };
+  window.__xr = { THREE, scene, camera, renderer, bust, H, applyChannels, orbit, placeBust, viewerFrom };
   document.body.dataset.ready = '1';
 }
 

@@ -378,7 +378,7 @@ class M13(unittest.TestCase):
             tr = generate("generate", seed)
             c, t = tr.channels, tr.t
             self.assertLessEqual(tr.duration, 14.5)
-            self.assertTrue(10.0 <= tr.duration <= 11.5, tr.duration)
+            self.assertTrue(7.5 <= tr.duration <= 9.5, tr.duration)
             self.assertLess(c["gaze_yaw"].min(), -15.0, seed)
             self.assertGreater(c["gaze_yaw"].max(), 15.0, seed)
             self.assertGreater(c["gaze_pitch"].max(), 20.0, seed)

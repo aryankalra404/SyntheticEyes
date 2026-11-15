@@ -97,19 +97,20 @@ def generate(seed=0):
 
     # 5. hold low with the lids open (counted from when the slow blink is 85 % open again, so
     # the lowered gaze is seen), then back to the viewer; a flick between the viewer's eyes and
-    # back; a soft closing blink at least 1.3 s after the slow one
+    # back; a soft closing blink, over 2 s after the slow one; about a second on the viewer and
+    # out. The clip ends with the beat: a longer tail is a stare with nothing in it.
     p = GazeParams()
     opened = t_slow + 0.85 * slow * (p.blink_close + p.blink_hold + p.blink_open)
-    duration = round(u(10.0, 11.5), 1)
     t_view = opened + u(0.35, 0.5)
     ev.append(Look(t_view, 0.0, 0.0, dist=CAMERA, blink=False))
-    t_close = max(duration - u(1.2, 1.5), t_slow + 1.4)
-    t_flick = t_view + (t_close - t_view) * u(0.30, 0.45)
+    t_flick = t_view + u(0.7, 0.9)
     side = 1 if rng.uniform() < 0.5 else -1
     ev.append(Look(t_flick, side * u(1.5, 2.5), u(-0.6, 0.6), blink=False))
-    ev.append(Look(t_flick + u(0.6, 0.9), 0.0, 0.0, blink=False))
+    t_back = t_flick + u(0.6, 0.8)
+    ev.append(Look(t_back, 0.0, 0.0, blink=False))
+    t_close = t_back + u(0.25, 0.4)
     ev.append(Blink(t_close, amp=u(0.9, 1.0)))
-    return Script(duration=duration, events=ev)
+    return Script(duration=round(t_close + u(1.0, 1.2), 1), events=ev)
 
 
 MODES = {"left": left, "right": right, "generate": generate}

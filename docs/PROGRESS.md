@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov), audited on the bare head and rebuilt (14 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; brows painted as grown hairs, shaved-scalp cap removed, back-of-head seam fixed; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
-| M4 Motion | **M13 motion rework done and waiting for Fable's review (15 Nov evening): see the log.** Gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 6.3 h at 64 spp in the new look), and nobody has watched a draft at playback speed yet |
+| M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. Waiting for the owner to watch the three drafts at speed and pick the right pane (`eyes` or `eye`); then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -20,6 +20,48 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Sun 15 Nov 2026, 14:30 — review of the M13 pack: accepted, `generate` cut to its beat (Fable)
+Reviewed from `outputs/tmp/m13/` (curves, draft sheets, preview split stills of both panes, lid
+pairs, blink strips, `lid_check` before and after), plus a strip of every second draft frame
+through the eye roll. 51 tests pass. Stages A to D are accepted as built.
+
+Rulings on what Opus left open:
+- **`check_lids` 7 and 12 µm over the baseline: accepted, C stays.** Both worst cases sit at
+  yaw 30 with pitch 25 or −30, poses no input reaches (largest eye-in-head yaw in the three
+  inputs is 22 deg), the values are a tenth of the guard offset, and rim-over fell from 2.2 to
+  1.6 mm. In the zoomed pairs the lid outline leans with the cornea, with no dent, no corner step
+  and no lash through skin. `GUARD_OFFSET` is not changed.
+- **Head tips back 2.6 to 4.5 deg in the roll, roll lasts 1.59 to 1.70 s: accepted.** In the frame
+  strip the roll reads as launch (120), travel over the top (122 to 136), a beat up and across
+  (138 to 144), lids down (146 to 152), open on the low gaze (154 to 164), viewer (170). The
+  sclera under the iris at the top is what an up gaze shows; with `widen` at 0.12 and the brows
+  at 0.39 it does not read as startled.
+- **Third glance fixation past 20 deg eye-in-head (up to 22): accepted**, well inside the range
+  people use without turning the head.
+- **Pane: Fable recommends `eyes`, the owner decides.** With `eye` the camera sits where the eye
+  is looking in `left`, so frames 40, 60 and 150 show an eye looking nearly into the lens and
+  the glance does not read as left; it is the better close-up of iris and lashes, though. `eyes`
+  shows what the deck asks for ("both eyes move"), the lids leaning and both brows.
+
+Changed in this session (the brief's own fault, not Opus's): `generate` ran 10 to 11.5 s but its
+beat is over at about 5.7 s, which left 4.7 s of looking at the viewer with one flick and one
+blink. The clip now ends with the beat: back on the viewer, flick 0.7 to 0.9 s later, back
+0.6 to 0.8 s after that, the soft blink 0.25 to 0.4 s later, 1.0 to 1.2 s more and out.
+Seeds 0 to 7: **8.3 to 8.6 s** (seed 0: 8.3 s, 249 frames, was 321), closing blink 2.56 to 2.69 s
+after the slow one. Every draw up to the return to the viewer is unchanged, so the pack's stills
+of the glances and the roll (frames 43 to 163) are still the motion. Test range 10–11.5 → 7.5–9.5.
+`scene.blend` rebuilt (the Timeline now holds the 8.3 s `generate`). New draft, curves and a
+sheet of the tail: `outputs/tmp/m13/review/`; `outputs/videos/generate.mp4` is that draft too.
+
+Not judged here, because stills cannot show it: how the three clips feel at playback speed.
+That is the owner's check on `outputs/tmp/m13/drafts/{left,right}_draft.mp4` and
+`outputs/tmp/m13/review/generate_draft.mp4` (EEVEE, face camera only, timing not looks).
+
+Next: owner watches the drafts and picks the pane; then finals of the three inputs with
+`--camera split --pane <choice>`: 270 + 270 + 249 = 789 frames, two passes each (72 fewer frames
+than before the trim). Then `--clockwise`, `--check-directions --render`, `tools/validate.py`
+and packaging. Finals are mechanical: an Opus session can run them.
 
 ### Sun 15 Nov 2026, evening — M13 motion rework, stages A to D and the review pack (Opus)
 Implements `docs/BRIEF_M13.md`. Review pack in `outputs/tmp/m13/` (git-ignored). Finals not rendered.

@@ -93,6 +93,60 @@ Blender runs here only read the scene.
   brief's eye range (±28 yaw, +22 / −25 pitch). If the headset shows a sliver at the corners,
   the key bake in the brief is the next step.
 
+**D. Real-time gaze** (`xr/js/gaze.js`, `xr/tests/gaze.test.mjs`, `xr/tests/sim.mjs`)
+- `step(state, viewer, dt)`, pure JS, a fixed 2 ms internal tick counted in whole ticks, the
+  viewer interpolated between calls, seven seeded random streams (look, glance, saccade, head,
+  blink, brow, noise) so a decision that moves by one tick at another frame rate cannot reorder
+  the others. Every engine number is `GazeParams` (a test checks all of them against
+  `rig.json`, which the exporter reads from the engine; `saccadeDuration` and the skewed profile
+  match the Python to 2e-6).
+- Rules as briefed: three face points (±3.2 cm, mouth 7 cm down), dwell 0.6–1.8 s, mouth one
+  jump in six; glances every 5–10 s for 0.4–1.0 s, eyes only; saccades on the main sequence
+  with undershoot, corrective, glissade and `min_isi`; pursuit with catch-up past 2 deg; head
+  goal 80 % of the way when eye-in-head (to where the eyes are going) passes 12 deg or stays
+  past 6 for 1.2 s, 0.04–0.10 s after the eyes, 1.2 Hz critically damped, roll −0.20/deg, dip,
+  sway; limits; lost (absent, past head + eye range, past 2.5 m) → hold 2 s → recentre and look
+  around → back in range: saccade, brow flash 0.35 for 0.4 s, blink; blinks, partial blinks,
+  evoked blinks, brow and squint effort, vergence, near pupil, hippus.
+- **Numbers that are mine, not the brief's or the engine's** (all in `LIVE` with a comment):
+  - the head's goal moves at most 50 deg/s, 20 deg/s when it recentres or looks around while
+    searching (a 60 deg step through the bare follower peaks near 166 deg/s);
+  - 0.7 velocity feed-forward into the follower, low-passed 0.1 s (without it a moving wearer
+    pushed eye-in-head onto the 28 deg clamp in 6 of 8 seeds of test 2; with it 22–25 deg);
+  - the head aims at the wearer's face centre, the eyes at an eye (aiming at an eye put the
+    head share at 74–86 %);
+  - glances are 6–12 deg in total from the face centre, to a side or 25–50 deg below
+    horizontal, and never move the head (stacked on the eye offset they crossed the 12 deg
+    trigger and gave head yaw rms 2.9 deg in test 1);
+  - no face jumps or glances while the wearer moves faster than 5 deg/s;
+  - spontaneous blink gaps capped at 3× the mean of their random part (6.4 s at most; an
+    uncapped tail gave seed 3 two blinks in 20 s);
+  - the greeting's blink needs only 0.1 s after the last one (a double blink), so it always
+    happens;
+  - while recentring the eyes look 15 deg ahead of the head toward the middle, and the
+    look-around starts once the head is back within 2 deg (before, the eyes sat pinned at
+    −28 deg in the head for 2 s, and look points kept turning the head away from centre);
+  - pursuit: 0.95 of the target's angular speed (low-passed 0.08 s) plus a 0.5/s pull.
+- Tests, seeds 0–7 (`outputs/tmp/m14/xr/node_test.txt` has every seed's numbers), all **pass**:
+  1. still: head yaw rms 0.34–0.63 deg, blinks 4–8, saccades 17–21, glances 2, eye-in-head
+     max 9.2–13.1 deg.
+  2. step: on the wearer 0.05–0.70 deg 0.3 s after, eyes start 3.03–3.22 s and the head
+     0.28–0.50 s later, head share 75–76 %, eye-in-head max 21.9–25.3 deg, 0.3–9.1 deg at the
+     end (which eye it is on).
+  3. walk: head to 60.0, head speed max 58–60 deg/s, lost, back to 0.0 deg while away,
+     greeting with saccade, blink and brow peak 0.34.
+  4. 0.25 m: vergence 13.6–13.7 deg, within 0.41 deg of the geometry.
+  5. same seed same channels; 72 against 120 Hz head yaw rms 0.000 (still, step) and
+     0.016–0.020 deg (walk).
+- Curves, seed 0, 90 Hz: `curves_still.png`, `curves_step.png`, `curves_walk.png` (shading:
+  glance, lost, search; dotted: greeting). Looked at: eye-to-eye jumps every ~1.2 s, mouth
+  looks at −5.7 deg, two glances (side; down and side); in the step the eyes lead, the head
+  starts ~0.3 s later, overshoots ~2 deg and settles at 76 %, dipping 4 deg as it turns; in the
+  walk the head follows to 60, holds where it lost the wearer, drifts back over 3 s while the
+  eyes step ahead of it, looks around, then greets.
+- Watch in the headset: roll is −0.20 per degree of yaw (engine), so −12 deg at the 60 deg
+  limit; it reads as a tilt on the curves.
+
 ### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
 - Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as
   M13 (Fable briefs, Opus builds, Fable reviews from `outputs/tmp/m14/`).

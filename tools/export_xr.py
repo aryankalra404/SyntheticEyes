@@ -288,7 +288,22 @@ def write_textures():
         else:
             img.save(filepath=str(path))
         bpy.data.images.remove(img)
-        print(f"[export_xr] {dst} {size}px {path.stat().st_size / 1e6:.2f} MB")
+        if dst == "skin_normal.png":
+            path = to_lossless_webp(path)
+        print(f"[export_xr] {path.name} {size}px {path.stat().st_size / 1e6:.2f} MB")
+
+
+def to_lossless_webp(png):
+    """The normal map ships as lossless WebP: the same pixels in 4.4 MB instead of 6.3, and
+    GitHub Pages does not compress PNGs. Needs cwebp (brew install webp)."""
+    import shutil
+    import subprocess
+    exe = shutil.which("cwebp") or "/opt/homebrew/bin/cwebp"
+    out = png.with_suffix(".webp")
+    subprocess.run([exe, "-quiet", "-lossless", "-exact", "-z", "9", "-metadata", "none",
+                    str(png), "-o", str(out)], check=True)
+    png.unlink()
+    return out
 
 
 # ---- check ----------------------------------------------------------------------------------

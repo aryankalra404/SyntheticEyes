@@ -68,6 +68,17 @@ Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept r
   blocked camera falls back to Mouse with the reason shown. **Not tried with a real webcam**
   (the browser pane blocks cameras). MediaPipe logs one "INFO: Created TensorFlow Lite XNNPACK
   delegate" line at error level when the mode starts; it is harmless.
+- **Speed, no quality change.** Measured in the visible browser pane at 1280x800, DPR 2
+  (2560x1600 canvas), with the new `?prof=1` (gaze, rig, render with `gl.finish`): a steady
+  frame costs 0.5 ms median, 2.3 ms worst, render included, so the page is far inside 16 ms on
+  the M4. The lag was the **first frame: 1089 ms** (every shader compiled and the 2K textures
+  uploaded at once). Now `initTexture` + `renderer.compileAsync` run behind "preparing…"
+  (209 ms, mostly off the main thread) and the first frame takes 52 ms. The normal map ships as
+  **lossless WebP** (6.31 -> 4.45 MB, every pixel identical, checked with numpy; Pages does
+  not compress PNGs but already gzips `head.glb` and the scripts); `tools/export_xr.py` writes
+  it with `cwebp` and removes the PNG. Rest of the page: 13.0 -> 11.1 MB. Not measured on the
+  Quest. What still reads as "slow" is by design: the camera eases to the mouse over 0.25 s
+  and the head starts about 0.5 s after the wearer moves (`head_trigger`, see the Fable review).
 
 ### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
 Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,

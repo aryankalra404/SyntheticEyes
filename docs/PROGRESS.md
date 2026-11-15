@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov), audited on the bare head and rebuilt (14 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; brows painted as grown hairs, shaved-scalp cap removed, back-of-head seam fixed; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
-| M4 Motion | **M13 motion rework under way (15 Nov evening): see the log.** Gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 6.3 h at 64 spp in the new look), and nobody has watched a draft at playback speed yet |
+| M4 Motion | **M13 motion rework done and waiting for Fable's review (15 Nov evening): see the log.** Gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 6.3 h at 64 spp in the new look), and nobody has watched a draft at playback speed yet |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -140,6 +140,26 @@ baseline and the new check are `outputs/tmp/m13/lid_check_{before,after}.json`.
   0.25 mm at a full blink (target < 1 mm): pass. Blink 0.66 strip without and with the dip
   (`outputs/tmp/m13/blink_D/blink_0.66_noDip_vs_dip.png`), looked at: a hair lower, no step on
   the forehead: pass. Strips at 0.33 / 0.66 / 1.00 in `outputs/tmp/m13/blink_D/`. Tests 51 OK.
+
+**Review pack** (`outputs/tmp/m13/`, index in `INDEX.txt`). Scene rebuilt last with everything
+above (`generate` seed 0 baked, 321 frames).
+1. Curve plots of seed 0, all three: done, looked at.
+2. EEVEE drafts, `--camera face`, all three: `drafts/*_draft.mp4` (9.0, 9.0, 10.7 s) and contact
+   sheets (every 6th frame, numbered): done, looked at. The drafts also overwrote the untracked
+   `outputs/videos/{left,right,generate}.mp4`: those are drafts now, not previews.
+   `left`: eyes out at 1.2 s with a small head follow, blink in the hold at 2.8 s, back at 5.2 s.
+   `generate`: glance A 1.0–2.0 s, blink across to B 2.2–3.0 s, viewer 3.2–3.9 s, roll up and over
+   4.0–4.7 s, slow blink 4.8–5.3 s, low hold to 5.6 s, viewer, flick, soft blink at 9.4 s.
+3. Cycles preview split stills, both panes: `left` 1, 36, 40, 60, 150, 165; `generate` 43 (glance
+   A), 82 (glance B), 120 (launch), 131 (top), 148 (mid slow blink), 163 (low hold): done, looked
+   at, sheets in `stills/`. For Fable: at the roll top the lower lid shows a band of sclera under
+   the iris in the eye pane (expected looking up, but it is the frame to judge "startled" on).
+4. Lid pairs (C) and blink strips (D): done, see above.
+
+Not done, by the brief: finals, packaging, deck, new expression shapes, lights, textures, the
+camera move. Open for Fable: the two `check_lids` numbers over baseline (C), the head tipping back
+2.6–4.5 deg instead of ~5 in the roll (A), the roll running 1.59–1.70 s (A), the third glance
+fixation going past 20 deg eye-in-head (A1 left `_glance` as it was), which pane the owner wants.
 
 ### Sun 15 Nov 2026, afternoon — the owner rejected the motion in the previews; drafts and both reference videos watched as motion (Fable)
 The owner watched `left_split_preview`, `right_preview_v2` and `generate_preview_v2` and said the

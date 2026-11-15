@@ -21,6 +21,26 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, noon — the owner chose side by side for the final videos (Fable)
+The owner watched the previews and chose the split format (face pane and eye pane, 2048x1024)
+for all three final videos. `--camera split` is now the default for `--input`, so the command
+an evaluator runs gives what we ship; `--camera face` is the single 1024x1024 view. Docstring,
+`--help` and the README row say so. Unit tests 46 OK. Not run in Blender after the one-word
+default change (the texture build was baking at the time); the split path itself was tested
+in the entry below.
+
+**Final renders, not started.** They wait for M11 stage 2, which rebuilds `scene.blend`. Then,
+one at a time, each resumable:
+```
+caffeinate -i $BLENDER -b scene.blend -P wrapper/eyes.py -- --input left --samples 64
+caffeinate -i $BLENDER -b scene.blend -P wrapper/eyes.py -- --input right --samples 64
+caffeinate -i $BLENDER -b scene.blend -P wrapper/eyes.py -- --input generate --samples 64
+```
+After an interruption, the same command with `--resume`. Expected from the preview timings:
+65 to 85 s per frame for both panes, so 5 to 6.5 h for `left` and `right` each and 6 to 7.5 h
+for `generate`: 16 to 20 h in all. Look at frames 40, 110 and 240 of the first one after ten
+minutes before leaving it overnight.
+
 ### Sun 15 Nov 2026, noon — review of M11 stage 1 and the ear trial on 01 to 08 (Fable)
 Looked at `outputs/tmp/m11/review.png` (all rows), `outputs/tmp/m11/outlines.png` and
 `outputs/tmp/m13/review_ears_1to1.png`. Nothing built or changed here; stage 2 is one Opus job.

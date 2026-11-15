@@ -49,6 +49,19 @@ started; the finals are still rendering (`generate`, face pass, about 45 s a fra
 - For the owner's test: port 8000 is held by the Opus session's preview server, so start the
   headset server with `python3 xr/serve.py --http-port 8001`. Hosting is still undecided.
 
+**Later, after the owner tried the laptop page**: "good, just the eyelashes are worse in the
+browser". Close up they were opaque black wedges with grey highlights (flat ribbons 1.5x the
+lash width, roughness 0.45). Now each ribbon carries a UV (u across, v root to tip,
+`tools/export_xr.py`) and the page draws it through a small generated alpha map: a soft core
+across the width, solid from the root, fading out over the outer half; dark brown, roughness 1,
+no environment reflection, no depth write. `head.glb` re-exported (5.48 MB; `scene.blend` md5
+unchanged, export check PASS, 14 node tests pass). Looked at in the browser pane at
+`?view=eye` and `?view=face`: fine strands that thin out to the tip, a soft lash line at face
+distance, no console messages. Not seen in the headset.
+The repo is private, so GitHub Pages cannot serve it on a free account; for a jury link the
+plan is a separate small public repo holding only `xr/`, after the headset test, on the
+owner's go-ahead.
+
 ### Sun 15 Nov 2026, night — M14 WebXR bust, stages A to F and the review pack (Opus)
 The finals were rendering throughout (`generate` first); nothing here touched `scene.blend`,
 `wrapper/` or `textures/` (scene.blend md5 `d6e016e4…` before and after every Blender run).

@@ -138,7 +138,7 @@ def lash_ribbons(arm):
         chains.append(chain)
     eye = {s: np.array(arm[f"eye_rest_{s}"]) for s in ("L", "R")}
     fwd = np.array([0.0, -1.0, 0.0])
-    verts, faces, src = [], [], []
+    verts, faces, src, along = [], [], [], []
     for chain in chains:
         root = co[chain[0]]
         c = eye["L"] if root[0] > 0 else eye["R"]
@@ -149,6 +149,7 @@ def lash_ribbons(arm):
             half = rad[v] * LASH_WIDTH
             verts += [co[v] - w * half, co[v] + w * half]
             src += [v, v]
+            along += [i / (len(chain) - 1)] * 2
             if i:
                 a = base + 2 * (i - 1)
                 faces.append((a, a + 1, a + 3, a + 2))
@@ -156,6 +157,14 @@ def lash_ribbons(arm):
     rib = bpy.data.meshes.new("lashes")
     rib.from_pydata([tuple(p) for p in verts], [], faces)
     rib.shade_smooth()                          # no split vertices: half the morph data
+    # UV: u across the ribbon (0, 1), v from root (0) to tip (1). The page fades the ribbon's
+    # edges and its tip with an alpha map over this, so a lash reads as a soft strand and not
+    # as a flat black wedge. One UV per vertex, so nothing splits.
+    uv = rib.uv_layers.new(name="UVMap")
+    for poly in rib.polygons:
+        for li in poly.loop_indices:
+            vi = rib.loops[li].vertex_index
+            uv.data[li].uv = (vi % 2, along[vi])
     mat = bpy.data.materials.new("lashes")
     rib.materials.append(mat)
     ob = bpy.data.objects.new("lashes_xr", rib)

@@ -153,10 +153,13 @@ function makeMaterials(tex) {
     'cornea.L': cornea('cornea.L'),
     'cornea.R': cornea('cornea.R'),
     teeth: new THREE.MeshStandardMaterial({ name: 'teeth', color: 0xd8d0c0, roughness: 0.4 }),
-    // lashes: ribbons from the scene's lash carrier, twice the Blender lash colour (0.015,
-    // 0.010, 0.0065 linear; its hair shader adds a sheen a flat ribbon lacks), both sides
-    lashes: new THREE.MeshStandardMaterial({ name: 'lashes', color: new THREE.Color(0.03, 0.02, 0.013),
-                                             roughness: 0.45, side: THREE.DoubleSide }),
+    // lashes: ribbons from the scene's lash carrier. Opaque black ribbons read as wedges of
+    // mascara close up, so an alpha map over the ribbon's UV (u across, v root to tip) keeps
+    // only a soft core and lets the outer half fade to nothing; dark brown, no highlight.
+    lashes: new THREE.MeshStandardMaterial({ name: 'lashes', color: new THREE.Color(0.045, 0.03, 0.02),
+                                             roughness: 1.0, metalness: 0.0, envMapIntensity: 0.0,
+                                             alphaMap: lashAlpha(), transparent: true, depthWrite: false,
+                                             side: THREE.DoubleSide }),
     // the tear meniscus: like the cornea, only its glint (black, additive, mirror-smooth)
     tear_line: new THREE.MeshPhysicalMaterial({ name: 'tear_line', color: 0x000000, roughness: 0.05,
                                                 specularIntensity: 1.0, envMapIntensity: 0.8,
@@ -164,6 +167,26 @@ function makeMaterials(tex) {
                                                 depthWrite: false, side: THREE.DoubleSide }),
     tongue: new THREE.MeshStandardMaterial({ name: 'tongue', color: 0x9a4a48, roughness: 0.5 }),
   };
+}
+
+// Alpha over a lash ribbon: a soft core across its width, solid from the root, fading out over
+// the outer half. glTF flips v, so the root is at v = 1 in texture space.
+function lashAlpha() {
+  const w = 16, h = 64, data = new Uint8Array(w * h * 4);
+  const smooth = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
+  for (let y = 0; y < h; y++) {
+    const len = 1 - (y + 0.5) / h;                       // 0 at the root, 1 at the tip
+    const along = smooth(0.0, 0.06, len) * (1 - smooth(0.4, 1.0, len));
+    for (let x = 0; x < w; x++) {
+      const across = Math.sin(Math.PI * (x + 0.5) / w) ** 2;
+      const a = Math.round(255 * along * across);
+      data.set([a, a, a, 255], (y * w + x) * 4);
+    }
+  }
+  const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true; t.needsUpdate = true;
+  return t;
 }
 
 // ---- the bust ------------------------------------------------------------------------------

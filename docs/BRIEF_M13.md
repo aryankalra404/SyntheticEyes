@@ -116,8 +116,10 @@ The riskiest stage. If C is not clean by its checks, revert it and ship A + B.
 
 Checks, all required:
 - `tools/check_lids.py` on `id_male_white_9.npz`: no lid skin or lash inside the globe anywhere
-  on its pitch × yaw × blink grid, worst clearance no worse than before (compare with the
-  committed `outputs/lid_check.json`).
+  on its pitch × yaw × blink grid, worst clearance no worse than before. The baseline is the
+  `outputs/lid_check.json` already in this checkout; it is untracked and the tool overwrites
+  it, so copy it to `outputs/tmp/m13/lid_check_before.json` before anything else in this stage
+  (in a fresh clone, run the tool once before changing any code to make it).
 - `tools/rig_strips.py`: `yaw_-30` and `yaw_+30` before and after, side by side, into
   `outputs/tmp/m13/lids/`. Look at them: the lid outline must change shape with the eye, with
   no dent, no step at the corners, no lash through skin.

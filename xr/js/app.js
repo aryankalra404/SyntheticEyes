@@ -5,14 +5,19 @@
 // the world; everything the rig and the gaze do is computed in bust space.
 //
 // URL parameters (all optional):
-//   view=face|eye|bust     put the camera where tools/render_stills.py and rig_strips.py put
+//   view=face|eyes|eye|eyeL     put the camera where tools/render_stills.py and rig_strips.py put
 //                          theirs (cam_test_face, cam_test_eye) or at 0.7 m (bust)
 //   size=800               render into a fixed square canvas of this many CSS pixels
 //   shot=1                 hide the text overlays (for screenshots)
+//   pose=1                 debug pose, time frozen; channels from gy gp gd (gaze yaw, pitch in
+//                          deg, distance in m, default 1.6 as in tools/rig_strips.py), hy hp hr
+//                          (head), blink (or blinkL / blinkR), brow (or browL / browR), widen,
+//                          squint, pupil
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Rig, bonesLocal } from './rig.js';
 
 const Q = new URLSearchParams(location.search);
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
@@ -197,20 +202,61 @@ function buildBust({ gltf, rig, tex }) {
   H.plinth = { radius: r, top, bottom: top - height, cx, cz, cutTop: topY };
   key.target.position.set(0, H.eyeHeight, H.eyeZ);
   rim.target.position.set(0, H.eyeHeight, 0);
-  setRestWeights();
+  setupRig(rig);
 }
 
-// The rig's rest: lid_open at rest_lid_open, pupil at rest_pupil, everything else 0. Stage C
-// replaces this with the full port of Rig.apply().
-function setRestWeights() {
-  for (const m of H.meshes) {
-    const d = m.morphTargetDictionary;
-    m.morphTargetInfluences.fill(0);
-    for (const s of ['L', 'R']) {
-      if (d[`lid_open.${s}`] !== undefined) m.morphTargetInfluences[d[`lid_open.${s}`]] = H.rig.rest_lid_open;
+// ---- the rig -------------------------------------------------------------------------------
+
+// Bone rest rotations in bust space, read from the loaded skeleton once, before any posing;
+// rig.js bonesLocal() turns the rig's bust-space deltas into local quaternions from them.
+function setupRig(rigJson) {
+  H.rigMaths = new Rig(rigJson);
+  H.root.updateMatrixWorld(true);
+  const rootInv = new THREE.Quaternion();
+  H.root.getWorldQuaternion(rootInv).invert();
+  const want = { neck: 'neck', head: 'head', 'eye.L': 'eye.L', 'eye.R': 'eye.R' };
+  H.bones = {};
+  H.root.traverse((o) => {
+    if (!o.isBone) return;
+    for (const [n, gltfName] of Object.entries(want)) {
+      if (o.name === THREE.PropertyBinding.sanitizeNodeName(gltfName)) H.bones[n] = o;
     }
-    if (d.pupil !== undefined) m.morphTargetInfluences[d.pupil] = H.rig.rest_pupil;
+  });
+  const q = new THREE.Quaternion();
+  const asArr = (x) => [x.x, x.y, x.z, x.w];
+  H.restWorld = {};
+  for (const [n, b] of Object.entries(H.bones)) {
+    H.restWorld[n] = asArr(rootInv.clone().multiply(b.getWorldQuaternion(q)));
   }
+  H.restWorld.root = asArr(rootInv.clone().multiply(H.bones.neck.parent.getWorldQuaternion(q)));
+  H.morph = H.meshes.map((m) => ({ m, d: m.morphTargetDictionary }));
+  applyChannels({});
+}
+
+/** Pose the bust from channels (rig.js apply()); returns the rig state. */
+function applyChannels(ch) {
+  const st = H.rigMaths.apply(ch);
+  const loc = bonesLocal(st.delta, H.restWorld);
+  for (const [n, b] of Object.entries(H.bones)) b.quaternion.fromArray(loc[n]);
+  for (const { m, d } of H.morph) {
+    for (const [k, v] of Object.entries(st.weights)) {
+      const i = d[k];
+      if (i !== undefined) m.morphTargetInfluences[i] = v;
+    }
+  }
+  H.state = st;
+  return st;
+}
+
+function debugChannels() {
+  const blink = num('blink', 0), brow = num('brow', 0);
+  return {
+    gaze_yaw: num('gy', 0), gaze_pitch: num('gp', 0), gaze_dist: num('gd', 1.6),
+    head_yaw: num('hy', 0), head_pitch: num('hp', 0), head_roll: num('hr', 0),
+    blink_L: num('blinkL', blink), blink_R: num('blinkR', blink),
+    brow_L: num('browL', brow), brow_R: num('browR', brow),
+    widen: num('widen', 0), squint: num('squint', 0), pupil: num('pupil', 0),
+  };
 }
 
 // ---- views ---------------------------------------------------------------------------------
@@ -218,6 +264,8 @@ function setRestWeights() {
 // Still cameras from scene.blend, converted to bust space: (x, y, z) -> (x, z, -y).
 const VIEWS = {
   face: { pos: [-0.0001, 0.2662, 0.6676], dir: [0, 0, -1], lens: 126 },   // cam_test_face
+  eyes: { pos: [-0.0001, 0.3042, 0.4976], dir: [0, 0, -1], lens: 105 },   // cam_eyes (rig_strips.py)
+  eyeL: { pos: [0.0302, 0.3041, 0.2976], dir: [0, 0, -1], lens: 105 },    // the left eye, 20 cm, frontal
   eye: { pos: [-0.0305, 0.3197, 0.2466], dir: [0.405, -0.105, -0.909], lens: 100 }, // cam_test_eye
   video: { pos: [-0.0001, 0.2642, 0.6676], dir: [0, 0, -1], lens: 112 },  // cam_video
 };
@@ -241,7 +289,10 @@ function setView() {
 
 // ---- loop ----------------------------------------------------------------------------------
 
+const POSE = Q.get('pose') === '1';
+
 function frame() {
+  if (POSE) applyChannels(debugChannels());
   renderer.render(scene, camera);
 }
 
@@ -256,7 +307,7 @@ async function main() {
   resize();
   status('');
   renderer.setAnimationLoop(frame);
-  window.__xr = { THREE, scene, camera, renderer, bust, H };
+  window.__xr = { THREE, scene, camera, renderer, bust, H, applyChannels };
   document.body.dataset.ready = '1';
 }
 

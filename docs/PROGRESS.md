@@ -66,6 +66,33 @@ Blender runs here only read the scene.
   black eye, no inverted normals; `B_rest_eye.png` shows the iris and a small catch light.
   No console errors.
 
+**C. The rig** (`xr/js/rig.js`, `xr/tests/rig.test.mjs`)
+- C1: `Rig.apply()` ported line for line (neck 35 %, head 65 %, each eye aimed at a point,
+  lids from each eye's own pitch and yaw, tent blink keys, brow dip, squint fading with the
+  blink, pupil). Blender's `rot3` = Rz(yaw) Rx(−pitch) Ry(roll) becomes Ry(yaw) Rx(−pitch)
+  Rz(−roll) in the glTF frame. Input is the target point (or the wrapper's gaze yaw / pitch /
+  distance for the debug pose). Bones get bust-space deltas about their own heads, turned into
+  local quaternions from the rest world rotations read off the loaded skeleton
+  (`bonesLocal`, the `_set_local` idea), so no bone-axis sign is assumed anywhere.
+- C2 **pass**: 8 node tests (rest pupils, gaze ±20 → pupils ±X, ±15 → ±Y with the lids
+  following, head yaw / pitch / roll signs, eyes hold a world target through ±30 deg head yaw,
+  near vergence, `bonesLocal` against random rest rotations, the shape-key rules). In the
+  browser the skinned pupil vertices land within 0.025 mm of the `rig.js` prediction at rest,
+  gaze ±20, ±15 and head yaw 30 (the same 0.025 mm at rest: centroid of the selected vertices
+  against the vertex-group centre). Screenshots `C2_directions.png`: gaze +20 image-right, +15
+  up, head +20 turns the face image-right while the eyes stay on the camera.
+- Same lid shapes as Blender: `C_page_vs_blender.png`, page (left) against `rig_strips.py`
+  (right; `m13/lids/after/` yaw ±30, blink 0.33 / 0.66, `m13/blink_D/` blink 1.0), both from
+  `cam_eyes` at gaze distance 1.6 m.
+- C3 lids without the guard: `C3_lids_grid.png` (blink 0 / 0.33 / 0.66 / 1.0 × gaze (0,0),
+  (±20,0), (0,±15), left eye close up) and the worst poses `C3_worst_*.png`: **no cornea
+  through a lid in any shot**. Measured (`C3_lid_inside.json`): of 117 lid-skin vertices per
+  eye outside the globe at rest, at most 17 sink 0.2 to 1.4 mm into it, all at the lid margin
+  where it only thins the slit edge; closed lids hide the eye at every gaze to ±28 / +22 / −25.
+  So **neither fallback was needed**: no guard baked into the keys, no extra clamp beyond the
+  brief's eye range (±28 yaw, +22 / −25 pitch). If the headset shows a sliver at the corners,
+  the key bake in the brief is the next step.
+
 ### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
 - Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as
   M13 (Fable briefs, Opus builds, Fable reviews from `outputs/tmp/m14/`).

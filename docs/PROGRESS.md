@@ -84,6 +84,15 @@ Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept r
   0.42 s. The camera easing is now 0.1 s (`?ease=` overrides): 90 % in 0.23 s at any frame rate;
   the eyes still lead (0.05 to 0.12 s) and the head follows at about 0.3 s. The gaze model's
   own numbers are untouched; eyes first, head later is the behaviour that reads as natural.
+- **Follow: You reworked** (the owner wanted to feel looked at wherever they go). Before, the
+  face position orbited the camera round the head, which felt like the room moving. Now the
+  camera stays where the view puts it and the face position moves the gaze target: sideways
+  from the webcam's centre (absolute, so it turns to you wherever you started), up and down
+  from the first sighting, distance scaling the target (vergence, pupils); x1.8 the real angle,
+  clamped to ±40 / ±25 deg, eased with the camera's 0.1 s. Scripted check: 15 cm to the
+  viewer's right at 55 cm gives eyes +23, head +20 (toward image-right); left −26 / −20; 8 cm
+  higher +13 eyes; the camera does not move. Looked at in Face and Eye close-up views. **Still
+  not tried with a real webcam.**
 
 ### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
 Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,

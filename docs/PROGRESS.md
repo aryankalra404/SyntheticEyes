@@ -45,6 +45,27 @@ Blender runs here only read the scene.
   4 bones, 21 morph targets whose names match `rig.json`. The importer's icosphere bone shape
   is not counted. `git status`: `scene.blend` unmodified.
 
+**B. The page, still** (`xr/index.html`, `xr/js/app.js`, `xr/vendor/three/`)
+- three.js **0.185.1** (npm, 1 Jul 2026, MIT) vendored unmodified, 936 KB: the two minified
+  builds plus GLTFLoader, BufferGeometryUtils, SkeletonUtils, XRButton, ARButton,
+  RoomEnvironment. An import map, no build step, nothing from a CDN.
+- Materials: skin `MeshPhysicalMaterial` (albedo, normal at 1.2, roughness map, specular 0.45, a
+  little sheen); eye interiors with their tiles; the cornea is a black, mirror-smooth physical
+  shell with **additive blending**, so it adds only its reflections (the catch light) over an
+  untouched iris. No transmission or refraction. Teeth and tongue flat colours.
+- Light: RoomEnvironment at 0.1 for fill and reflections, one shadow-casting directional key
+  from the Blender `key` position (upper image-left, in front), slightly warm. ACES at exposure
+  0.75: AgX left the skin pale and grey without subsurface. The rim light from the stills is
+  off by default: its specular drew a glossy streak down the shadow side of the nose.
+- Plinth: dark cylinder fitted to the lowest 3 cm of the skin, top 12 mm inside the cut. Bust
+  (head + plinth + key light) is one group.
+- `?view=face|eye|video` puts the camera where `cam_test_face`, `cam_test_eye`, `cam_video` are,
+  `?size=N` renders a fixed square, `?shot=1` hides the overlays.
+- Check **pass**, by eye: `outputs/tmp/m14/xr/B_rest_face_vs_still.png` (page left, Cycles still
+  right) is the same person; flatter, paler and with no 3D brow hair, as expected. No seam, no
+  black eye, no inverted normals; `B_rest_eye.png` shows the iris and a small catch light.
+  No console errors.
+
 ### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
 - Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as
   M13 (Fable briefs, Opus builds, Fable reviews from `outputs/tmp/m14/`).

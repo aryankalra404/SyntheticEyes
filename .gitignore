@@ -29,3 +29,6 @@ outputs/direction_check/
 
 # packaging
 *.zip
+
+# webxr local server certificate
+xr/.certs/

@@ -869,7 +869,8 @@ def build_hair(D, deltas, head, rig, path, texture):
     if path.exists():
         B = np.load(path, allow_pickle=False)
         H.update({k: B[k] for k in B.files if k.startswith("brows_")})
-        brows = ["brows_01", "brows_05", "brows_08"]
+        # every outline a texture set uses (tools/carry_hair.py SETS)
+        brows = ["brows_01", "brows_05", "brows_06", "brows_08", "brows_12", "brows_14"]
         names += brows
         for name in brows:
             thin_brows(H, name)

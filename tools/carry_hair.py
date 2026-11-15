@@ -42,6 +42,10 @@ SETS = {
     "brows_01": "eyebrows01/eyebrows/mindfront_eyebrows_01",
     "brows_05": "eyebrows01/eyebrows/mindfront_eyebrows_05",
     "brows_08": "eyebrows01/eyebrows/mindfront_eyebrows_08",
+    # M11 stage 2: the outlines sets 06, 01 and 08 now use, so --texture 06 / 01 / 08 get 3D brow hair
+    "brows_06": "eyebrows01/eyebrows/mindfront_eyebrows_06",
+    "brows_12": "eyebrows01/eyebrows/mindfront_eyebrows_12",
+    "brows_14": "eyebrows01/eyebrows/mindfront_eyebrows_14",
 }
 PER_ROOT = {"lashes"}   # sets bound per hair root; none in SETS now
 ROOT_MAX = 0.0015      # m; lashes rooted further from the wrapped skin are dropped

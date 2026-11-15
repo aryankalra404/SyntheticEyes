@@ -68,6 +68,20 @@ comes 4–7 deg back toward the nose (eye ~12–14 deg), the third goes 1.5–3.
 can exceed 20. Untouched because A1 says everything else in `_glance` stays.
 Curves: `outputs/tmp/m13/{left,right,generate}_curves.png`, looked at.
 
+**Stage B, right pane** (`wrapper/eyes.py`, README). Done.
+- `--pane eyes|eye` (default `eyes`) picks the second pass of `--camera split`: `eyes` is
+  `cam_move_eyes` (fixed, both eyes and brows straight on), `eye` is `cam_move_eye` as before.
+  Pane frames go to `outputs/frames/<input>/<pane>/`; `--frames` stills to
+  `outputs/frames/<input>/split_<pane>_stills/` (was `split_stills/`), so both sets are kept.
+  Docstring, `--help` and README row updated.
+- Scene rebuilt after stage A (18 s; `generate` seed 0 baked, 321 frames).
+- `left` split stills at 1, 40, 60, 150, preview quality, both panes:
+  `outputs/tmp/m13/B/split_{eyes,eye}_stills/` and tiled in `outputs/tmp/m13/B_left_split_*.png`.
+  Looked at. `eyes` pane: brows to the upper lip in frame at all four, nothing cut through the
+  turn, so `MOVE_EYES` is unchanged. Frame 60 (eyes held left, head ~5 deg): both eyes readable;
+  the subject's left eye (image right) sits a little darker but iris and lids read. Lights not
+  touched. 10 s/frame for the `eyes` pane, 9 s for `eye`, 7.5 s for the face, at preview.
+
 ### Sun 15 Nov 2026, afternoon — the owner rejected the motion in the previews; drafts and both reference videos watched as motion (Fable)
 The owner watched `left_split_preview`, `right_preview_v2` and `generate_preview_v2` and said the
 animation is not realistic. No code changed in this session; this is the diagnosis and the plan

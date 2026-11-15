@@ -9,13 +9,14 @@ Run inside Blender on scene.blend (paths are relative to the repo root, wherever
     blender -b scene.blend -P wrapper/eyes.py -- --input left --samples 64 --frames 40 110 240
     blender -b scene.blend -P wrapper/eyes.py -- --check-directions [--render]
 
-Videos are 30 fps and by default 2048x1024, two fixed views side by side (--camera split): the
-same Timeline is filmed twice, by cam_video (forehead to chin, the `eye` look) and by
-cam_move_eye (the subject's left eye from 15 cm, riding on the head bone), into
-outputs/frames/<input>/face/ and .../eye/, and each pair is joined, both panes at 1024x1024,
-into one frame in .../video/ (no divider or text). The face pane shows the head, brows and both
-eyes against a frame that holds still, the eye pane the iris, lids and lashes. With --frames it
-writes face_####, eye_#### and the joined ####.png to outputs/frames/<input>/split_stills/.
+Videos are 30 fps and by default 2048x1024, two views side by side (--camera split): the
+same Timeline is filmed twice, by cam_video (forehead to chin, the `eye` look) and by the second
+pane's camera, into outputs/frames/<input>/face/ and .../<pane>/, and each pair is joined, both
+panes at 1024x1024, into one frame in .../video/ (no divider or text). --pane picks the second
+pane: eyes (default) is cam_move_eyes, both eyes and brows straight on, 13 cm across, fixed in
+the world; eye is cam_move_eye, the subject's left eye from 15 cm, riding on the head bone. The
+face pane shows the head against a frame that holds still. With --frames it writes face_####,
+<pane>_#### and the joined ####.png to outputs/frames/<input>/split_<pane>_stills/.
 --camera face films cam_video alone at 1024x1024 (half the render time), --camera eyes cam_eyes.
 --camera move films with cam_move, which holds a framing, glides to the next inside a fixation
 and holds again (wrapper/camera_move.py); watched at playback speed the glides read as zooming
@@ -26,6 +27,7 @@ kept, the newest PNG in each (possibly half written) is deleted, and only the mi
 are rendered; the joined frames and the video are rebuilt. Without it a run starts clean.
 
     blender -b scene.blend -P wrapper/eyes.py -- --input left --camera split --quality preview
+    blender -b scene.blend -P wrapper/eyes.py -- --input left --pane eye --frames 1 40 60 150
     blender -b scene.blend -P wrapper/eyes.py -- --input left --camera split --resume
 
 Or as a module from Blender's Python, with the repo root on sys.path:
@@ -659,22 +661,23 @@ def render_frames(cam, frames, out_dir, prefix=""):
     return out
 
 
-def video(mode, seed, fps, camera, limit=None, frames=None, resume=False):
+def video(mode, seed, fps, camera, limit=None, frames=None, resume=False, pane="eyes"):
     """Bake the gaze track to the Timeline, film it (face, eyes, the camera move, or split:
-    face and eye side by side), encode. With frames, only those Timeline frames are rendered,
-    as stills, and nothing is encoded. resume keeps the frames of an interrupted run."""
+    the face and `pane` side by side, pane "eyes" or "eye"), encode. With frames, only those
+    Timeline frames are rendered, as stills, and nothing is encoded. resume keeps the frames of
+    an interrupted run."""
     scene = bpy.context.scene
     track = generate(mode, seed=seed)
     n = rig().bake(track, fps=fps)
     if camera == "move":
         key_move(track, mode, fps)
     # (folder, camera object) per pass; split films the same Timeline twice
-    passes = ([("face", VIDEO_CAMERAS["face"]), ("eye", MOVE_FRAMINGS["eye"])] if camera == "split"
+    passes = ([("face", VIDEO_CAMERAS["face"]), (pane, MOVE_FRAMINGS[pane])] if camera == "split"
               else [(camera, VIDEO_CAMERAS[camera])])
     passes = [(name, bpy.data.objects[ob]) for name, ob in passes]
     root = REPO / "outputs" / "frames" / mode
     if frames:
-        out_dir = root / f"{camera}_stills"
+        out_dir = root / (f"split_{pane}_stills" if camera == "split" else f"{camera}_stills")
         wanted = [f for f in frames if 1 <= f <= n]
         if camera != "split":
             render_frames(passes[0][1], wanted, out_dir)
@@ -682,7 +685,7 @@ def video(mode, seed, fps, camera, limit=None, frames=None, resume=False):
         for name, cam in passes:
             render_frames(cam, wanted, out_dir, prefix=f"{name}_")
         compose([out_dir / f"face_{f:04d}.png" for f in wanted],
-                [out_dir / f"eye_{f:04d}.png" for f in wanted], out_dir,
+                [out_dir / f"{pane}_{f:04d}.png" for f in wanted], out_dir,
                 names=[f"{f:04d}.png" for f in wanted])
         return
     if limit:
@@ -698,7 +701,7 @@ def video(mode, seed, fps, camera, limit=None, frames=None, resume=False):
     panes = [render_pass(cam, root / name, resume=resume)[0] for name, cam in passes]
     if camera == "split":
         if len(panes[0]) != len(panes[1]):
-            raise RuntimeError(f"split: {len(panes[0])} face frames but {len(panes[1])} eye frames")
+            raise RuntimeError(f"split: {len(panes[0])} face frames but {len(panes[1])} {pane} frames")
         frames = compose(panes[0], panes[1], root / "video")
     else:
         frames = upscale(panes[0], root / "video")
@@ -726,10 +729,14 @@ def parse_args(argv):
                     help="final: Cycles 1024 px; preview: Cycles 768 px, 32 samples, for judging a "
                          "video before the long render; draft: EEVEE 512 px, motion only")
     ap.add_argument("--camera", choices=(*CAMERAS, "move", "split"), default=None,
-                    help="videos: split (default; the face and the subject's left eye side by side, "
+                    help="videos: split (default; the face and --pane side by side, "
                          "2048x1024), face (one fixed camera, forehead to chin, 1024x1024), eyes, or "
                          "move (glides between one eye, both eyes and the face); stills: face "
                          "(default) or eyes")
+    ap.add_argument("--pane", choices=("eyes", "eye"), default="eyes",
+                    help="videos, --camera split: the second pane. eyes (default): both eyes and "
+                         "brows straight on (cam_move_eyes, fixed); eye: the subject's left eye "
+                         "close up, riding on the head (cam_move_eye)")
     ap.add_argument("--resume", action="store_true",
                     help="videos: keep the frames of an interrupted run and render only the missing ones")
     ap.add_argument("--samples", type=int, default=None,
@@ -767,7 +774,7 @@ def main(argv):
         render(args.out or REPO / "outputs" / "move.png", args.camera or "face")
     else:
         video(args.input, args.seed, args.fps, args.camera or "split", args.limit, args.frames,
-              args.resume)
+              args.resume, args.pane)
 
 
 if __name__ == "__main__" and "--" in sys.argv:

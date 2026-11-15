@@ -42,8 +42,10 @@ TEXTURES = (
     ("skin.1001.png", "skin_albedo.jpg", 2048, "JPEG", 90),
     ("skin_normal.1001.png", "skin_normal.png", 2048, "PNG", 0),
     ("skin_rough.1001.png", "skin_rough.jpg", 1024, "JPEG", 92),
-    ("eye.1002.png", "eye_L.jpg", 1024, "JPEG", 92),
-    ("eye.1004.png", "eye_R.jpg", 1024, "JPEG", 92),
+    # eyes at 2048: the page's eye close-up fills the screen with one globe, and the sclera
+    # vessels are a few texels wide
+    ("eye.1002.png", "eye_L.jpg", 2048, "JPEG", 92),
+    ("eye.1004.png", "eye_R.jpg", 2048, "JPEG", 92),
 )
 LASH_WIDTH = 1.5        # ribbon width = this x the carrier's hair_radius x 2 (2.5 read as mascara)
 AXES = ("glTF frame, metres, Y up. glTF +X = Blender +X = image-right (the subject's left); "

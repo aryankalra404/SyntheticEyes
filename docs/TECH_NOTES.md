@@ -157,18 +157,39 @@ Work in polar coordinates around the tile centre, then warp to the disc.
 - Pupil ruff: thin dark-brown rim at the pupil edge
 - Colour from a small palette (dark brown, brown, hazel, green, blue, grey), most sets brown
 - Left and right share the palette and structure parameters but use different noise seeds
-- Sclera: off-white with a warm tint toward the corners, 30 % darker by UV radius 0.40
-  (toward the fornix)
-- Sclera vessels (15 Nov rework, `draw_vessels` / `sclera` in `tools/make_iris.py`): drawn as an
-  optical-depth map and applied as Beer-Lambert absorption of blood (`BLOOD` = linear R, G, B
-  absorbance 0.15 / 1.0 / 0.80, `VESSEL_TAU` 3.3 for a 6-texel vessel), never painted on as a
-  colour. Depth follows a round cross-section, so wide trunks come out dark crimson and twigs
-  pale pink, with soft edges. Three kinds: conjunctival trees rooted behind the lids that fork
-  (Murray's law widths) into finer twigs; fine vessels that surface part-way; four blurred
-  anterior ciliary vessels over the rectus muscles. Bends are irregular (wavelength and swing
-  redrawn every half turn), tips thin and fade, density highest at the canthi, nasal most.
-  The sclera's subsurface scattering softens the map in Cycles, so the tile is stronger than
-  the render reads. The old version (one-width saturated lines) read as drawn on.
+- Sclera colour (M15): off-white, 30 % darker by UV radius 0.40 toward the fornix (`FORNIX`, read
+  on the true radius R). Every other colour term reads a warped radius R + dR (`radius_warp`:
+  two noise octaves, sigma 60 and 18 texels at 2048, +-0.025 UV, its own generator [seed, side,
+  12]), so none of their boundaries is a circle: yellowing from lim + 0.05, the rim tint beyond
+  the rest-pose lid opening, the grey-blue band at the limbus (weight 0.20, sigma 0.012, centred
+  lim + 0.008), and a light corner pink (`PINK` 0.25, from lim + 0.06 to 0.38, horizontal and
+  nasal-led, times a 0.5-1.5 blotch field). Iris/sclera blend over (rl - 0.004, rl + 0.012).
+  `SOFT_LIMBUS` switches the last two back to the pre-M15 limbus.
+- Sclera vessels (`draw_vessels`, `blood_depth`, `sclera` in `tools/make_iris.py`; M15): an
+  optical-depth map applied as Beer-Lambert absorption of blood, never painted on as a colour:
+  `BLOOD` = linear R, G, B absorbance 0.12 / 1.0 / 0.95, `VESSEL_TAU` 3.3 for a 6-texel vessel.
+  Depth follows a round cross-section, so wide trunks come out dark red and twigs faint salmon,
+  with soft edges. Three kinds: conjunctival trees rooted behind the lids (max(8, veins // 5))
+  that fork with Murray's-law widths; fine vessels (0.20 x veins) that surface at least
+  lim + 0.08 out; four blurred anterior ciliary vessels. Bends are irregular (wavelength and
+  swing redrawn every half turn); every vessel fades in at its root and out at its tip.
+  - Where each vessel gives out is its own (`reach`), drawn per vessel and per fork: about 25 %
+    run to lim + 0.004..0.012 and end in a limbal arcade (within 0.006 UV of the stop the tip
+    swings to +-90 deg along the limbus and forks once the other way, a small sideways Y), 45 %
+    give out at lim + 0.012..0.05, the rest at lim + 0.05..0.11; up to 0.03 more away from the
+    horizontal. A fork never runs nearer the cornea than its parent (`FORK_BOUND`). The only
+    radial fade left is a safety one (lim + 0.002..0.010) that keeps blood off the iris.
+  - `SIDE_FLOOR` = 2 trunks and 3 fine vessels placed in each horizontal wedge (nasal and
+    temporal, +-34 deg) before the rest are drawn, from the two nearer reach groups, trunks at
+    least 3.8 texels wide; so a turned eye always shows a few vessels.
+  - Visible almond (inside the rest-pose lid opening), all nine sets, both eyes: blood (depth
+    > 0.15) covers 0.046 of it, 0.73 of the pre-M15 0.063; the emptiest side of any eye is
+    0.008 (tex_02 left, nasal; it reads bare at rest in its eye close-up).
+  - The vessels have their own generator [seed, side, 11]: changing them never changes the
+    iris (checked byte for byte inside 0.9 x limbus on all eighteen tiles).
+  The sclera's subsurface scattering softens the map in Cycles, so the tile reads stronger than
+  the render. Before M15 every vessel ended on one circle 0.05-0.10 UV out with a pink wash on
+  the same circle, which read as a white ring round the iris (docs/BRIEF_M15.md).
 - The pupil is geometry (GNM's pupil coefficient), so keep the texture's pupil region dark
   and let the mesh set the size
 - `radial` options, brown and dark brown palettes only (M11, sets 02, 03, 05, 06): under the

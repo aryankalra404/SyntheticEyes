@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov), audited on the bare head and rebuilt (14 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; brows painted as grown hairs, shaved-scalp cap removed, back-of-head seam fixed; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
-| M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Finals restarted clean on 15 Nov evening after the sclera vessel rework (see log).** Split video: fixed face camera on the left, `--pane` on the right. **Final videos rendering** |
+| M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). M15 sclera rolled out (15 Nov evening); the finals can start clean.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 | M14 Quest 3S bonus (WebXR) | built by Opus and reviewed by Fable (15 Nov): works on the laptop, tests pass; **the headset path has never run on a device: the owner's test is next**; live at https://aryankalra404.github.io/syntheticeyes-xr/ (public copy of `xr/`, `tools/publish_xr.sh`) |
@@ -23,7 +23,28 @@ what the next session needs to know.
 
 ## Log
 
-### Sun 15 Nov 2026, 19:45 — M15 phase 1 pack reviewed, density retuned, rollout released (Fable)
+### Sun 15 Nov 2026, evening — M15 phase 2: the sclera rollout (Opus)
+Fable's `tools/make_iris.py` taken as it was, not retuned. No final render ran at any point.
+- Pre-check: tex_09 regenerated is byte-identical to `outputs/tmp/m15/tiles/fable/tex_09/`.
+- `build_textures.py --eyes-only`: all nine sets (tiles, legacy eye files, previews, sheet).
+  `set.json` unchanged. Iris byte-identical inside 0.9 x limbus on all eighteen tiles against
+  the previous commit. Committed with the generator (`61cea69`).
+- `render_stills.py`: nine faces and nine eye close-ups, all eighteen looked at. Whites read
+  clean with a few thin vessels, no ring, no pink zone. `sides.py fable` puts the lowest side
+  minimum on tex_02 (left eye, nasal, 0.008) and tex_01 (right eye, temporal, 0.015). **tex_02's
+  eye close-up shows that nasal white bare at rest** (3x crop: no vessel); tex_05 has faint
+  vessels there, tex_08 clear ones. tex_01's thin side is the right eye, which no close-up
+  films; at face-still scale no vessels show in either eye of any set. Not retuned, as ruled.
+- `export_xr.py`: only `eye_L.jpg` / `eye_R.jpg` changed; `publish_xr.sh`; the public page
+  serves them (sizes match the commit), renders the close-up at gaze -35 with a few thin vessels
+  on the turned white, no console errors.
+- `python -m unittest discover tests`: 51 tests OK. `tools/validate.py` with `$BLENDER`: every
+  texture, still, wrapper and scene check passes; the only failures are the open TODOs in
+  `README.md` (team and college name, demo video and deck, "outputs/videos not rendered", code
+  licence) and `AI_DISCLOSURE.md` (team names), which need the owner.
+- TECH_NOTES "Iris and sclera generation" rewritten for the M15 sclera.
+- **The finals can start clean (no `--resume`).**
+, density retuned, rollout released (Fable)
 Opus's pack (`outputs/tmp/m15/`) removes the ring and the pink zone: accepted, with the softer
 limbus and `BLOOD = (0.12, 1, 0.95)`. It overshot on density: tex_09's left eye showed a bare
 white at yaw -28. Fable added a floor of vessels in each horizontal wedge and raised the share of

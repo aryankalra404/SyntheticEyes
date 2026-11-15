@@ -64,9 +64,9 @@ Finals still need 16 to 20 h of render, so motion has to be accepted by Mon 16 N
 **Later the same afternoon:** the owner also called the eye roll in `generate` unnatural. Watched
 frames 68 to 102: a smooth 0.84 s orbit at near-constant speed with `widen` 0.57 and brows 0.6,
 head pitch +1 deg, no lid droop at the end: reads as startled, not as an eye roll. The owner
-chose the split: Fable writes the brief, Opus 5.5 implements, Fable reviews. The brief is
+proposed the split and Fable agreed: Fable writes the brief, Opus 5.5 implements, Fable reviews. The brief is
 `docs/BRIEF_M13.md` (stages A engine, B both-eyes pane, C sideways lid follow, D blink detail;
-review pack by Mon 16 Nov 10:00). Items 3's new GNM expression shapes are out of scope for M13.
+review pack by Mon 16 Nov 10:00). Plan item 3's new GNM expression shapes are out of scope for M13.
 
 ### Sun 15 Nov 2026 — M11 stage 2 + ears of 01 to 08: adopted, 3D brow hair for 06/12/14, scene rebuilt (Opus)
 **scene.blend changed (rebuilt). The hero frame is unchanged**, so the final videos can start from it.

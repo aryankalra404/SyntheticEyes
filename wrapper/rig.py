@@ -24,6 +24,7 @@ from mathutils import Matrix, Vector
 NECK_SHARE = 0.35          # head rotation split: 35 % neck, 65 % head
 LID_UP_FULL = 20.0         # deg of eye pitch for lid_up = 1
 LID_DOWN_FULL = 25.0       # deg of eye pitch for lid_down = 1
+LID_SIDE_FULL = 25.0       # deg of eye yaw toward the nose / temple for lid_in / lid_out = 1
 LID_FOLLOW_MAX = 1.2
 WIDEN_GAIN = 0.25
 SIDES = ("L", "R")
@@ -93,7 +94,7 @@ class Rig:
         # Fixation point in the world frame; each eye aims at it (vergence), no torsion.
         target = G_head @ self.eye_mid + ch.get("gaze_dist", 0.6) * direction(
             r(ch.get("gaze_yaw", 0.0)), r(ch.get("gaze_pitch", 0.0)))
-        eye_pitch, eye_world = {}, {}
+        eye_pitch, eye_yaw, eye_world = {}, {}, {}
         R_head_inv = R_head.inverted()
         for s in SIDES:
             e_rest = self.eye_rest[s]
@@ -103,6 +104,7 @@ class Rig:
             Re = rot3(yaw, pitch)
             self._set_local(f"eye.{s}", pivot(Re, e_rest))
             eye_pitch[s] = math.degrees(pitch)
+            eye_yaw[s] = math.degrees(yaw)
             eye_world[s] = R_head @ Re
 
         # Shape keys.
@@ -114,6 +116,10 @@ class Rig:
             down = min(max(-p / LID_DOWN_FULL, 0.0), LID_FOLLOW_MAX)
             vals[f"lid_up.{s}"] = (up + WIDEN_GAIN * ch.get("widen", 0.0)) * (1.0 - b)
             vals[f"lid_down.{s}"] = down * (1.0 - b)
+            # the lid apex follows the cornea sideways; nasal is -X for L, +X for R
+            nasal = -eye_yaw[s] if s == "L" else eye_yaw[s]
+            vals[f"lid_in.{s}"] = min(max(nasal / LID_SIDE_FULL, 0.0), LID_FOLLOW_MAX) * (1.0 - b)
+            vals[f"lid_out.{s}"] = min(max(-nasal / LID_SIDE_FULL, 0.0), LID_FOLLOW_MAX) * (1.0 - b)
             vals[f"lid_open.{s}"] = self.rest_lid_open * (1.0 - b)
             if self.tent_blink:
                 vals[f"blink_33.{s}"] = tent(b, 1 / 3)
@@ -133,7 +139,7 @@ class Rig:
                 kb.value = v
                 self.touched_keys.append(kb)
 
-        self.state = dict(eye_pitch=eye_pitch, eye_world=eye_world, target=target, shape=vals)
+        self.state = dict(eye_pitch=eye_pitch, eye_yaw=eye_yaw, eye_world=eye_world, target=target, shape=vals)
         bpy.context.view_layer.update()
         return self.state
 

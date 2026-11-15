@@ -5,7 +5,7 @@
     python3 tools/solve_lids.py --report-only        # the three section-1 numbers, nothing written
 
 Writes `delta_<key>` arrays, (V, 3) float32, GNM coordinates (metres, +Y up, +Z forward), for
-lid_up, lid_down, lid_open, blink_33, blink_66, blink (.L = subject's left, +X), plus
+lid_up, lid_down, lid_in, lid_out, lid_open, blink_33, blink_66, blink (.L = subject's left, +X), plus
 `source_sha` (hash of the vertices solved on) and `report` (json). tools/build_scene.py reads the
 file; for a head whose vertices do not match `source_sha` it calls `solve()` here instead.
 
@@ -32,6 +32,10 @@ Targets (pitch > 0 = eye up):
   lid_open   upper margin up until it is OPEN_MM above the pupil centre
   blink_33 / blink_66 / blink   upper margin 33 / 66 / 100 % of the way down to the lower margin,
              which rises 12 % of the gap; rig.py blends the three with tent weights
+  lid_in / lid_out   eye turned SIDE_YAW deg toward the nose / the temple, pitch 0: the lid apex
+             follows the cornea (columns over its new place open, the ones it left close: upper
+             margin APEX_MM[0] at the peak, lower APEX_MM[1], zero at both corners) and the lid
+             is seated and draped on the yawed globe, so the cornea bulge travels under it
 A shape key is a straight line and the lid travels an arc, so lid_up and lid_down are the
 least-squares line through the arc at FRACTIONS of the way instead of its end point.
 """
@@ -68,6 +72,8 @@ W_RIM, W_FRONT, W_POCKET = 1.0, 1.0, 0.25
 LAMBDA_FIX, LAMBDA_PRIOR = 1.0, 0.02
 SPREAD_MM = 3.0               # decay length of the direct margin correction over the skin
 RETRACT = {"upper": 0.020, "lower": 0.012}   # m of lid skin that gathers when that lid retracts
+SIDE_YAW = 25.0               # deg of eye yaw for lid_in / lid_out = 1
+APEX_MM = (0.5, 0.3)          # upper, lower margin travel at the peak of the apex shift, mm
 
 
 def smooth(x):
@@ -276,6 +282,31 @@ class Eye:
                         * smooth(d / BLINK_CORNER))
         return out
 
+    def apex_angles(self, nasal):
+        """Per rim vertex of each lid: the lid apex follows the cornea sideways. nasal = +1 for
+        the eye turned toward the nose (lid_in), -1 toward the temple (lid_out). Along each lid a
+        half sine from the nasal corner to the pupil column and one from there to the temporal
+        corner, opposite in sign: over the side the cornea went to, the upper margin rises and
+        the lower drops; over the side it left, the reverse. Zero at both corners and under the
+        pupil. Angles are margin travel over the rim's distance from the joint's x axis."""
+        V = self.H.V
+        sign = 1.0 if self.side == "L" else -1.0              # sign * x grows toward the temple
+        xp = sign * self.pupil[0]
+        out = {}
+        for lid, mm, up in (("upper", APEX_MM[0], 1.0), ("lower", APEX_MM[1], -1.0)):
+            rim = self.rims[lid]["rim"]
+            x = sign * V[rim, 0]
+            xn, xt = min(x[0], x[-1]), max(x[0], x[-1])
+            w = np.where(x < xp, np.sin(np.pi * np.clip((x - xn) / (xp - xn), 0.0, 1.0)),
+                         -np.sin(np.pi * np.clip((x - xp) / (xt - xp), 0.0, 1.0)))
+            r = np.hypot(V[rim, 1] - self.J[1], V[rim, 2] - self.J[2])
+            out[lid] = up * nasal * w * (mm / 1000.0) / r
+        return out
+
+    def side_yaw(self, nasal):
+        """Eye yaw (deg, + toward +X) for an eye turned SIDE_YAW toward the nose (nasal = +1)."""
+        return -nasal * SIDE_YAW if self.side == "L" else nasal * SIDE_YAW
+
     def open_angles(self):
         V, up = self.H.V, self.rims["upper"]["rim"]
         rows = self.column[0]
@@ -285,7 +316,7 @@ class Eye:
         deg = np.degrees(np.arcsin(min(want / radius, 1.0)) - np.arctan2(q[1], q[2]))
         return self.follow_angles(max(deg, 0.0), 0.0), deg
 
-    def targets(self, rim_angles, pitch):
+    def targets(self, rim_angles, pitch, yaw=0.0):
         """Target displacement of the constrained vertices: rotate, then seat on the posed globe."""
         V = self.H.V
         angles = np.where(self.con_lid, rim_angles["upper"][np.minimum(self.con_col, len(rim_angles["upper"]) - 1)],
@@ -299,7 +330,7 @@ class Eye:
         front = self.con_kind == "front"
         want[front] = rest[front] + moved[front] * (np.maximum(rest[front], SKIN_CLEAR) - rest[front])
         seat = rim | front
-        P[seat] = self.set_clearance(P[seat], want[seat], 0.0, pitch)
+        P[seat] = self.set_clearance(P[seat], want[seat], yaw, pitch)
         # pocket vertices follow their rim vertex's change of radius
         idx = {int(v): i for i, v in enumerate(self.con)}
         rim_i = np.array([idx[int(v)] for v in self.con_rimv])
@@ -350,11 +381,12 @@ class Eye:
             self._spread = np.linalg.solve(L, R)                   # (free, con)
         return self._spread @ values
 
-    def pose(self, rim_angles, pitch, retract=()):
+    def pose(self, rim_angles, pitch, retract=(), yaw=0.0):
         """Displacement of every vertex for one lid pose; also (coefficients, margin residual).
-        retract names the lids ("upper", "lower") whose own skin is rotated with the margin."""
+        retract names the lids ("upper", "lower") whose own skin is rotated with the margin.
+        yaw, pitch: the posed globe the lid is seated and draped on."""
         H, V = self.H, self.H.V
-        target = self.targets(rim_angles, pitch)
+        target = self.targets(rim_angles, pitch, yaw)
         c, field = self.fit(target)
         resid = target - field[self.con]
         d = np.zeros_like(V)
@@ -368,7 +400,7 @@ class Eye:
             fitted[m] = k * direct + (1.0 - k) * fitted[m]
         d[self.free] = fitted * self.reach[self.free][:, None]
         d[self.con] = target
-        self.drape(d, pitch)
+        self.drape(d, pitch, yaw)
         rim = self.con_kind == "rim"
         return d, c, np.linalg.norm(resid[rim], axis=1)
 
@@ -414,6 +446,11 @@ class Eye:
                                                                      f * DOWN_LOWER * DOWN_PITCH), f * DOWN_PITCH,
                                                  retract=("lower",)))
         keys[f"lid_down.{s}"], info["lid_down"] = d, r
+        for name, nasal in (("lid_in", 1.0), ("lid_out", -1.0)):
+            ang, yaw = self.apex_angles(nasal), self.side_yaw(nasal)
+            d, (_, c, r) = line(lambda f: self.pose({k: f * v for k, v in ang.items()}, 0.0,
+                                                    yaw=f * yaw))
+            keys[f"{name}.{s}"], info[name] = d, r
         ang, deg = self.open_angles()
         d, c, r = self.pose(ang, 0.0, retract=("upper",))
         keys[f"lid_open.{s}"], info["lid_open"] = d, r
@@ -426,18 +463,21 @@ class Eye:
 
     # ---- measuring --------------------------------------------------------------------------
 
-    def posed(self, keys, pitch=0.0, blink=0.0, rest_open=0.0, widen=0.0):
+    def posed(self, keys, pitch=0.0, blink=0.0, rest_open=0.0, widen=0.0, yaw=0.0):
         """Vertices with the shape-key weights wrapper/rig.py would set (tent blink keys)."""
         s = self.side
         up = min(max(pitch / 20.0, 0.0), 1.2)
         down = min(max(-pitch / 25.0, 0.0), 1.2)
+        nasal = -yaw if s == "L" else yaw
         tent = lambda c: max(0.0, 1.0 - abs(blink - c) * 3.0)
         w = {f"lid_up.{s}": (up + 0.25 * widen) * (1 - blink), f"lid_down.{s}": down * (1 - blink),
+             f"lid_in.{s}": min(max(nasal / SIDE_YAW, 0.0), 1.2) * (1 - blink),
+             f"lid_out.{s}": min(max(-nasal / SIDE_YAW, 0.0), 1.2) * (1 - blink),
              f"lid_open.{s}": rest_open * (1 - blink), f"blink_33.{s}": tent(1 / 3),
              f"blink_66.{s}": tent(2 / 3), f"blink.{s}": tent(1.0)}
         P = self.H.V.copy()
         for k, wk in w.items():
-            if wk:
+            if wk and k in keys:
                 P += wk * keys[k]
         return P
 
@@ -466,8 +506,8 @@ class Eye:
                 for b in (0.0, 1 / 6, 1 / 3, 0.5, 2 / 3, 5 / 6, 1.0)]
         pen = {"skin_yaw0": 0.0, "skin_all_yaw": 0.0, "rim_under": 0.0, "rim_over": 0.0}
         for pitch, blink in grid:
-            P = self.posed(keys, pitch=pitch, blink=blink, rest_open=rest_open)
             for yaw in (-30, -15, 0, 15, 30):
+                P = self.posed(keys, pitch=pitch, blink=blink, rest_open=rest_open, yaw=yaw)
                 c = float(-self.clearance(P[self.outer], yaw, pitch).min())
                 pen["skin_all_yaw"] = max(pen["skin_all_yaw"], c)
                 if yaw == 0:

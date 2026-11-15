@@ -82,6 +82,50 @@ Curves: `outputs/tmp/m13/{left,right,generate}_curves.png`, looked at.
   the subject's left eye (image right) sits a little darker but iris and lids read. Lights not
   touched. 10 s/frame for the `eyes` pane, 9 s for `eye`, 7.5 s for the face, at preview.
 
+**Stage C, lids follow the eye sideways** (`tools/solve_lids.py`, `wrapper/rig.py`). Done, one
+check fails by the letter (below); kept for Fable to judge rather than reverted.
+- New keys `lid_in.S` / `lid_out.S` (eye 25 deg toward the nose / temple, pitch 0), least-squares
+  line over `FRACTIONS` like `lid_up`. Apex shift (`Eye.apex_angles`): along each lid a half sine
+  from the nasal corner to the pupil column and an opposite one to the temporal corner, margin
+  travel over the rim's distance from the joint's x axis; upper 0.5 mm, lower 0.3 mm at the peak
+  (`APEX_MM`). `targets()`, `pose()` and `drape()` now take `yaw`, so the lid is seated and draped
+  on the yawed globe. No retract. Same reach fade. `posed()` and the solver's own report use the
+  new keys too. `SIDE_YAW = 25`.
+- Numeric check on the hero head, `lid_in.L` at −25 deg: upper margin +0.56 mm on the nasal half,
+  −0.45 mm on the temporal half, lower −0.36 / +0.27 mm, corners ≤ 0.06 mm; the margin comes
+  forward 1.1 mm where the cornea arrives and sinks 1.2 mm where it left. `lid_out` mirrors it.
+- `rig.py`: `eye_yaw` per eye (head frame), `nasal = −yaw` for L, `+yaw` for R,
+  `lid_in = clip(nasal/25, 0, 1.2)(1 − b)`, `lid_out = clip(−nasal/25, 0, 1.2)(1 − b)`; `eye_yaw`
+  added to `state`. Older scenes are unaffected (key guard).
+- Carriers get the keys by name: lashes, vellus and brow hair carriers 16 → 20 driven keys,
+  tear lines 7 → 9. Template `assets/gnm/lids.npz` re-solved (old copy in
+  `outputs/tmp/m13/lids_template_before.npz`); the hero head is solved inside the build.
+- `rig_strips.py --only <shots>` added to render a subset.
+
+| Check | Target | Measured | |
+|---|---|---|---|
+| solver keys-only, hero head (no guard) | — | rim under 1.84 → 1.71 (L) / 1.82 → 1.70 (R) mm; rim over 2.21 → 1.63 / 2.31 → 1.77; skin 1.26 / 1.27 unchanged | better |
+| `check_lids` L skin inside | ≤ 0.026 mm | 0.033 at (25, −30, 0.83) | **fail by 7 µm** |
+| `check_lids` R skin inside | ≤ 0.032 | 0.030 | pass |
+| `check_lids` rim under L / R | ≤ 0.103 / 0.099 | 0.103 / 0.099 | pass |
+| `check_lids` rim over L / R | ≤ 2.213 / 2.307 | 1.631 / 1.768 | pass, better |
+| `check_lids` lash inside L | ≤ 0.017 | 0.016 | pass |
+| `check_lids` lash inside R | ≤ 0.025 | 0.037 at (−30, −30, 0) | **fail by 12 µm** |
+| strips `yaw_±30` before/after | outline follows the eye, no dent, no corner step, no lash through skin | as wanted, looked at in `outputs/tmp/m13/lids/yaw_zoom_before_after.png` | pass |
+| `--check-directions --render` | 13.8–14.2 px | left −13.78 / −14.16, right +14.15 / +13.80, up/down 13.97–13.99; `direction_check.json` byte-identical | pass |
+| unit tests | pass | 51 OK | pass |
+
+Why the two fails are not penetration: `check_lids` measures against the globe as a smooth
+radius profile (max radius per 0.6 deg bin), but the guard shrinkwraps to the polygonal shell.
+Shell face centres sit up to 0.227 mm inside that profile (measured, both eyes), and the guard
+puts skin and lashes 0.12 mm outside the faceted shell, so a guarded point can read up to about
+0.107 mm "inside" without crossing the surface that renders. Before and after values (0.016 to 0.037)
+all sit in that band. If Fable wants the letter met, `GUARD_OFFSET` 0.12 → 0.14 mm would do it
+(not done: it moves every guarded pose, and the brief did not ask for it). To drop C:
+revert its commit, re-run `python3 tools/solve_lids.py` and rebuild.
+Pairs: `outputs/tmp/m13/lids/{yaw_-30,yaw_+30}_before_after.png` and the zoom above; the
+baseline and the new check are `outputs/tmp/m13/lid_check_{before,after}.json`.
+
 ### Sun 15 Nov 2026, afternoon — the owner rejected the motion in the previews; drafts and both reference videos watched as motion (Fable)
 The owner watched `left_split_preview`, `right_preview_v2` and `generate_preview_v2` and said the
 animation is not realistic. No code changed in this session; this is the diagnosis and the plan

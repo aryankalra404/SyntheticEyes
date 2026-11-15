@@ -13,8 +13,8 @@ Videos are 30 fps and by default 2048x1024, two views side by side (--camera spl
 same Timeline is filmed twice, by cam_video (forehead to chin, the `eye` look) and by the second
 pane's camera, into outputs/frames/<input>/face/ and .../<pane>/, and each pair is joined, both
 panes at 1024x1024, into one frame in .../video/ (no divider or text). --pane picks the second
-pane: eyes (default) is cam_move_eyes, both eyes and brows straight on, 13 cm across, fixed in
-the world; eye is cam_move_eye, the subject's left eye from 15 cm, riding on the head bone. The
+pane: eye (default) is cam_move_eye, the subject's left eye from 15 cm, riding on the head bone;
+eyes is cam_move_eyes, both eyes and brows straight on, 13 cm across, fixed in the world. The
 face pane shows the head against a frame that holds still. With --frames it writes face_####,
 <pane>_#### and the joined ####.png to outputs/frames/<input>/split_<pane>_stills/.
 --camera face films cam_video alone at 1024x1024 (half the render time), --camera eyes cam_eyes.
@@ -27,7 +27,7 @@ kept, the newest PNG in each (possibly half written) is deleted, and only the mi
 are rendered; the joined frames and the video are rebuilt. Without it a run starts clean.
 
     blender -b scene.blend -P wrapper/eyes.py -- --input left --camera split --quality preview
-    blender -b scene.blend -P wrapper/eyes.py -- --input left --pane eye --frames 1 40 60 150
+    blender -b scene.blend -P wrapper/eyes.py -- --input left --pane eyes --frames 1 40 60 150
     blender -b scene.blend -P wrapper/eyes.py -- --input left --camera split --resume
 
 Or as a module from Blender's Python, with the repo root on sys.path:
@@ -661,9 +661,9 @@ def render_frames(cam, frames, out_dir, prefix=""):
     return out
 
 
-def video(mode, seed, fps, camera, limit=None, frames=None, resume=False, pane="eyes"):
+def video(mode, seed, fps, camera, limit=None, frames=None, resume=False, pane="eye"):
     """Bake the gaze track to the Timeline, film it (face, eyes, the camera move, or split:
-    the face and `pane` side by side, pane "eyes" or "eye"), encode. With frames, only those
+    the face and `pane` side by side, pane "eye" or "eyes"), encode. With frames, only those
     Timeline frames are rendered, as stills, and nothing is encoded. resume keeps the frames of
     an interrupted run."""
     scene = bpy.context.scene
@@ -733,10 +733,10 @@ def parse_args(argv):
                          "2048x1024), face (one fixed camera, forehead to chin, 1024x1024), eyes, or "
                          "move (glides between one eye, both eyes and the face); stills: face "
                          "(default) or eyes")
-    ap.add_argument("--pane", choices=("eyes", "eye"), default="eyes",
-                    help="videos, --camera split: the second pane. eyes (default): both eyes and "
-                         "brows straight on (cam_move_eyes, fixed); eye: the subject's left eye "
-                         "close up, riding on the head (cam_move_eye)")
+    ap.add_argument("--pane", choices=("eye", "eyes"), default="eye",
+                    help="videos, --camera split: the second pane. eye (default): the subject's "
+                         "left eye close up, riding on the head (cam_move_eye); eyes: both eyes "
+                         "and brows straight on (cam_move_eyes, fixed)")
     ap.add_argument("--resume", action="store_true",
                     help="videos: keep the frames of an interrupted run and render only the missing ones")
     ap.add_argument("--samples", type=int, default=None,

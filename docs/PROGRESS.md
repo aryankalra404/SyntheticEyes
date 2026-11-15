@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov), audited on the bare head and rebuilt (14 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; brows painted as grown hairs, shaved-scalp cap removed, back-of-head seam fixed; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
-| M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. Waiting for the owner to watch the three drafts at speed and pick the right pane (`eyes` or `eye`); then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
+| M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Waiting for the owner to watch the three drafts at speed; then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -58,8 +58,16 @@ Not judged here, because stills cannot show it: how the three clips feel at play
 That is the owner's check on `outputs/tmp/m13/drafts/{left,right}_draft.mp4` and
 `outputs/tmp/m13/review/generate_draft.mp4` (EEVEE, face camera only, timing not looks).
 
-Next: owner watches the drafts and picks the pane; then finals of the three inputs with
-`--camera split --pane <choice>`: 270 + 270 + 249 = 789 frames, two passes each (72 fewer frames
+**Later the same afternoon: the owner chose the one-eye pane** after seeing both sets of stills
+(Fable had recommended `eyes`; the owner prefers the close-up, and in `left` the eye turning
+toward its lens is accepted). `--pane` now defaults to `eye`, so the command evaluators run
+makes the videos we ship; `eyes` still works. Docstring, `--help` and the README row updated.
+Checked with `--input generate --quality preview --frames 131 215` and no `--pane`: the second
+pass is `cam_move_eye`, stills in `outputs/frames/generate/split_eye_stills/`, looked at (roll
+top: iris high under the lid, brow raised, lashes and skin sharp). 51 tests pass.
+
+Next: owner watches the drafts; then finals of the three inputs with
+`--camera split` (pane `eye` by default): 270 + 270 + 249 = 789 frames, two passes each (72 fewer frames
 than before the trim). Then `--clockwise`, `--check-directions --render`, `tools/validate.py`
 and packaging. Finals are mechanical: an Opus session can run them.
 

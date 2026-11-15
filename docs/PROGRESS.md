@@ -23,6 +23,17 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, night — M15 rollout reviewed and accepted, finals released (Fable)
+Checked: the shipped tiles of tex_09, 03 and 04 are byte-identical to the accepted trial tiles;
+since the ruling only `tools/make_iris.py`, the eye tiles, previews, stills and the two web eye
+textures changed. 51 unit tests pass; `validate.py` fails only on the README and AI_DISCLOSURE
+TODOs that wait on the owner. Looked at all nine eye close-ups and at 2.5x crops of tex_01, 02,
+04 and 09: clean whites with a few thin vessels, no ring, no pink zone. tex_02's nasal white is
+clean at rest; that is what a healthy eye looks like in this pose and it stays. Public page,
+"Both eyes" and "Eye close-up" with the gaze hard to image-left: thin branching vessels across
+the turned white, no white band round the iris, no console errors.
+**Next: the owner starts the three final videos clean from their own terminal (about a day).**
+
 ### Sun 15 Nov 2026, evening — M15 phase 2: the sclera rollout (Opus)
 Fable's `tools/make_iris.py` taken as it was, not retuned. No final render ran at any point.
 - Pre-check: tex_09 regenerated is byte-identical to `outputs/tmp/m15/tiles/fable/tex_09/`.
@@ -44,7 +55,8 @@ Fable's `tools/make_iris.py` taken as it was, not retuned. No final render ran a
   licence) and `AI_DISCLOSURE.md` (team names), which need the owner.
 - TECH_NOTES "Iris and sclera generation" rewritten for the M15 sclera.
 - **The finals can start clean (no `--resume`).**
-, density retuned, rollout released (Fable)
+
+### Sun 15 Nov 2026, 19:45 — M15 phase 1 pack reviewed, density retuned, rollout released (Fable)
 Opus's pack (`outputs/tmp/m15/`) removes the ring and the pink zone: accepted, with the softer
 limbus and `BLOOD = (0.12, 1, 0.95)`. It overshot on density: tex_09's left eye showed a bare
 white at yaw -28. Fable added a floor of vessels in each horizontal wedge and raised the share of

@@ -157,8 +157,18 @@ Work in polar coordinates around the tile centre, then warp to the disc.
 - Pupil ruff: thin dark-brown rim at the pupil edge
 - Colour from a small palette (dark brown, brown, hazel, green, blue, grey), most sets brown
 - Left and right share the palette and structure parameters but use different noise seeds
-- Sclera: off-white with a warm tint toward the corners and fine branching veins, 30 % darker
-  by UV radius 0.40 (toward the fornix)
+- Sclera: off-white with a warm tint toward the corners, 30 % darker by UV radius 0.40
+  (toward the fornix)
+- Sclera vessels (15 Nov rework, `draw_vessels` / `sclera` in `tools/make_iris.py`): drawn as an
+  optical-depth map and applied as Beer-Lambert absorption of blood (`BLOOD` = linear R, G, B
+  absorbance 0.15 / 1.0 / 0.80, `VESSEL_TAU` 3.3 for a 6-texel vessel), never painted on as a
+  colour. Depth follows a round cross-section, so wide trunks come out dark crimson and twigs
+  pale pink, with soft edges. Three kinds: conjunctival trees rooted behind the lids that fork
+  (Murray's law widths) into finer twigs; fine vessels that surface part-way; four blurred
+  anterior ciliary vessels over the rectus muscles. Bends are irregular (wavelength and swing
+  redrawn every half turn), tips thin and fade, density highest at the canthi, nasal most.
+  The sclera's subsurface scattering softens the map in Cycles, so the tile is stronger than
+  the render reads. The old version (one-width saturated lines) read as drawn on.
 - The pupil is geometry (GNM's pupil coefficient), so keep the texture's pupil region dark
   and let the mesh set the size
 - `radial` options, brown and dark brown palettes only (M11, sets 02, 03, 05, 06): under the

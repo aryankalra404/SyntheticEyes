@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov), audited on the bare head and rebuilt (14 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; brows painted as grown hairs, shaved-scalp cap removed, back-of-head seam fixed; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
-| M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Waiting for the owner to watch the three drafts at speed; then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
+| M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Finals restarted clean on 15 Nov evening after the sclera vessel rework (see log).** Split video: fixed face camera on the left, `--pane` on the right. **Final videos rendering** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 | M14 Quest 3S bonus (WebXR) | built by Opus and reviewed by Fable (15 Nov): works on the laptop, tests pass; **the headset path has never run on a device: the owner's test is next**; live at https://aryankalra404.github.io/syntheticeyes-xr/ (public copy of `xr/`, `tools/publish_xr.sh`) |
@@ -22,6 +22,27 @@ what the next session needs to know.
 - Time of day of the 22 Nov deadline
 
 ## Log
+
+### Sun 15 Nov 2026, evening — sclera vessels rebuilt, finals restarted (Fable, then Opus)
+The owner found the sclera veins unrealistic in the WebXR eye close-up: hard, one-width red
+lines on a flat white sclera. Compared with Eye Piece 0:11 to 0:14 (and the owner's
+screenshots of it): there, the vessels branch, wind, taper and fade, and gather in the corners.
+- `tools/make_iris.py`: vessels rewritten as branching trees applied as blood absorption (see
+  TECH_NOTES, Iris and sclera generation). Tuned in three Cycles rounds on `cam_test_eye` at
+  gaze ±28°: the first physical version was too faint at video scale (subsurface softens the map),
+  `VESSEL_TAU` 1.25 → 2.4 → 3.3, wider and more trunks. An uncommitted rework from earlier
+  today was in the working tree and was replaced, not kept.
+- All nine sets rebuilt with `build_textures.py --eyes-only` (tiles, legacy eye files,
+  previews, texture sheet); iris unchanged, `set.json` unchanged.
+- WebXR: `tools/export_xr.py` now writes the eye textures at 2048 (the close-up fills the
+  screen with one globe); only `eye_L.jpg` / `eye_R.jpg` changed, `head.glb` byte-identical.
+  Checked in the browser pane at the owner's screenshot pose; published with
+  `tools/publish_xr.sh`.
+- **Finals:** the run started 14:40 was stopped with the `generate` face pass done (249 frames)
+  and 3 eye-pane frames. A face frame re-rendered with the new tile differs in both eyes
+  (1630 px over 2 levels, max 12), the old streaks just visible at 3x, so the owner restarts
+  all three videos clean (no `--resume`) from their own terminal.
+- Stills (`tools/render_stills.py`, nine faces and nine eye close-ups) re-rendered.
 
 ### Sun 15 Nov 2026, evening — the WebXR bust on a public link (Opus)
 Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept rendering.

@@ -23,6 +23,19 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, 19:00 — review of the vessel rework: drawing accepted, placement not (Fable)
+The owner's screenshot of the web page ("Both eyes", gaze to image-left) shows a clean white
+band round the iris and then, on one circle, pink and every vessel at once. The tile shows the
+same as a target. Cause: the limbus fade, the stop radii, the corner pink and the other sclera
+terms are all functions of the radius alone; the pink wash (0.7) also makes the eye look
+irritated. The trees themselves (forks, winding, taper, absorption) are right and stay.
+- `docs/BRIEF_M15.md` for Opus: ragged per-vessel reach with limbal arcades, a noise-warped
+  radius for the sclera terms, about half the blood inside the visible almond, pink 0.7 → 0.25,
+  a blood-colour trial, an optional softer limbus, mipmaps on the web eye textures. Two phases:
+  a trial pack in `outputs/tmp/m15/`, then rollout only after Fable accepts it.
+- **Finals:** the run the owner started at about 18:50 will be void once the tiles change. They
+  should be stopped now and started clean after the M15 rollout.
+
 ### Sun 15 Nov 2026, evening — sclera vessels rebuilt, finals restarted (Fable, then Opus)
 The owner found the sclera veins unrealistic in the WebXR eye close-up: hard, one-width red
 lines on a flat white sclera. Compared with Eye Piece 0:11 to 0:14 (and the owner's

@@ -14,15 +14,35 @@ what the next session needs to know.
 | M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Waiting for the owner to watch the three drafts at speed; then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
-| M14 Quest 3S bonus (WebXR) | built by Opus and reviewed by Fable (15 Nov): works on the laptop, tests pass; **the headset path has never run on a device: the owner's test is next**; not hosted anywhere |
+| M14 Quest 3S bonus (WebXR) | built by Opus and reviewed by Fable (15 Nov): works on the laptop, tests pass; **the headset path has never run on a device: the owner's test is next**; live at https://aryankalra404.github.io/syntheticeyes-xr/ (public copy of `xr/`, `tools/publish_xr.sh`) |
 
 ## Open questions
 
 - College and team name for the zip and deck (`CollegeName_TeamName`)
-- Quest 3S bonus demo: whether and where to host it on a public link (after the M14 review)
 - Time of day of the 22 Nov deadline
 
 ## Log
+
+### Sun 15 Nov 2026, evening — the WebXR bust on a public link (Opus)
+Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept rendering.
+
+- **Link: https://aryankalra404.github.io/syntheticeyes-xr/**
+- Pages on `Samsung-Prism` was tried first and refused ("Your current plan does not support
+  GitHub Pages for this repository"), so, as the owner authorised, a separate **public** repo
+  `aryankalra404/syntheticeyes-xr` holds only the page: `index.html` at its root, `js/`,
+  `assets/`, `vendor/three/`, the xr README (with a short preface) and `.nojekyll`. No
+  `.certs`, no `tests/`, no `serve.py` or `package.json` (the server serves the main repo root
+  and would not run there). Pages builds from `main` at `/`. `Samsung-Prism` is still private.
+- Commits there are authored as aryankalra404 with the GitHub noreply address, so the
+  personal email is not public.
+- `tools/publish_xr.sh [message]` syncs `xr/` to that repo in one command (creates the repo
+  and turns Pages on if missing, uses the aryankalra404 gh token without switching accounts,
+  says so if `xr/` has uncommitted changes). Pages takes about a minute to rebuild after a push.
+- Checked in the browser pane on the live link: the page loads, the head turns to follow the
+  mouse left and right, no console messages, `head.glb`, `rig.json`, the five textures, the
+  scripts and three.js all return 200. Not tried in the headset; being HTTPS, the Quest can
+  open the link directly with no certificate step.
+- Link added to `xr/README.md` and the main README (next to the demo video TODO).
 
 ### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
 Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,

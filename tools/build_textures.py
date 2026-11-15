@@ -121,10 +121,12 @@ SETS = {
     "06": dict(
         label="older adult, deep brown skin, black brows, brown eyes",
         skin="makehuman_system_assets/skins/old_african_female",
-        eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_01",
-        # M11: darker, for contrast on deep brown skin, same outline and width (was 0.010/0.007/0.006,
-        # opacity 0.9, shadow 0.45). Denser (2.4) with shadow 0.8 went to a solid black stroke at 1:1.
-        brow=dict(color=[0.004, 0.003, 0.0025], opacity=1.0, width=0.15, density=2.0, shadow=0.6),
+        # M11 stage 2: outline 06 (676 mm2), darker for contrast on deep brown skin. Single hairs show
+        # in the body at 1:1 and it reads as a full brow from the front; outline 01 (was 0.010/0.007/
+        # 0.006, opacity 0.9, width 0.15, shadow 0.45, then darker with density 2.0 and shadow 0.6)
+        # stayed a thin arc with a near-solid core.
+        eyebrows="eyebrows01/eyebrows/mindfront_eyebrows_06",
+        brow=dict(color=[0.004, 0.003, 0.0025], opacity=1.0, width=0.14, density=1.8, shadow=0.45),
         iris="brown", seed=6,
         detail={"redness": 0.5, "lid_lines": 1.6, "micro_strength": 1.3, "grain": 0, "stubble": 0.3, "ear_skin": 1.0},
         # the source is a saturated red-brown (cheek sRGB 96/39/20); to deep brown, about 86/53/37

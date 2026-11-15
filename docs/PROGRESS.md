@@ -93,6 +93,17 @@ Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept r
   viewer's right at 55 cm gives eyes +23, head +20 (toward image-right); left −26 / −20; 8 cm
   higher +13 eyes; the camera does not move. Looked at in Face and Eye close-up views. **Still
   not tried with a real webcam.**
+- **Follow: You, third pass, after the owner's two webcam screenshots** (17:45): centred, the
+  head tipped back and the eyes looked over their head; off to the side, the eyes looked past
+  them. On a flat screen eyes read as looking at you only when they point straight out of it, so
+  steering the gaze toward the real position is always wrong. Now the gaze target is the camera
+  (eye contact, with the usual jumps between the viewer's eyes) and only the head turns toward
+  the real position (1.5x the angle off the webcam's centre, ±28 deg; pitch 1x from the first
+  sighting, ±12; eased 0.2 s), so the eyes counter-rotate to hold the stare. In this mode the
+  gaze is re-created with `STARE` (no mouth looks, glances every 20 to 35 s, dwell 1.0 to
+  2.5 s). Close-ups ride the head, so there the gaze shifts 0.4x toward the viewer instead.
+  Scripted: 15 cm right gives head +23 deg, gaze stays within ±2.7 deg of the camera; looked at
+  at 1280x800 both sides. **Needs the owner's webcam to judge the feel.**
 
 ### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
 Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,

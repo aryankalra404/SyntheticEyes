@@ -350,24 +350,40 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
 
 # --------------------------------------------------------------------------- sclera
 
-def draw_vessels(rng, size, count, eye_uv, side, S, layer):
-    """Branching vessels in UV, from the back of the globe toward the limbus.
+BLOOD = np.array([0.15, 1.0, 0.80])     # absorbance of a blood column in linear R, G, B (green = 1)
+VESSEL_TAU = 3.3                        # green optical depth through a vessel 6 texels wide
 
-    Returns an (size, size) coverage map in [0, 1]. Angles near the horizontal (the
-    canthi, where the conjunctiva is exposed) get most vessels, the nasal side most of all.
+
+def draw_vessels(rng, size, count, eye_uv, side, kind):
+    """Vessels in UV as an optical-depth map (how much blood the light crosses at each texel).
+
+    kind: "tree" (conjunctival trunks that rise from behind the lids, run toward the limbus and
+    fork into finer, more winding twigs), "fine" (small vessels that surface part-way, with a
+    few twigs of their own) or "deep" (anterior ciliary vessels over the four rectus muscles:
+    wide, nearly straight, blurred by the caller because they lie under the episclera).
+
+    A vessel is a blood-filled tube, so depth follows a round cross-section and grows with
+    width: wide vessels come out dark, twigs pale. One texel is about 14 um on the globe.
+    Forks start solid at the parent (width split by Murray's law) and every tip thins and
+    fades out, so nothing starts or ends as a cut line. Angles near the horizontal (the canthi,
+    where the conjunctiva is exposed) get most vessels, the nasal side most of all.
     """
-    cov = np.zeros((size, size), dtype=np.float64)
-    thin = np.zeros((size, size), dtype=np.float64)        # finest vessels, blurred at the end
+    od = np.zeros((size, size), dtype=np.float64)
     nasal = np.pi if side == "L" else 0.0
     lim = eye_uv["limbus"]
+    centre = np.array([size / 2, size / 2])
+    step = 2.5 * size / 2048                                   # texels per segment
+    max_depth = {"tree": 4, "fine": 2, "deep": 1}[kind]
+    tort = {"tree": 1.0, "fine": 1.15, "deep": 0.35}[kind]
 
-    def seg(p0, p1, w):
-        # opacity follows width, so a vessel fades as it tapers instead of ending as a hard line
-        a_w = np.clip((w - 0.2) / 1.6, 0.4, 1.0)
-        target = thin if w < 1.6 else cov
-        # anti-aliased capsule from p0 to p1 (pixel coords), width w px
-        x0, y0 = np.minimum(p0, p1) - w - 2
-        x1, y1 = np.maximum(p0, p1) + w + 2
+    def seg(p0, p1, w, alpha):
+        if alpha <= 0.01:
+            return
+        ww = max(w, 1.0)                       # under a texel wide: thinner means fainter
+        tau = alpha * min(w, 1.0) * VESSEL_TAU * (ww / 6.0) ** 0.85
+        rad = ww / 2 + 0.5
+        x0, y0 = np.minimum(p0, p1) - rad - 1
+        x1, y1 = np.maximum(p0, p1) + rad + 1
         x0, y0 = max(int(x0), 0), max(int(y0), 0)
         x1, y1 = min(int(x1) + 1, size), min(int(y1) + 1, size)
         if x1 <= x0 or y1 <= y0:
@@ -377,56 +393,96 @@ def draw_vessels(rng, size, count, eye_uv, side, S, layer):
         L2 = max(float(d @ d), 1e-9)
         tt = np.clip(((xs - p0[0]) * d[0] + (ys - p0[1]) * d[1]) / L2, 0, 1)
         dist = np.hypot(xs - (p0[0] + tt * d[0]), ys - (p0[1] + tt * d[1]))
-        a = np.clip(w / 2 + 0.5 - dist, 0, 1) * a_w
-        target[y0:y1, x0:x1] = np.maximum(target[y0:y1, x0:x1], a)
+        a = np.sqrt(np.clip(1 - (dist / rad) ** 2, 0, 1)) * tau      # chord through a round tube
+        od[y0:y1, x0:x1] = np.maximum(od[y0:y1, x0:x1], a)
 
-    def to_px(r, a):
-        return np.array([(0.5 + r * np.cos(a)) * size, (0.5 - r * np.sin(a)) * size])
-
-    def walk(r, a, w, r_end, depth, heading=None):
-        # heading is measured in the (radial, tangential) frame; pi = straight toward the limbus.
-        # Curvature has momentum, so vessels bend smoothly instead of zigzagging.
-        heading = np.pi + rng.normal(0, 0.3) if heading is None else heading
+    def grow(p, base, w, depth, bias, r_stop, life, root):
+        """One vessel from p (texels). base: its heading; bias: how far it splays off the radial
+        (relaxes along the way, so a branch leaves at an angle and then turns toward the limbus);
+        life: longest length in texels; root: fade in (a vessel surfacing, not a fork)."""
+        pts, ws = [p.copy()], [w]
+        kids = []
+        phase = rng.uniform(0, 2 * np.pi)
+        thin = 1.0 / max(w, 0.8)
+        # lazy bends of uneven length, never a regular wave: the wavelength is redrawn every
+        # half turn and the swing with it
+        wavelen = rng.uniform(70, 190) * (0.5 + 0.5 * min(w, 5.0) / 5.0) * size / 2048
+        amp = tort * rng.uniform(0.14, 0.5) * (1.0 + 0.45 * thin)      # heading swing, radians
+        half = int(phase / np.pi)
+        taper = rng.uniform(0.9945, 0.9975) if depth == 0 else rng.uniform(0.990, 0.996)
+        next_fork = rng.uniform(40, 150) * (0.45 + 0.55 * min(w, 6.0) / 6.0) * size / 2048
+        run = travelled = 0.0
         kappa = 0.0
-        p = to_px(r, a)
-        step = 0.0035
-        wiggle = 0.05 if layer == "fine" else 0.03
-        while r > r_end and w > 0.5:
-            kappa = 0.75 * kappa + rng.normal(0, wiggle)
-            heading += kappa - 0.08 * (heading - np.pi)
-            dr = step * np.cos(heading)
-            da = step * np.sin(heading) / max(r, 0.05)
-            r, a = r + dr, a + da
-            q = to_px(r, a)
-            seg(p, q, w)
-            p = q
-            w *= rng.uniform(0.968, 0.99)
-            if depth < 3 and rng.random() < (0.05 if layer == "fine" else 0.03):
-                side_turn = rng.choice([-1, 1]) * rng.uniform(0.35, 0.8)
-                walk(r, a, w * rng.uniform(0.5, 0.75), max(r_end, r - rng.uniform(0.04, 0.12)),
-                     depth + 1, heading + side_turn)
-                heading -= 0.3 * side_turn
+        while w > 0.4 and travelled < life:
+            v = centre - p
+            r = np.hypot(v[0], v[1]) / size
+            if r <= r_stop or r > 0.72:
+                break
+            aim = np.arctan2(v[1], v[0]) + bias
+            bias *= 0.985
+            kappa = 0.85 * kappa + rng.normal(0, 0.012 * tort * (1 + 0.8 * thin))
+            base += kappa + 0.10 * ((aim - base + np.pi) % (2 * np.pi) - np.pi)
+            phase += 2 * np.pi * step / wavelen
+            if int(phase / np.pi) != half:
+                half = int(phase / np.pi)
+                wavelen = rng.uniform(70, 190) * (0.5 + 0.5 * min(w, 5.0) / 5.0) * size / 2048
+                amp = tort * rng.uniform(0.14, 0.5) * (1.0 + 0.45 * thin)
+            h = base + amp * np.sin(phase)
+            p = p + step * np.array([np.cos(h), np.sin(h)])
+            w *= taper
+            run += step
+            travelled += step
+            pts.append(p.copy())
+            ws.append(w)
+            if depth < max_depth and run > next_fork and w > 0.7:
+                run = 0.0
+                next_fork = rng.uniform(40, 150) * (0.45 + 0.55 * min(w, 6.0) / 6.0) * size / 2048
+                turn = rng.choice([-1, 1]) * rng.uniform(0.4, 0.95)
+                cw = w * rng.uniform(0.45, 0.78)
+                w = (w ** 3 - cw ** 3) ** (1 / 3)                        # Murray's law
+                kids.append((p.copy(), h + turn, cw, depth + 1, 0.9 * turn,
+                             max(r_stop, lim + rng.uniform(0.006, 0.07)),
+                             rng.uniform(70, 260) * (0.4 + 0.6 * min(cw, 3.0) / 3.0) * size / 2048, False))
+                base -= 0.2 * turn
+        n = len(pts)
+        fill = rng.uniform(0.75, 1.0)
+        tail = max(4, int(0.3 * n))
+        for i in range(n - 1):
+            a = fill * min(1.0, (n - 1 - i) / tail)
+            if root:
+                a *= min(1.0, (i + 1) / 14.0)
+            seg(pts[i], pts[i + 1], 0.5 * (ws[i] + ws[i + 1]), a)
+        for k in kids:
+            grow(*k)
 
-    for _ in range(count):
-        # angle density: mostly horizontal, nasal strongest
+    def start(r, a, w, r_stop, life):
+        p = centre + size * r * np.array([np.cos(a), -np.sin(a)])
+        v = centre - p
+        grow(p, np.arctan2(v[1], v[0]) + rng.normal(0, 0.25), w, 0, rng.normal(0, 0.12), r_stop, life, True)
+
+    for i in range(count):
+        if kind == "deep":
+            a = (i % 4) * np.pi / 2 + rng.normal(0, 0.2)
+            start(rng.uniform(0.36, 0.45), a, rng.uniform(4.5, 7.5), lim + rng.uniform(0.03, 0.08), 1e9)
+            continue
         while True:
             a = rng.uniform(0, 2 * np.pi)
             dn = np.cos(a - nasal)
-            p_acc = 0.18 + 0.82 * (np.abs(np.cos(a)) ** 2) * (0.7 + 0.3 * dn)
-            if rng.random() < p_acc:
+            if rng.random() < 0.12 + 0.88 * (np.abs(np.cos(a)) ** 3) * (0.65 + 0.35 * dn):
                 break
-        r0 = rng.uniform(0.29, 0.47)
         horiz = np.abs(np.cos(a))
-        r_end = lim + 0.008 + rng.uniform(0.0, 0.07) + 0.06 * (1 - horiz)
-        if layer == "fine":
-            w0 = rng.uniform(1.0, 4.8) * (0.6 + 0.4 * horiz)
+        r_stop = lim + 0.004 + rng.uniform(0.0, 0.05) + 0.05 * (1 - horiz)
+        if kind == "tree":
+            # roots lie beyond the mapped sclera, so a trunk is already running where it comes into view
+            w0 = (3.2 + 6.0 * rng.uniform() ** 1.8) * (0.6 + 0.4 * horiz)   # few wide, more narrow
+            start(rng.uniform(0.47, 0.52), a, w0, r_stop, 1e9)
         else:
-            w0 = rng.uniform(4.0, 8.0)
-        walk(r0, a, w0, r_end, 0)
-    return np.maximum(cov, gaussian_filter(thin, 0.7) * 1.3)
+            start(lim + 0.05 + (0.46 - lim) * rng.uniform() ** 0.8, a, rng.uniform(1.2, 2.6), r_stop,
+                  rng.uniform(90, 300) * size / 2048)
+    return od
 
 
-def sclera(rng, size, eye_uv, side, S, R, TH):
+def sclera(rng, vrng, size, eye_uv, side, S, R, TH):
     lim = eye_uv["limbus"]
     nasal = np.pi if side == "L" else 0.0
     base = lin((206, 195, 183))
@@ -459,15 +515,19 @@ def sclera(rng, size, eye_uv, side, S, R, TH):
     under = smoothstep(start, start + 0.11, R) * smoothstep(lim, lim + 0.03, R)
     col = col * (1 - (1 - rim_tint) * (0.85 * under)[..., None])
 
-    # vessels: deep blurred episcleral layer first, then sharp conjunctival vessels
-    deep = draw_vessels(rng, size, S["veins"] // 3, eye_uv, side, S, "deep")
-    deep = gaussian_filter(deep, 3.0)
-    col = lerp(col, lin((150, 70, 82)), np.clip(0.22 * deep * S["redness"], 0, 1))
-    fine = draw_vessels(rng, size, S["veins"], eye_uv, side, S, "fine")
-    halo = gaussian_filter(fine, 2.0)
-    fade = smoothstep(lim + 0.005, lim + 0.06, R)                # vessels fade toward the limbus
-    col = lerp(col, lin((200, 122, 116)), np.clip(0.25 * halo * fade * S["redness"], 0, 1))
-    col = lerp(col, lin((160, 64, 62)), np.clip(0.85 * fine * fade * S["redness"], 0, 1))
+    # vessels, on their own generator so the iris does not change when they do. They are blood
+    # seen through a clear membrane, so they absorb (mostly green and blue) instead of being
+    # painted on: wide ones come out dark crimson, twigs a pale orange-pink. The conjunctiva
+    # scatters a little, which softens every edge and leaves a faint flush beside the big ones.
+    red = S["redness"]
+    fade = smoothstep(lim + 0.004, lim + 0.04, R)                # vessels thin out at the limbus
+    deep = gaussian_filter(draw_vessels(vrng, size, 8, eye_uv, side, "deep"), 4.0 * size / 2048)
+    tree = draw_vessels(vrng, size, max(10, S["veins"] // 3), eye_uv, side, "tree")
+    fine = draw_vessels(vrng, size, S["veins"], eye_uv, side, "fine")
+    tau = gaussian_filter(np.maximum(tree, fine), 0.75 * size / 2048)
+    tau = tau + 0.3 * gaussian_filter(tau, 5.0 * size / 2048)
+    col = col * np.exp(-(tau * fade * red)[..., None] * BLOOD)
+    col = col * np.exp(-(0.28 * deep * fade * red)[..., None] * np.array([0.5, 1.0, 0.7]))
 
     # faint grey-blue band just outside the limbus
     band = np.exp(-0.5 * ((R - (lim + 0.01)) / 0.008) ** 2)
@@ -495,7 +555,7 @@ def make_eye(color: str, seed: int, side: str, eye_uv: dict, size: int = 2048) -
     cols = TH / (2 * np.pi) * nth
     iris = np.stack([map_coordinates(pol[..., k], [rows, cols], order=1, mode="grid-wrap") for k in range(3)], -1)
 
-    scl = sclera(rng, size, E, side, S, R, TH)
+    scl = sclera(rng, np.random.default_rng([seed, 1 if side == "L" else 2, 11]), size, E, side, S, R, TH)
     # iris -> sclera blend across the limbus (about 0.15 mm wide on the surface)
     w_iris = 1 - smoothstep(rl - 0.002, rl + 0.006, R)
     col = lerp(scl, iris, w_iris)

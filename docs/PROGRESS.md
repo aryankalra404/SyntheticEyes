@@ -41,6 +41,21 @@ After an interruption, the same command with `--resume`. Expected from the previ
 for `generate`: 16 to 20 h in all. Look at frames 40, 110 and 240 of the first one after ten
 minutes before leaving it overnight.
 
+**Handover: this session ends here; a new Fable session takes the finals.** Open, in order:
+1. Wait for M11 stage 2 (texture build, `scene.blend` rebuild, pushed). Nothing below before it.
+2. `renders/` and `metadata.json` date from 14 Nov 18:45, before the tex_09 ear fix and the
+   stage 2 rebuild: rerun `--clockwise`, look at the frames, rerun `--check-directions --render`.
+3. `generate` was previewed face-only, never in split: render split stills of an eye roll frame,
+   a look-down frame and a blink (`--input generate --frames ... --samples 64`) and look at the
+   eye pane before its final.
+4. The three finals. A teammate may render `right` on another machine from a fresh clone after
+   a 10-frame test (send back the `[eyes] Blender` log line, s/frame and frame 0005); compare
+   that frame with ours before accepting the video.
+5. Opus has a packaging brief (licence, README blanks, deck, demo shot list, zip; its part 2
+   waits for the videos). Final QA after that.
+The owner has seen the previews of `left`, `right`, `generate` (face) and `left` (split) and
+chose split; no objection to the new motion was raised, and no explicit sign-off either.
+
 ### Sun 15 Nov 2026, noon — review of M11 stage 1 and the ear trial on 01 to 08 (Fable)
 Looked at `outputs/tmp/m11/review.png` (all rows), `outputs/tmp/m11/outlines.png` and
 `outputs/tmp/m13/review_ears_1to1.png`. Nothing built or changed here; stage 2 is one Opus job.

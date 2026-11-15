@@ -79,6 +79,11 @@ Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept r
   it with `cwebp` and removes the PNG. Rest of the page: 13.0 -> 11.1 MB. Not measured on the
   Quest. What still reads as "slow" is by design: the camera eases to the mouse over 0.25 s
   and the head starts about 0.5 s after the wearer moves (`head_trigger`, see the Fable review).
+- **Snappier camera, head delay kept** (the owner left the call to me). A 30 deg mouse step at
+  60 fps: the camera reached 90 % in 0.57 s (easing 0.25 s), eyes moved at 0.06 s, the head at
+  0.42 s. The camera easing is now 0.1 s (`?ease=` overrides): 90 % in 0.23 s at any frame rate;
+  the eyes still lead (0.05 to 0.12 s) and the head follows at about 0.3 s. The gaze model's
+  own numbers are untouched; eyes first, head later is the behaviour that reads as natural.
 
 ### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
 Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,

@@ -21,6 +21,58 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026 — M11 stage 2 + ears of 01 to 08: STOPPED at step 3, nothing adopted (Opus)
+**Done and committed (not pushed):** `"ear_skin": 1.0` in the detail of 01 to 08 (a47ddfa). Set 06
+brow outline 06 (48f9cf6), with colour 0.004/0.003/0.0025, opacity 1.0, width 0.14, density 1.8,
+shadow 0.45.
+- **Why outline 06:** at 1:1 single strokes run through the body with skin between them in the
+  lower half, where outline 01's core is near-solid. From the front it reads as a full brow with
+  a soft hairy head and lower edge, not a slab.
+- **Evidence:** `outputs/tmp/m14/brow06_1to1.png`, `brow06_body3x.png`, `brow06_front.png`,
+  `brow06_front_zoom.png`. The M11 trial was re-rendered with today's check
+  (`outputs/tmp/m14/m11_rerender/`). The two fronts differ only at the brows and ears
+  (6,742 px > 4).
+
+**Why it stopped:** the build into `textures/` (01 05 06 08 full, 02 03 04 07 `--skip-bake`,
+09 `--eyes-only --skip-check`) changed the albedo of 01, 05, 06 and 08 outside the brow area and
+the ear zone, which the brief counts as a failure.
+- Per set, outside brow regions + about 5 mm and the ear zone (`outputs/tmp/m14/outside.py`):
+
+| set | texels | under the scalp-fix weight | by size |
+|---|---|---|---|
+| 01 | 1,416,354 | 1,086,698 | all ≤ 2 levels (20,240 at 2) |
+| 05 | 198,613 | 151,310 | all ≤ 2 |
+| 08 | 2,394,992 | 1,784,561 | all ≤ 2 |
+| 06 | 34,733 | 0 (06 has no scalp fix) | ≤ 3, 19 at 3, around the larger outline |
+
+- **Cause:** the scalp fix rebuilds the cap's tone by a harmonic fill anchored on the skin around
+  it, so the new brows near its edge shift the whole cap by a level or two. The rest is the
+  rebake's own fill.
+- **01, 05 and 08 equal the M11 trial Fable reviewed**, except the ear zone (at most 178 texels
+  outside it, by 1). So the spread is already in the approved trial; nothing new came from this
+  build.
+- Every other check passed. 02, 03, 04, 07: ear zone only (normal 36-56 texels and roughness 0-4
+  just at its edge, albedo ≤ 194 texels by 1 level within 18 texels of it). Eye tiles: new on 02,
+  03, 05, 06 (M11's irises), byte-identical on 01, 04, 07, 08. tex_09: no file changed, only
+  `set.json` would.
+
+**State left:**
+- `textures/`, `tools/carry_hair.py`, `tools/build_scene.py` and `assets/gnm/hair_binding.npz`
+  are back as committed. md5 against `outputs/tmp/m14/md5_before.txt`: everything identical
+  except `wrapper/eyes.py`, which another session committed at 12:13.
+- The built sets are kept in `outputs/tmp/m14/textures_built/`, so adoption is a copy. The
+  pre-build copy is in `outputs/tmp/m14/textures_before/`.
+- Step 4 is ready but not run on the scene: `outputs/tmp/m14/step4_brow_hair.patch` adds
+  brows_06, _12, _14 to `carry_hair.SETS` and `build_hair`. `carry_hair.py` took them in about a
+  second (1776 / 1990 / 2430 hairs, rebuild error 0) and left 01, 05, 08 byte-identical.
+- **scene.blend unchanged.** No sheets, stills, README or TECH_NOTES done.
+
+**To resume, if the 1-2 level spread is accepted** (`pgrep -fl "Blender -b"` first):
+1. `cp -R outputs/tmp/m14/textures_built/. textures/`
+2. `git apply outputs/tmp/m14/step4_brow_hair.patch && python3 tools/carry_hair.py`
+3. Continue at step 4 of the brief: hero before render, rebuild, hero after and diff,
+   01/06/08 renders, `--check-directions`.
+
 ### Sun 15 Nov 2026, noon — the owner chose side by side for the final videos (Fable)
 The owner watched the previews and chose the split format (face pane and eye pane, 2048x1024)
 for all three final videos. `--camera split` is now the default for `--input`, so the command

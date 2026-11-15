@@ -23,6 +23,16 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, 19:45 — M15 phase 1 pack reviewed, density retuned, rollout released (Fable)
+Opus's pack (`outputs/tmp/m15/`) removes the ring and the pink zone: accepted, with the softer
+limbus and `BLOOD = (0.12, 1, 0.95)`. It overshot on density: tex_09's left eye showed a bare
+white at yaw -28. Fable added a floor of vessels in each horizontal wedge and raised the share of
+fine vessels a little (`SIDE_FLOOR`, `FINE_SHARE` 0.20, trunks `max(8, veins // 5)`); coverage of
+the visible almond is 0.73 of what it was, even across the nine sets. Checked in Cycles on
+tex_09, 03 and 04. Details and the phase 2 additions are at the end of `docs/BRIEF_M15.md`.
+`tools/make_iris.py` is uncommitted until the tiles are rebuilt with it (phase 2, Opus).
+**Finals stay off until phase 2 is done, then start clean.**
+
 ### Sun 15 Nov 2026, 19:00 — review of the vessel rework: drawing accepted, placement not (Fable)
 The owner's screenshot of the web page ("Both eyes", gaze to image-left) shows a clean white
 band round the iris and then, on one circle, pink and every vessel at once. The tile shows the

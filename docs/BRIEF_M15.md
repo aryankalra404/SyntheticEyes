@@ -140,3 +140,32 @@ Then stop and tell the owner the pack is ready for Fable. Say plainly what you a
 
 The iris pattern, the skin, the lids and lashes, the lights, the gaze engine, `scene.blend`
 geometry, the three videos themselves.
+
+## Fable's ruling on the phase 1 pack (15 Nov, 19:45) — phase 2 may start
+
+Accepted: stages A, B and C as built, `FORK_BOUND`, the separate generator for `dR`, and no
+change for stage D. Picked: `BLOOD = (0.12, 1.0, 0.95)`, `VESSEL_TAU` stays 3.3.
+
+One thing was not right and Fable changed it in `tools/make_iris.py` (uncommitted in the working
+tree, **commit it together with the rebuilt tiles**): the halved density left whole sides bare
+(tex_09 left eye at yaw −28 showed an empty white). Now:
+- `SIDE_FLOOR = {"tree": 2, "fine": 3}`: that many vessels are placed in each horizontal wedge
+  (nasal, temporal, ±34°) before the rest are drawn. Floor vessels take one of the two nearer
+  reach groups, floor trunks are at least 3.8 texels wide, floor fine vessels surface 0.06–0.14
+  UV from the limbus.
+- `FINE_SHARE` 0.15 → 0.20, trunks `max(8, veins // 5)`.
+- Arcades start 0.006 UV from the stop (was 0.012) and near vessels fade over their last 15 %
+  (was 30 %), so some blood reaches closer to the iris.
+- Visible almond, all nine sets, both eyes: 0.0460 (sd 0.0105), 0.73 of before; the emptiest
+  side of any eye is 0.008 (it was 0.003 and several near zero). Iris byte-identical.
+- Looked at in Cycles (`outputs/tmp/m15/cycles/fable/`): tex_09 at yaw −28, 0, +28, tex_03 at
+  +28, tex_04 at −28. A few thin vessels on every exposed white, no ring, no pink zone.
+
+Phase 2 as written above, with these additions:
+- Before step 1, regenerate tex_09 with `make_iris.py` and check it is byte-identical to
+  `outputs/tmp/m15/tiles/fable/tex_09/`.
+- In step 2, look hardest at the eye close-ups of the two sets whose side minimum is lowest
+  (`outputs/tmp/m15/tools/sides.py fable` prints them); if a visible white is bare, say so, do
+  not retune.
+- `pack/4b_web_botheyes_gy-30_band_1to1.png` was black; not needed again.
+- The flat whites in the web page stay as they are (out of scope, unscored).

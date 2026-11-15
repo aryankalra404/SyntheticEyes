@@ -1,7 +1,8 @@
 # SyntheticEyes — Samsung PRISM XR Hackathon 2026, Track 1
 
 Synthetic Eye Movement & Virtual Camera Rendering. Goal: win the track.
-**Final submission: Wed 18 Nov 2026, 11:59 PM IST. No extension.** Aim to submit by 8 PM.
+**Final submission: Sun 22 Nov 2026** (the owner's correction on 15 Nov; this file said Wed 18 Nov
+before). Check the time of day in the organisers' mail. Aim to submit a day early.
 
 Read `docs/REQUIREMENTS.md` before building anything and `docs/PROGRESS.md` before
 starting a session. Update `docs/PROGRESS.md` at the end of every session.
@@ -23,7 +24,9 @@ We also satisfy the older PDF spec (calibrated `eyes.move(h,v)`, 10 clockwise re
 
 ## Decisions already made (do not reopen without a reason written in PROGRESS.md)
 
-- **Blender only.** Unity and the Quest 3S are out of scope until after submission.
+- **Blender only for everything that is scored.** The owner reopened the Quest 3S on 15 Nov as an
+  unscored bonus demo (the head looking at the viewer in the headset). It lives outside the
+  bundle's required files and must not delay the finals, the packaging or the deck.
 - **Head model: Google GNM Head v3** (Apache-2.0). Not FLAME, not MakeHuman as the final mesh.
 - **Textures target GNM's UV layout**, shipped as UDIM tiles and as legacy per-region files.
 - **Skin source: MakeHuman CC0 skins**, transferred onto GNM UVs by baking. Eyebrows are baked

@@ -18,8 +18,26 @@ what the next session needs to know.
 ## Open questions
 
 - College and team name for the zip and deck (`CollegeName_TeamName`)
+- Quest 3S bonus demo: WebXR page or Unity app (Fable recommends WebXR; the owner decides)
+- Time of day of the 22 Nov deadline
 
 ## Log
+
+### Sun 15 Nov 2026, late afternoon — deadline is 22 Nov; Quest 3S reopened as a bonus (Fable)
+- The owner says the final submission is **Sun 22 Nov 2026**, not 18 Nov. `CLAUDE.md` updated.
+  Time of day not confirmed yet.
+- The owner accepted the motion and the roll-top frame ("all good") and is starting the three
+  finals by hand in Terminal (one command, `generate` then `left` then `right`, logs in
+  `outputs/tmp/finals/<input>.log`; a restart must add `--resume`, a plain rerun starts clean).
+  No final frame has been timed or rendered from a session.
+- The owner wants a bonus for an XR hackathon: this head in their Meta Quest 3S, looking at the
+  wearer and turning its head when they move. This reopens the "Blender only" decision; the
+  reason is the four extra days. It scores nothing on the rubric, so it stays outside the
+  bundle's required files and starts after the finals are rendering and the core is packaged.
+  Fable's recommendation, not decided: a WebXR page (three.js, head exported from Blender as
+  glTF with the eye bones and lid shape keys, a real-time port of the gaze rules) over a Unity
+  app, because it opens from a link in the Quest browser with passthrough, also runs on a
+  laptop for a jury without a headset, and a session can check it in a browser.
 
 ### Sun 15 Nov 2026, 14:30 — review of the M13 pack: accepted, `generate` cut to its beat (Fable)
 Reviewed from `outputs/tmp/m13/` (curves, draft sheets, preview split stills of both panes, lid

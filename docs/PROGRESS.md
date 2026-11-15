@@ -21,6 +21,59 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026 — M12 follow-up: ear relief and roughness for sets 01 to 08, trial only, waits for M11 stage 2 (Opus)
+The owner asked for the tex_09 ear relief and roughness (`detail_maps.py --ear-skin`, recipe key
+`"ear_skin": 1.0` in `detail`) on sets 01 to 08, to land after M11. **M11 stage 2 has not run**
+(its recipes for 01/05/06/08 brows and 02/03/05/06 irises are committed but `textures/` is the
+old build). So this is a trial only: nothing in `textures/`, `tools/` or the recipes changed. The
+key is NOT in the recipes yet, so M11's stage 2 build stays exactly what M11 reviewed.
+
+**Review: `outputs/tmp/m13/review_ears_1to1.png`** (bare head, plain material, subject's left ear
+at 1:1, before | after per set) and `outputs/tmp/m13/review.png` (the same shots, wider).
+Trial sets: `outputs/tmp/m13/sets/tex_NN`, built by `outputs/tmp/m13/trial.py` (patches the
+recipe in memory, `--skip-bake` on copies of the shipped raw bakes from `outputs/tmp/m2/sets`).
+- Seen: a fine-grained ear and less sheen (02 lobe, 06 helix, the rims of 01 and 08). It is a
+  modest change. The ears of 01, 02, 06 and 08 do not read coarser than their faces, though they
+  measure higher (below). What still limits these ears is the baked colour: 03's painted concha
+  shading, and the blurry lobes of 01 and 02 with a faint vertical line. The colour fix (`skin_fix`
+  key `ears`) was not tried on them.
+- Measured (ears group / cheek groups), mean normal tilt before -> after, cheek; roughness median
+  before -> after, cheek:
+
+| set | tilt | cheek tilt | rough | cheek rough |
+|---|---|---|---|---|
+| 01 | 1.90 -> 4.37 | 3.58 | 0.451 -> 0.502 | 0.549 |
+| 02 | 2.03 -> 4.42 | 3.51 | 0.478 -> 0.525 | 0.537 |
+| 03 | 1.95 -> 3.88 | 5.26 | 0.463 -> 0.510 | 0.549 |
+| 04 | 2.47 -> 4.49 | 5.27 | 0.490 -> 0.541 | 0.576 |
+| 05 | 1.76 -> 3.71 | 5.16 | 0.475 -> 0.522 | 0.584 |
+| 06 | 2.32 -> 4.37 | 3.50 | 0.482 -> 0.533 | 0.561 |
+| 07 | 1.91 -> 4.23 | 5.21 | 0.486 -> 0.533 | 0.545 |
+| 08 | 2.06 -> 4.30 | 3.58 | 0.478 -> 0.525 | 0.557 |
+
+- Difference masks, trial against shipped (`outputs/tmp/m12/diffcheck.py`,
+  `outputs/tmp/m13/spill.py`):
+  - Normal: 748k-757k texels changed per set, 36-56 just outside the ear zone, all within
+    1 texel.
+  - Roughness: about 179k texels changed, at most 4 outside the zone, within 1 texel.
+  - Albedo: the six light sets carry relief grain in their colour, so the albedo changes too
+    (88k-577k texels, max 12 levels). 0 to 194 texels outside the zone, all by 1 level and
+    within 18 texels of the zone. One exception: a single texel of 02 about 1,000 texels away,
+    off by 1, which is rounding.
+  - Eye tiles: 01, 04, 07, 08 byte-identical. 02, 03, 05, 06 differ only because the trial ran
+    on M11's new iris recipes.
+
+**To adopt, after M11 stage 2 has landed and no Blender render is running:**
+1. Add `"ear_skin": 1.0` to the `detail` dict of sets 01 to 08 in `tools/build_textures.py`.
+2. Run `python3 tools/build_textures.py --sets 01 02 03 04 05 06 07 08 --skip-bake`. It
+   rewrites skin maps, eye tiles (unchanged after M11), set.json (gains the flag), previews and
+   the sheet.
+3. Diff the new sets against the post-M11 `textures/` with `outputs/tmp/m12/diffcheck.py`:
+   only the ear zone may change.
+4. Rerender the stills with `python3 tools/render_stills.py --sets 01 ... 08` if their ears are
+   in frame (they are in tex_09's).
+5. No `scene.blend` rebuild is needed: the build reads only the hero set's skin.
+
 ### Sun 15 Nov 2026 — split face and eye video, --resume, previews of `right` and split `left` (Opus)
 **For the owner: `~/Downloads/syntheticeyes_drafts/right_preview_v2.mp4` (new motion, fixed face
 camera) and `left_split_preview.mp4` (face and eye side by side).** Both Cycles preview, 768 px

@@ -350,8 +350,16 @@ def iris_polar(rng, P, S, nt=420, nth=4096):
 
 # --------------------------------------------------------------------------- sclera
 
-BLOOD = np.array([0.15, 1.0, 0.80])     # absorbance of a blood column in linear R, G, B (green = 1)
+BLOOD = np.array([0.12, 1.0, 0.95])     # absorbance of a blood column in linear R, G, B (green = 1)
 VESSEL_TAU = 3.3                        # green optical depth through a vessel 6 texels wide
+FINE_START = 0.08                       # fine vessels surface at least this far (UV) out from the limbus
+FINE_SHARE = 0.20                       # fine vessels per S["veins"] (1.0 before M15)
+PINK = 0.25                             # weight of the corner pink wash
+TREE_DIV = 5                            # conjunctival trunks: max(10, S["veins"] // TREE_DIV) (3 before M15)
+SIDE_FLOOR = {"tree": 2, "fine": 3}     # vessels guaranteed in each horizontal wedge (nasal, temporal),
+                                        # so no eye turns to show a bare white
+FORK_BOUND = True                       # a fork never runs nearer the cornea than its parent
+SOFT_LIMBUS = True                      # wider iris/sclera blend and grey-blue band (M15 stage C)
 
 
 def draw_vessels(rng, size, count, eye_uv, side, kind):
@@ -376,6 +384,25 @@ def draw_vessels(rng, size, count, eye_uv, side, kind):
     max_depth = {"tree": 4, "fine": 2, "deep": 1}[kind]
     tort = {"tree": 1.0, "fine": 1.15, "deep": 0.35}[kind]
 
+    def reach(a, close=False):
+        """Where a vessel at UV angle a gives out, as a UV radius. Skewed, drawn per vessel and
+        per fork, so neighbours end at different distances and nothing lines up in a ring:
+        about a quarter run to within 0.4 mm of the limbus (and end in an arcade), most give
+        out 0.4-1.6 mm short, the rest 1.6-3.5 mm short. Away from the horizontal, where the
+        lids cover more, up to 1 mm further out. close: one of the first two groups (the
+        vessels of the floor, which must show in the open eye). Returns (radius, near)."""
+        u = rng.random() * (0.70 if close else 1.0)
+        if u < 0.25:
+            d, near = rng.uniform(0.004, 0.012), True
+        elif u < 0.70:
+            d, near = rng.uniform(0.012, 0.05), False
+        else:
+            d, near = rng.uniform(0.05, 0.11), False
+        return lim + d + 0.03 * (1 - abs(np.cos(a))) * rng.uniform(), near
+
+    def angle_of(p):
+        return np.arctan2(-(p[1] - centre[1]), p[0] - centre[0])
+
     def seg(p0, p1, w, alpha):
         if alpha <= 0.01:
             return
@@ -396,11 +423,18 @@ def draw_vessels(rng, size, count, eye_uv, side, kind):
         a = np.sqrt(np.clip(1 - (dist / rad) ** 2, 0, 1)) * tau      # chord through a round tube
         od[y0:y1, x0:x1] = np.maximum(od[y0:y1, x0:x1], a)
 
-    def grow(p, base, w, depth, bias, r_stop, life, root):
+    def grow(p, base, w, depth, bias, r_stop, life, root, near=False, arc=0):
         """One vessel from p (texels). base: its heading; bias: how far it splays off the radial
         (relaxes along the way, so a branch leaves at an angle and then turns toward the limbus);
-        life: longest length in texels; root: fade in (a vessel surfacing, not a fork)."""
+        life: longest length in texels; root: fade in (a vessel surfacing, not a fork).
+        near: it runs right up to the limbus and ends in an arcade: within 0.012 UV of its stop
+        it swings sideways along the limbus (bias to +-90 deg over its last 30-60 texels) and
+        forks once there, the fork running the other way, so it ends as a small sideways Y.
+        arc: this vessel is one arm of such a Y (+-1, the side it turns to)."""
         pts, ws = [p.copy()], [w]
+        swing = None                  # (target bias, texels to get there) once the arcade starts
+        if arc:
+            swing = (arc * np.pi / 2, max(life, 1.0))
         kids = []
         phase = rng.uniform(0, 2 * np.pi)
         thin = 1.0 / max(w, 0.8)
@@ -416,10 +450,21 @@ def draw_vessels(rng, size, count, eye_uv, side, kind):
         while w > 0.4 and travelled < life:
             v = centre - p
             r = np.hypot(v[0], v[1]) / size
-            if r <= r_stop or r > 0.72:
+            if (r <= r_stop and swing is None) or r <= lim + 0.003 or r > 0.72:
                 break
+            if near and swing is None and r - r_stop < 0.006:
+                side_ = rng.choice([-1, 1])
+                arc_len = rng.uniform(30, 60) * size / 2048
+                swing = (side_ * np.pi / 2, arc_len)
+                life = travelled + arc_len
+                cw = max(0.5, w * rng.uniform(0.55, 0.8))
+                kids.append((p.copy(), base - side_ * 0.9, cw, max_depth, -side_ * 0.6, lim + 0.003,
+                             rng.uniform(25, 50) * size / 2048, False, False, -side_))
             aim = np.arctan2(v[1], v[0]) + bias
-            bias *= 0.985
+            if swing is None:
+                bias *= 0.985
+            else:
+                bias += (swing[0] - bias) * min(1.0, 2.5 * step / swing[1])
             kappa = 0.85 * kappa + rng.normal(0, 0.012 * tort * (1 + 0.8 * thin))
             base += kappa + 0.10 * ((aim - base + np.pi) % (2 * np.pi) - np.pi)
             phase += 2 * np.pi * step / wavelen
@@ -434,19 +479,22 @@ def draw_vessels(rng, size, count, eye_uv, side, kind):
             travelled += step
             pts.append(p.copy())
             ws.append(w)
-            if depth < max_depth and run > next_fork and w > 0.7:
+            if depth < max_depth and run > next_fork and w > 0.7 and swing is None:
                 run = 0.0
                 next_fork = rng.uniform(40, 150) * (0.45 + 0.55 * min(w, 6.0) / 6.0) * size / 2048
                 turn = rng.choice([-1, 1]) * rng.uniform(0.4, 0.95)
                 cw = w * rng.uniform(0.45, 0.78)
                 w = (w ** 3 - cw ** 3) ** (1 / 3)                        # Murray's law
-                kids.append((p.copy(), h + turn, cw, depth + 1, 0.9 * turn,
-                             max(r_stop, lim + rng.uniform(0.006, 0.07)),
-                             rng.uniform(70, 260) * (0.4 + 0.6 * min(cw, 3.0) / 3.0) * size / 2048, False))
+                k_stop, k_near = reach(angle_of(p))
+                if FORK_BOUND and k_stop < r_stop:
+                    k_stop, k_near = r_stop, near
+                kids.append((p.copy(), h + turn, cw, depth + 1, 0.9 * turn, k_stop,
+                             rng.uniform(70, 260) * (0.4 + 0.6 * min(cw, 3.0) / 3.0) * size / 2048, False,
+                             k_near))
                 base -= 0.2 * turn
         n = len(pts)
         fill = rng.uniform(0.75, 1.0)
-        tail = max(4, int(0.3 * n))
+        tail = max(4, int((0.15 if near or arc else 0.3) * n))
         for i in range(n - 1):
             a = fill * min(1.0, (n - 1 - i) / tail)
             if root:
@@ -455,34 +503,70 @@ def draw_vessels(rng, size, count, eye_uv, side, kind):
         for k in kids:
             grow(*k)
 
-    def start(r, a, w, r_stop, life):
+    def start(r, a, w, r_stop, life, near=False):
         p = centre + size * r * np.array([np.cos(a), -np.sin(a)])
         v = centre - p
-        grow(p, np.arctan2(v[1], v[0]) + rng.normal(0, 0.25), w, 0, rng.normal(0, 0.12), r_stop, life, True)
+        grow(p, np.arctan2(v[1], v[0]) + rng.normal(0, 0.25), w, 0, rng.normal(0, 0.12), r_stop, life, True,
+             near)
 
     for i in range(count):
         if kind == "deep":
             a = (i % 4) * np.pi / 2 + rng.normal(0, 0.2)
             start(rng.uniform(0.36, 0.45), a, rng.uniform(4.5, 7.5), lim + rng.uniform(0.03, 0.08), 1e9)
             continue
-        while True:
-            a = rng.uniform(0, 2 * np.pi)
-            dn = np.cos(a - nasal)
-            if rng.random() < 0.12 + 0.88 * (np.abs(np.cos(a)) ** 3) * (0.65 + 0.35 * dn):
-                break
+        if kind != "deep" and i < 2 * SIDE_FLOOR[kind]:
+            # the floor: alternate nasal and temporal, spread over the wedge the lids leave open
+            a = nasal + (i % 2) * np.pi + rng.uniform(-0.6, 0.6)
+        else:
+            while True:
+                a = rng.uniform(0, 2 * np.pi)
+                dn = np.cos(a - nasal)
+                if rng.random() < 0.12 + 0.88 * (np.abs(np.cos(a)) ** 3) * (0.65 + 0.35 * dn):
+                    break
         horiz = np.abs(np.cos(a))
-        r_stop = lim + 0.004 + rng.uniform(0.0, 0.05) + 0.05 * (1 - horiz)
+        floor = i < 2 * SIDE_FLOOR[kind]
+        r_stop, near = reach(a, floor)
         if kind == "tree":
             # roots lie beyond the mapped sclera, so a trunk is already running where it comes into view
             w0 = (3.2 + 6.0 * rng.uniform() ** 1.8) * (0.6 + 0.4 * horiz)   # few wide, more narrow
-            start(rng.uniform(0.47, 0.52), a, w0, r_stop, 1e9)
+            if floor:
+                w0 = max(w0, 3.8)
+            start(rng.uniform(0.47, 0.52), a, w0, r_stop, 1e9, near)
         else:
-            start(lim + 0.05 + (0.46 - lim) * rng.uniform() ** 0.8, a, rng.uniform(1.2, 2.6), r_stop,
-                  rng.uniform(90, 300) * size / 2048)
+            # fine vessels surface well out, so the almond near the cornea stays mostly clear
+            r0 = lim + rng.uniform(0.06, 0.14) if floor else \
+                lim + FINE_START + (0.46 - lim - FINE_START) * rng.uniform() ** 0.8
+            start(r0, a, rng.uniform(1.2, 2.6), r_stop, rng.uniform(90, 300) * size / 2048, near)
     return od
 
 
-def sclera(rng, vrng, size, eye_uv, side, S, R, TH):
+def radius_warp(seed, side, size):
+    """Smooth 2D noise added to the radius that every sclera colour term reads, so no boundary
+    of pink, yellowing, rim tint or grey-blue band is a circle: two octaves (sigma 60 and 18
+    texels at 2048), +-0.025 UV in all. Its own generator, so the iris and the vessels stay
+    as they are."""
+    g = np.random.default_rng([seed, 1 if side == "L" else 2, 12])
+    k = size / 2048
+    lo = norm01(gaussian_filter(g.standard_normal((size, size)), 60 * k, mode="wrap"))
+    hi = norm01(gaussian_filter(g.standard_normal((size, size)), 18 * k, mode="wrap"))
+    d = 0.75 * lo + 0.25 * hi
+    return 0.025 * d / (np.abs(d).max() + 1e-9)
+
+
+def blood_depth(vrng, size, eye_uv, side, S, R):
+    """Green optical depth of the vessels as applied to the sclera: (conjunctival, deep)."""
+    lim = eye_uv["limbus"]
+    red = S["redness"]
+    fade = smoothstep(lim + 0.002, lim + 0.010, R)        # safety only: no blood on the iris
+    deep = gaussian_filter(draw_vessels(vrng, size, 8, eye_uv, side, "deep"), 4.0 * size / 2048)
+    tree = draw_vessels(vrng, size, max(8, S["veins"] // TREE_DIV), eye_uv, side, "tree")
+    fine = draw_vessels(vrng, size, int(round(S["veins"] * FINE_SHARE)), eye_uv, side, "fine")
+    tau = gaussian_filter(np.maximum(tree, fine), 0.75 * size / 2048)
+    tau = tau + 0.3 * gaussian_filter(tau, 5.0 * size / 2048)
+    return tau * fade * red, 0.28 * deep * fade * red
+
+
+def sclera(rng, vrng, size, eye_uv, side, S, R, TH, seed=0, vessels=True):
     lim = eye_uv["limbus"]
     nasal = np.pi if side == "L" else 0.0
     base = lin((206, 195, 183))
@@ -494,16 +578,19 @@ def sclera(rng, vrng, size, eye_uv, side, S, R, TH):
     w = rng.standard_normal((size, size))
     m = 0.6 * norm01(gaussian_filter(w, 24, mode="wrap")) + 0.4 * norm01(gaussian_filter(w, 6, mode="wrap"))
     col = base[None, None, :] * (1 + 0.022 * m)[..., None]
+    # the radius the colour terms read: warped, so none of their boundaries is a circle
+    Rw = R + radius_warp(seed, side, size)
 
     # warmer and yellower away from the cornea
-    col = lerp(col, yellow, 0.22 * smoothstep(lim + 0.05, 0.42, R))
+    col = lerp(col, yellow, 0.22 * smoothstep(lim + 0.05, 0.42, Rw))
 
-    # pink toward the corners (horizontal), nasal side strongest
+    # a light pink toward the corners (horizontal), nasal side strongest, in blotches. Most of
+    # the pink in the corners comes from the fine vessels, which are densest there.
     horiz = np.abs(np.cos(TH)) ** 3
     dn = 0.5 + 0.5 * np.cos(TH - nasal)
-    corner = horiz * (0.55 + 0.45 * dn) * smoothstep(lim + 0.0, 0.30, R)
-    corner = corner * (1 + 0.1 * m)
-    col = lerp(col, pink, np.clip(0.7 * corner * S["redness"], 0, 1))
+    blotch = np.clip(1.0 + 0.25 * norm01(gaussian_filter(w, 24, mode="wrap")), 0.5, 1.5)
+    corner = horiz * (0.55 + 0.45 * dn) * smoothstep(lim + 0.06, 0.38, Rw) * blotch
+    col = lerp(col, pink, np.clip(PINK * corner * S["redness"], 0, 1))
 
     # darker rim under the lids: beyond the rest-pose opening, ramped so gaze shifts reveal
     # a gradient, never an edge
@@ -512,26 +599,27 @@ def sclera(rng, vrng, size, eye_uv, side, S, R, TH):
     rad = np.array(lo["radius"] + [lo["radius"][0]])
     r_open = np.interp(TH % (2 * np.pi), ang, gaussian_filter(rad, 1.0, mode="wrap"))
     start = np.maximum(r_open, lim + 0.012)
-    under = smoothstep(start, start + 0.11, R) * smoothstep(lim, lim + 0.03, R)
+    under = smoothstep(start, start + 0.11, Rw) * smoothstep(lim, lim + 0.03, Rw)
     col = col * (1 - (1 - rim_tint) * (0.85 * under)[..., None])
 
     # vessels, on their own generator so the iris does not change when they do. They are blood
-    # seen through a clear membrane, so they absorb (mostly green and blue) instead of being
-    # painted on: wide ones come out dark crimson, twigs a pale orange-pink. The conjunctiva
-    # scatters a little, which softens every edge and leaves a faint flush beside the big ones.
-    red = S["redness"]
-    fade = smoothstep(lim + 0.004, lim + 0.04, R)                # vessels thin out at the limbus
-    deep = gaussian_filter(draw_vessels(vrng, size, 8, eye_uv, side, "deep"), 4.0 * size / 2048)
-    tree = draw_vessels(vrng, size, max(10, S["veins"] // 3), eye_uv, side, "tree")
-    fine = draw_vessels(vrng, size, S["veins"], eye_uv, side, "fine")
-    tau = gaussian_filter(np.maximum(tree, fine), 0.75 * size / 2048)
-    tau = tau + 0.3 * gaussian_filter(tau, 5.0 * size / 2048)
-    col = col * np.exp(-(tau * fade * red)[..., None] * BLOOD)
-    col = col * np.exp(-(0.28 * deep * fade * red)[..., None] * np.array([0.5, 1.0, 0.7]))
+    # seen through a clear membrane, so they absorb (green and blue) instead of being painted
+    # on: wide ones come out dark red, twigs a faint salmon. The conjunctiva scatters a little,
+    # which softens every edge and leaves a faint flush beside the big ones. How close each
+    # vessel gets to the cornea is its own (draw_vessels, reach); the fade here only keeps
+    # blood off the iris.
+    if vessels:
+        tau, deep = blood_depth(vrng, size, eye_uv, side, S, R)
+        col = col * np.exp(-tau[..., None] * BLOOD)
+        col = col * np.exp(-deep[..., None] * np.array([0.5, 1.0, 0.7]))
 
     # faint grey-blue band just outside the limbus
-    band = np.exp(-0.5 * ((R - (lim + 0.01)) / 0.008) ** 2)
-    col = lerp(col, lin((168, 170, 176)), 0.12 * band)
+    if SOFT_LIMBUS:
+        band = np.exp(-0.5 * ((Rw - (lim + 0.008)) / 0.012) ** 2)
+        col = lerp(col, lin((168, 170, 176)), 0.20 * band)
+    else:
+        band = np.exp(-0.5 * ((Rw - (lim + 0.01)) / 0.008) ** 2)
+        col = lerp(col, lin((168, 170, 176)), 0.12 * band)
     return col
 
 
@@ -555,9 +643,11 @@ def make_eye(color: str, seed: int, side: str, eye_uv: dict, size: int = 2048) -
     cols = TH / (2 * np.pi) * nth
     iris = np.stack([map_coordinates(pol[..., k], [rows, cols], order=1, mode="grid-wrap") for k in range(3)], -1)
 
-    scl = sclera(rng, np.random.default_rng([seed, 1 if side == "L" else 2, 11]), size, E, side, S, R, TH)
-    # iris -> sclera blend across the limbus (about 0.15 mm wide on the surface)
-    w_iris = 1 - smoothstep(rl - 0.002, rl + 0.006, R)
+    scl = sclera(rng, np.random.default_rng([seed, 1 if side == "L" else 2, 11]), size, E, side, S, R, TH,
+                 seed=seed)
+    # iris -> sclera blend across the limbus (about 0.5 mm wide on the surface; 0.25 mm before M15)
+    w_iris = (1 - smoothstep(rl - 0.004, rl + 0.012, R)) if SOFT_LIMBUS else \
+        (1 - smoothstep(rl - 0.002, rl + 0.006, R))
     col = lerp(scl, iris, w_iris)
 
     # limbal ring: a wide, soft shadow from 72 % of the limbus radius, darkest at the limbus,

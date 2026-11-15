@@ -133,7 +133,7 @@ What the bake alone gets wrong on a bare head, and where it is put right (14 Nov
   of the parotid and temple, a little redder at the rim and lobe. The ear gets its own fine
   furrows and small pores, and the cheek's roughness (0.54 instead of 0.49). The shared mask
   (`detail_maps.ear_weight`) feathers to 0 by about 13 mm past GNM's `ears` group. Sets 01 to
-  08 still have flat, glossy ears.
+  08 take the relief and roughness too (`ear_skin`), not the colour fill.
 - Padding outside the islands of the albedo is a push-pull fill (`tex_core.fill_smooth`); the
   normal and roughness maps keep a nearest-texel fill. Neither is ever sampled.
 
@@ -161,6 +161,16 @@ Work in polar coordinates around the tile centre, then warp to the disc.
   by UV radius 0.40 (toward the fornix)
 - The pupil is geometry (GNM's pupil coefficient), so keep the texture's pupil region dark
   and let the mesh set the size
+- `radial` options, brown and dark brown palettes only (M11, sets 02, 03, 05, 06): under the
+  judges' plain material the clear cornea lays a grey reflection over the whole eye, and the
+  browns went to flat grey-brown discs. Stroma contrast x1.3; a lighter warm zone round the
+  collarette (gaussian at 0.40 of the iris width, width 0.13, mix 0.4, following the fibres);
+  limbal colour weight 0.7 -> 0.95 and limbal brightness 0.45 -> 0.32; darker stroma out to 0.16
+  round the pupil (x0.65 at its edge). Palette colours warmer and more saturated. Every term is a
+  function of the radius and the fibre noise, never the angle (the tile turns with the eye), so
+  no highlight or one-sided shadow is painted in. Iris annulus linear luminance mean / sd:
+  dark brown 0.0137 / 0.0067 -> 0.0184 / 0.0121, brown 0.0305 / 0.0139 -> 0.0384 / 0.0232. Other
+  palettes are unchanged, byte for byte
 
 ## Shading recipe (Cycles)
 

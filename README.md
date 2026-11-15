@@ -203,19 +203,20 @@ The nine sets. The label, the skin source and the iris colour are in each set's 
 
 | Set | Label | Skin source | Iris |
 |---|---|---|---|
-| `tex_01` | young woman, light skin | MakeHuman `onlytheghosts_young_eurasian_female` | hazel |
-| `tex_02` | young woman, South Asian, medium brown skin | MakeHuman `cutoff3d_indian_female_skin` | dark brown |
-| `tex_03` | middle-aged man, Black | MakeHuman `mindfront_skin_male_african_middleage` | dark brown |
-| `tex_04` | old man, light skin, ash brows | MakeHuman `onlytheghosts_old_eurasian_male` | blue |
-| `tex_05` | young man, East Asian | MakeHuman `young_asian_male` | brown |
-| `tex_06` | old woman, Black, deep brown skin | MakeHuman `old_african_female` | brown |
-| `tex_07` | young man, light freckled skin, auburn brows | MakeHuman `toigo_light_skin_male_freckles` | green |
-| `tex_08` | middle-aged woman, light skin | MakeHuman `onlytheghosts_middle_aged_eurasian_female` | grey |
-| `tex_09` | man, light skin with stubble, photographed skin | Infinite head scan, colour map (CC BY 3.0) | hazel |
+| `tex_01` | young adult, light skin, brown brows, hazel eyes | MakeHuman `onlytheghosts_young_eurasian_female` | hazel |
+| `tex_02` | young adult, medium brown skin, dark brown brows, dark brown eyes | MakeHuman `cutoff3d_indian_female_skin` | dark brown |
+| `tex_03` | middle-aged, dark brown skin, black brows, dark brown eyes | MakeHuman `mindfront_skin_male_african_middleage` | dark brown |
+| `tex_04` | older adult, light skin, ash brows, blue eyes | MakeHuman `onlytheghosts_old_eurasian_male` | blue |
+| `tex_05` | young adult, light warm skin, black brows, brown eyes | MakeHuman `young_asian_male` | brown |
+| `tex_06` | older adult, deep brown skin, black brows, brown eyes | MakeHuman `old_african_female` | brown |
+| `tex_07` | young adult, light freckled skin, auburn brows, green eyes | MakeHuman `toigo_light_skin_male_freckles` | green |
+| `tex_08` | middle-aged, light skin, brown brows, grey eyes | MakeHuman `onlytheghosts_middle_aged_eurasian_female` | grey |
+| `tex_09` | adult, light skin with stubble, photographed skin, hazel eyes | Infinite head scan, colour map (CC BY 3.0) | hazel |
 
 Sets 01 to 08 take their skin colour from MakeHuman CC0 skins and have drawn eyebrows; `tex_09`
 takes its colour from the head scan, eyebrows included. All nine share the scan's pore-scale
-relief in the normal map. The stills in `outputs/stills/` show each set on its own GNM identity.
+relief in the normal map. Labels give age, skin tone, brows and iris only, no gender or ethnicity
+(the identity a set is paired with for its still is in `set.json`). The stills in `outputs/stills/` show each set on its own GNM identity.
 
 ### Putting a set on a bare GNM head
 

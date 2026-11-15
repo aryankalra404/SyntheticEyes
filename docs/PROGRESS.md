@@ -14,7 +14,7 @@ what the next session needs to know.
 | M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Waiting for the owner to watch the three drafts at speed; then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
-| M14 Quest 3S bonus (WebXR) | stages A to F built (Opus, 15 Nov): `xr/` page runs on the laptop, 14 node tests pass; review pack `outputs/tmp/m14/xr/`. **Waiting for Fable's review and the owner's first headset try**; not hosted |
+| M14 Quest 3S bonus (WebXR) | built by Opus and reviewed by Fable (15 Nov): works on the laptop, tests pass; **the headset path has never run on a device: the owner's test is next**; not hosted anywhere |
 
 ## Open questions
 
@@ -23,6 +23,31 @@ what the next session needs to know.
 - Time of day of the 22 Nov deadline
 
 ## Log
+
+### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
+Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,
+the step and walk curves), the node tests (14 pass), the unit tests (51 pass) and the live page
+in the browser pane (`http://localhost:8000/xr/`: the head follows the camera, no console
+messages). `scene.blend` md5 `d6e016e4…`, `wrapper/` and `textures/` untouched since the finals
+started; the finals are still rendering (`generate`, face pass, about 45 s a frame).
+
+- **Accepted as built**: export, page, rig port, lids without the guard (no bake needed),
+  lashes, the laptop mode with "mouse off the page is walking away", credits, sizes (13 MB).
+  It is the same man, flatter and paler than Cycles, with a hard nose shadow: fine for a bonus.
+- **Opus's own numbers in `LIVE`** (head goal rate 50 deg/s, 0.7 feed-forward, glances that do
+  not move the head, blink gap cap, the double blink of the greeting): accepted; each one is
+  explained by a failing seed.
+- **Changed by Fable**: the engine's roll (−0.20 per degree of head yaw) and dip were tuned on
+  6 deg turns. Live, the head held a 6 deg tilt at 28 deg of yaw and 12.6 deg at the 60 deg
+  limit, with a 3.9 deg nod on a fast turn. Both now level off (`roll_max` 3.0, `dip_max` 2.5,
+  a tanh): step path roll −5.9 → −3.2, dip −3.9 → −2.6; walk path roll −12.6 → −3.4; the still
+  path is unchanged to two decimals. 14 node tests pass. New dumps: `outputs/tmp/m14/xr/review/`.
+- **Not judged, because it cannot be from here**: anything in the headset (placement, scale,
+  passthrough, frame rate, lash flicker), and how the behaviour feels at speed. On the step
+  curve the head starts about 0.5 s after the wearer starts moving; if that feels slow in the
+  headset, lower `head_trigger` (12 deg) first.
+- For the owner's test: port 8000 is held by the Opus session's preview server, so start the
+  headset server with `python3 xr/serve.py --http-port 8001`. Hosting is still undecided.
 
 ### Sun 15 Nov 2026, night — M14 WebXR bust, stages A to F and the review pack (Opus)
 The finals were rendering throughout (`generate` first); nothing here touched `scene.blend`,

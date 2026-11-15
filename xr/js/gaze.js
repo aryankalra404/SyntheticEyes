@@ -56,12 +56,15 @@ export const LIVE = {
   head_track_stop: [3, 0.3],     // deg/s of the wearer, for s: the head stops tracking
   head_rate: 50,                 // deg/s: how fast the head's goal may move (a 60 deg step through
                                  // the 1.2 Hz follower alone peaks near 166 deg/s, a lurch)
-  recentre_rate: 20,
+  recentre_rate: 20,             // deg/s when it drifts back to centre after losing the wearer
   head_feedforward: 0.7,         // share of the goal's own speed fed to the follower: a moving
                                  // wearer is tracked with less lag (0 = the engine's plain follower)
-  head_ff_tau: 0.10,             // s, low-pass on that speed so a stopping goal does not jolt             // deg/s when it drifts back to centre after losing the wearer
+  head_ff_tau: 0.10,             // s, low-pass on that speed so a stopping goal does not jolt
   busy_pursuit: 5,               // deg/s: while the wearer moves faster, no face jumps or glances
   head_yaw: [-60, 60], head_pitch: [-20, 25],
+  roll_max: 3.0,                 // deg: the engine's roll per degree of yaw was tuned on 6 deg turns;
+                                 // unbounded it is a 12 deg tilt held at the 60 deg limit
+  dip_max: 2.5,                  // deg: same for the dip, a 4 deg nod on a fast 30 deg turn
   eye_yaw_max: 28, eye_up: 22, eye_down: 25,
   lost_range: 2.5,               // m
   lost_after: 2.0,               // s before the head gives up and recentres
@@ -491,8 +494,10 @@ function tick(s, v) {
   const ramp = clamp(t / 0.5, 0, 1);
   const sw = s.sway.map((f, i) => f(t) * P.head_sway_deg[i] * ramp);
   const hy = H.y + sw[0];
-  const hp = H.p - P.head_dip_gain * H.dipLP + sw[1];
-  const hr = P.head_roll_coupling * hy + sw[2];
+  // roll and dip follow the engine for small turns and level off for large ones
+  const soft = (x, m) => m * Math.tanh(x / m);
+  const hp = H.p - soft(P.head_dip_gain * H.dipLP, L.dip_max) + sw[1];
+  const hr = soft(P.head_roll_coupling * hy, L.roll_max) + sw[2];
   s.headOut = [hy, hp, hr];
 
   // -- blinks -----------------------------------------------------------------------------

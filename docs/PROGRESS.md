@@ -24,6 +24,27 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, night — M14 WebXR bust, stages A to F and the review pack (Opus)
+The finals were rendering throughout (`generate` first); nothing here touched `scene.blend`,
+`wrapper/` or `textures/` (scene.blend md5 `d6e016e4…` before and after every Blender run).
+Blender runs here only read the scene.
+
+**A. Export** (`tools/export_xr.py`)
+- `xr/assets/head.glb` 3.19 MB: `gnm_head` skinned to `neck` → `head` → `eye.L/R`, 21 named
+  morph targets with morph normals, TEXCOORD_0 = `UDIM` folded per face (u − floor of the
+  face's mean u), TEXCOORD_1 = `legacy`, one primitive per material slot named after it, all
+  weights 0, no animation, no modifier applied. Materials are flattened in memory so only their
+  names travel.
+- `xr/assets/rig.json`: axis map, eye centres, pupil centres, bone heads, the rig constants
+  imported from `wrapper/rig.py` and every `GazeParams` field from `wrapper/gaze/engine.py`
+  (imported, not copied), all in the glTF frame (Y up, the face looks along +Z).
+- Textures from `tex_09`: albedo 2048 JPEG 0.47 MB (rms error 1.5/255 against a box-filtered
+  original), normal 2048 PNG 6.31 MB, roughness 1024 0.18 MB, eyes 1024 0.10 + 0.11 MB:
+  7.2 MB together (budget 8). Tiles: 1002 = left eye (`eye_L.jpg`), 1004 = right.
+- Check **pass**: `--check` reloads `head.glb` in an empty Blender, 17 821 vertices (merged),
+  4 bones, 21 morph targets whose names match `rig.json`. The importer's icosphere bone shape
+  is not counted. `git status`: `scene.blend` unmodified.
+
 ### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
 - Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as
   M13 (Fable briefs, Opus builds, Fable reviews from `outputs/tmp/m14/`).

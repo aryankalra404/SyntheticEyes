@@ -14,7 +14,7 @@ what the next session needs to know.
 | M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Waiting for the owner to watch the three drafts at speed; then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
-| M14 Quest 3S bonus (WebXR) | brief written (`docs/BRIEF_M14.md`, 15 Nov), waiting for an Opus session; unscored, new files only (`xr/`, `tools/export_xr.py`) |
+| M14 Quest 3S bonus (WebXR) | stages A to F built (Opus, 15 Nov): `xr/` page runs on the laptop, 14 node tests pass; review pack `outputs/tmp/m14/xr/`. **Waiting for Fable's review and the owner's first headset try**; not hosted |
 
 ## Open questions
 
@@ -184,6 +184,47 @@ Blender runs here only read the scene.
 - Looked at: `F_lashes_strip.png` (cam_eyes: rest, gaze up 15, blink 0.66, 1.0: the lashes
   follow, no gaps, nothing through the lid), `F_bust_0.7m.png` (a soft lash line at headset
   distance), `F_face_vs_still.png`. Clean page load: no console messages.
+
+**6, 7. Server, README, credits**
+- `xr/serve.py`: HTTPS on 0.0.0.0:8443 with a self-signed certificate it makes with openssl
+  on first run (`xr/.certs/`, git-ignored, SAN = the LAN address, 127.0.0.1, localhost, the
+  host name, 30 days) plus plain HTTP on 127.0.0.1:8000 for the laptop and `adb reverse`.
+  Smoke-tested on other ports for a few seconds: page, glb (`model/gltf-binary`) and JS
+  (`text/javascript`) all 200 over both, then stopped. Nothing deployed anywhere.
+- `xr/README.md`: how to run it (Wi-Fi, USB), controls, files, the export command, debug URLs,
+  credits with the main README's wording for the Infinite scan. The page carries the same
+  credits line. three.js recorded in `docs/TECH_NOTES.md` under Assets.
+
+**Sizes** (`xr/` 13 MB, budget 25; no file over 10 MB): `head.glb` 5.43 MB,
+`skin_normal.png` 6.31 MB, `skin_albedo.jpg` 0.47, `skin_rough.jpg` 0.18, `eye_L.jpg` 0.10,
+`eye_R.jpg` 0.11, `rig.json` 3 KB (`xr/assets/` 12.6 MB); `vendor/three/` 0.94 MB.
+
+**Checks at the end**: `node --test` 14/14; `python3 -m unittest discover tests` 51 OK;
+`python3 tools/validate.py --blender …` 122 pass, **2 fail**: "README: no TODO left" (4 lines)
+and "AI_DISCLOSURE: no TODO left" (1 line). Both were failing before M14 (same two in this
+morning's `outputs/tmp/m14/validate.log`) and M14 touched neither file: they are the packaging
+TODOs (team and college name, demo link, licence, the videos line). `scene.blend` md5
+`d6e016e4…` unchanged; nothing under `wrapper/` or `textures/` changed.
+
+**Review pack**: `outputs/tmp/m14/xr/INDEX.txt` (`outputs/tmp/m14/` already held an earlier
+session's M11/M12 files, so the pack has its own folder).
+
+**Skipped, and why**
+- The headset itself: no device here. The XR path follows three's standard pattern and the
+  placement maths is checked with mock poses; the owner's test is the real check.
+- Blender renders of gaze ±20 / ±15 and the 40 deg head turn: none exist, and rendering them
+  would compete with the finals on the GPU. The page shots stand alone there.
+- The lid-key bake of C3: not needed (no poke-through seen; numbers above).
+- Vellus and grown brow hair: out of scope (brows are in the albedo). No hosting.
+- Left untracked: `.claude/launch.json` (the browser pane's dev server entry).
+
+**For the owner, in the headset** (full list in `xr/README.md`): run `python3 xr/serve.py`,
+open the printed `https://…:8443/xr/` in the Quest browser (or `adb reverse tcp:8000 tcp:8000`
+and `http://localhost:8000/xr/`), START XR, then: does it find me and stand at eye height; do
+the eyes arrive before the head when I step aside; does it lose me behind it and greet me when
+I come back; is anything clipping (eye through lids, lashes, neck cut) or flickering (lashes,
+lid edges, tear line, nose shadow); is the frame rate smooth; is it the same man as in the
+videos.
 
 ### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
 - Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as

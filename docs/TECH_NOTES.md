@@ -369,6 +369,7 @@ The `files2.makehumancommunity.org` mirror stalled twice mid-download; the
 `files.makehumancommunity.org` mirror worked.
 | Blender | renderer | GPL (tool only, not redistributed) |
 | blender-mcp (ahujasid) | dev iteration only | MIT |
+| three.js 0.185.1 (npm `three@0.185.1`, released 1 Jul 2026) | the WebXR bonus page (M14), vendored unmodified in `xr/vendor/three/` (two builds plus GLTFLoader, BufferGeometryUtils, SkeletonUtils, XRButton, ARButton, RoomEnvironment), its `LICENSE` beside it | MIT |
 
 Looked at and not used in the bundle:
 - GNM Head Importer add-on by Nathan Dickson (free; good for exploring the model, has an

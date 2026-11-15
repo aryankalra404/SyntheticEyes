@@ -21,6 +21,27 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, noon — review of M11 stage 1 and the ear trial on 01 to 08 (Fable)
+Looked at `outputs/tmp/m11/review.png` (all rows), `outputs/tmp/m11/outlines.png` and
+`outputs/tmp/m13/review_ears_1to1.png`. Nothing built or changed here; stage 2 is one Opus job.
+
+| item | verdict |
+|---|---|
+| Labels without gender or ethnicity | adopt as listed |
+| 01 brows, outline 12 | adopt. Reads as hair at 1:1 and as a brow from the front; the pencil arc is gone |
+| 08 brows, outline 14 | adopt |
+| 05 brows, softer | adopt. The hard painted edge is gone and they stay black |
+| 06 brows, darker on outline 01 | adopt as the fallback. It is still the thin arc, and at 1:1 a near-solid stroke. Stage 2 tries outline 06 (676 mm2) once, with the darker colour, and keeps whichever shows single hairs in the body at 1:1 |
+| Brown irises 02, 03, 05, 06 | adopt. Warm ring and darker rim show on the bare head, nothing directional, no glow in the lit eyes of 03 and 05 |
+| 3D brow hair for `--texture 01 / 08` | option (a): carry every outline a set now uses into `scene.blend`, rebuild, check the hero frame did not move |
+| Ear relief and roughness on 01 to 08 (`ear_skin`) | adopt in the same build. Modest but in the right direction; ear colour of 01 to 08 is left alone |
+
+Still reads as CG on the bare head, not fixable in a texture: the grey veil and grey pupil are
+the judges' plain cornea reflecting the world, the same for every team. 03's ear keeps the
+painted shading of its MakeHuman skin.
+
+**Order that matters**: stage 2 rebuilds `scene.blend`, so the final videos start only after it.
+
 ### Sun 15 Nov 2026 — M12 follow-up: ear relief and roughness for sets 01 to 08, trial only, waits for M11 stage 2 (Opus)
 The owner asked for the tex_09 ear relief and roughness (`detail_maps.py --ear-skin`, recipe key
 `"ear_skin": 1.0` in `detail`) on sets 01 to 08, to land after M11. **M11 stage 2 has not run**

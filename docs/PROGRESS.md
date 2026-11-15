@@ -21,6 +21,60 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026 — split face and eye video, --resume, previews of `right` and split `left` (Opus)
+**For the owner: `~/Downloads/syntheticeyes_drafts/right_preview_v2.mp4` (new motion, fixed face
+camera) and `left_split_preview.mp4` (face and eye side by side).** Both Cycles preview, 768 px
+per pane brought to 1024, 32 spp.
+
+Code (`wrapper/eyes.py`; `scene.blend`, `build_scene.py`, `wrapper/gaze/`, textures untouched):
+- `--camera split` (videos only): two passes over the same baked Timeline, `cam_video` into
+  `outputs/frames/<input>/face/` and `cam_move_eye` (subject's left eye, 15 cm, on the head bone,
+  `eye` look, focus 0.15 m f/45, as saved in the scene) into `.../eye/`; each pane brought to
+  1024x1024 and joined into one 2048x1024 frame in `.../video/`, no divider or text. `--frames`
+  with split writes `face_####`, `eye_####` and the joined `####.png` to `.../split_stills/`.
+  Rejected for stills like `move`. `encode_mp4` unchanged (takes the size from the first frame).
+- `--resume` (videos only): keeps `outputs/frames/<input>/`, deletes the newest PNG in each pane
+  folder, renders with `use_overwrite = False` so Blender skips existing frames, rebuilds
+  `video/` and the MP4. Without it a run deletes the folder as before. The pass log now says how
+  many frames were rendered and how many kept, and s/frame counts only the rendered ones.
+- Default behaviour unchanged: `--input X` without `--camera` films `cam_video` alone at 1024.
+- README flag table and the module docstring cover both flags.
+
+Checked:
+- Resume: draft split `--limit 20` killed with 20 face and 6 eye frames on disk; rerun with
+  `--resume` dropped face 0020 and eye 0006, re-rendered 1 face and 15 eye frames, left 19 + 5
+  frames with their original modification time, 20/20/20 frames, 2048x1024 MP4 encoded.
+- Draft `left` split, `--limit 60`, frames 1, 34, 45, 60 plus split stills 84 and 86: both panes
+  show the same instant (mid-saccade at 34, head turned at 45 and 60, eye open at 84 and shut at
+  86 in both), the eye stays framed through the head turn, nothing cropped or stretched.
+- The preview `left` split: 12-frame sheet and frames 123 and 172 at true aspect: same as the draft.
+- The preview `right`: 12-frame sheet; glance to image-right with the head taking about half,
+  hold, back to the viewer by frame 172, face in frame throughout.
+- `tools/validate.py` only checks video duration and size, never width: no change needed;
+  `left.mp4` (2048 wide) passes. Unit tests 46 OK; validate fails only the two known TODO checks.
+
+**`right` in the eye pane:** `cam_move_eye` sits 24 deg to the nose side and in `right` this eye
+turns toward the temple. Largest eye-in-head angle with the lids open is frame 35 (eye yaw
+23.7 deg, head 0.9 deg); largest total gaze is frame 122 (29.8 deg, 15.3 in the head). Cycles
+preview stills of both (`outputs/frames/right/split_stills/`): the iris still reads. At frame
+35 it is foreshortened into the outer corner, all of it visible, its edge touching the lower
+lash line, with the pupil, iris fibres and corneal highlight clear and a wide wedge of sclera
+on the nose side. Frame 122 is easier. Camera not changed.
+
+Timings (Cycles Metal, preview 768 px, 32 spp, 270 frames):
+| run | pane | s/frame |
+|---|---|---|
+| `right` | face (`cam_video`) | 9.62 |
+| `left` split | face (`cam_video`) | 11.07 |
+| `left` split | eye (`cam_move_eye`) | 13.01 |
+The `left` split preview took 6580 s (1 h 50 min) in all. Final-quality estimate, scaling by
+pixels (x1.78) and samples (x2 to 64 spp): about 39 s/frame for the face pane and 46 s/frame
+for the eye pane, so a split final of one 9 s video is about 6.4 h at 64 spp (twice that at the
+scene's 128). Estimate only; no final was rendered.
+
+Not done: no final-quality render; `generate` not filmed in split; nothing pushed.
+`outputs/videos/left.mp4` is now the split preview and `right.mp4` the new preview.
+
 ### Sun 15 Nov 2026 — M12: the ear of tex_09, trial built and reviewed, NOT adopted (Opus)
 **Review sheet: `outputs/tmp/m12/review.png`.** Row a: bare head, plain material, the
 subject's left ear before | after, plus a 2x zoom. Row b: lit scene, `--input left` frames 110

@@ -14,14 +14,33 @@ what the next session needs to know.
 | M4 Motion | **M13 motion rework reviewed and accepted by Fable (15 Nov); `generate` trimmed to 8.3 s. The owner chose the one-eye pane (`--pane eye`, now the default). Waiting for the owner to watch the three drafts at speed; then finals.** Split video: fixed face camera on the left, `--pane` on the right. **Final videos not rendered** |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
+| M14 Quest 3S bonus (WebXR) | brief written (`docs/BRIEF_M14.md`, 15 Nov), waiting for an Opus session; unscored, new files only (`xr/`, `tools/export_xr.py`) |
 
 ## Open questions
 
 - College and team name for the zip and deck (`CollegeName_TeamName`)
-- Quest 3S bonus demo: WebXR page or Unity app (Fable recommends WebXR; the owner decides)
+- Quest 3S bonus demo: whether and where to host it on a public link (after the M14 review)
 - Time of day of the 22 Nov deadline
 
 ## Log
+
+### Sun 15 Nov 2026, evening — the owner chose WebXR for the Quest bonus; brief for Opus written (Fable)
+- Decision: a WebXR page (three.js), not a Unity app. Brief: `docs/BRIEF_M14.md`, same split as
+  M13 (Fable briefs, Opus builds, Fable reviews from `outputs/tmp/m14/`).
+- **The finals are rendering in the owner's Terminal** (started this afternoon, `generate`
+  first). Each input is a fresh Blender start that reads `scene.blend` and `wrapper/`, so
+  nothing may change those, or `textures/`, until `outputs/videos/` holds the three finals.
+  The brief says so and M14 only adds files.
+- Facts the brief rests on, read from `scene.blend`: the eyeballs are part of `gnm_head` (slots
+  `eye_interior.*`, `cornea.*`, skinned to `eye.L/R`); 17 821 vertices, 21 shape keys; lid skin
+  is kept off the globe by two shrinkwrap modifiers that a glTF export loses, so the brief has
+  a lid check without the guard and a fallback (bake the guard into each key); hair is
+  geometry-nodes curves on point carriers, so lashes need their own export.
+- What Fable specified and nobody has built or seen yet: the real-time gaze rules (three face
+  points, glances away, eyes lead and the head follows past 12 deg, lost and greeted again) and
+  their five node tests. Expect the numbers to need a pass once it is seen moving.
+- Not decided: hosting on a public link. The brief forbids deploying; the headset test runs
+  from a local HTTPS server on the Mac.
 
 ### Sun 15 Nov 2026, late afternoon — deadline is 22 Nov; Quest 3S reopened as a bonus (Fable)
 - The owner says the final submission is **Sun 22 Nov 2026**, not 18 Nov. `CLAUDE.md` updated.

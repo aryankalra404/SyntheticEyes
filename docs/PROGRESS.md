@@ -67,6 +67,11 @@ comes 4–7 deg back toward the nose (eye ~12–14 deg), the third goes 1.5–3.
 (eye 19–22 deg). So "16–20 for 2 s" holds in total, not in one stretch, and the third fixation
 can exceed 20. Untouched because A1 says everything else in `_glance` stays.
 Curves: `outputs/tmp/m13/{left,right,generate}_curves.png`, looked at.
+Fixed later the same session, found while picking the review frames: the low hold was timed
+from the drop's onset, but the slow blink lasts ~0.53 s, so the eyes reopened as they left for
+the viewer and the lowered gaze was never seen open. The hold now counts from the slow blink
+being 85 % open: low and open 0.43–0.49 s (seeds 0–7); the roll, launch to back at the viewer,
+is 1.59–1.70 s (brief 1.3–1.6: over by up to 0.1 s, the price of a visible hold).
 
 **Stage B, right pane** (`wrapper/eyes.py`, README). Done.
 - `--pane eyes|eye` (default `eyes`) picks the second pass of `--camera split`: `eyes` is

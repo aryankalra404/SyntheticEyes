@@ -92,13 +92,16 @@ def generate(seed=0):
     # The engine holds a saccade min_isi after a sweep, so the drop starts there.
     t_down = t_sweep + d_sweep + GazeParams().min_isi
     ev.append(Look(t_down, -A * u(4.0, 8.0), -u(12.0, 15.0), dist=0.40, blink=False, head=0.15))
-    t_slow = t_down - 0.03
-    ev.append(Blink(t_slow, slow=u(1.8, 2.2)))
+    t_slow, slow = t_down - 0.03, u(1.8, 2.2)
+    ev.append(Blink(t_slow, slow=slow))
 
-    # 5. hold low, then back to the viewer; a flick between the viewer's eyes and back; a soft
-    # closing blink at least 1.3 s after the slow one
+    # 5. hold low with the lids open (counted from when the slow blink is 85 % open again, so
+    # the lowered gaze is seen), then back to the viewer; a flick between the viewer's eyes and
+    # back; a soft closing blink at least 1.3 s after the slow one
+    p = GazeParams()
+    opened = t_slow + 0.85 * slow * (p.blink_close + p.blink_hold + p.blink_open)
     duration = round(u(10.0, 11.5), 1)
-    t_view = t_down + u(0.45, 0.60)
+    t_view = opened + u(0.35, 0.5)
     ev.append(Look(t_view, 0.0, 0.0, dist=CAMERA, blink=False))
     t_close = max(duration - u(1.2, 1.5), t_slow + 1.4)
     t_flick = t_view + (t_close - t_view) * u(0.30, 0.45)

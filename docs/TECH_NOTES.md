@@ -370,6 +370,7 @@ The `files2.makehumancommunity.org` mirror stalled twice mid-download; the
 | Blender | renderer | GPL (tool only, not redistributed) |
 | blender-mcp (ahujasid) | dev iteration only | MIT |
 | three.js 0.185.1 (npm `three@0.185.1`, released 1 Jul 2026) | the WebXR bonus page (M14), vendored unmodified in `xr/vendor/three/` (two builds plus GLTFLoader, BufferGeometryUtils, SkeletonUtils, XRButton, ARButton, RoomEnvironment), its `LICENSE` beside it | MIT |
+| MediaPipe BlazeFace short-range face detector (`blaze_face_short_range.tflite`, float16 v1, storage.googleapis.com/mediapipe-models, sha256 `b4578f35…`) and MediaPipe tasks-vision 1.1.1 (npm, 14 Oct 2026) | the WebXR page's *Follow: You (camera)* mode: the model ships as `xr/assets/face_detector.tflite` (230 KB); the runtime (13 MB wasm) is loaded from jsDelivr at the pinned version only when that mode is picked, not vendored | Apache-2.0 |
 
 Looked at and not used in the bundle:
 - GNM Head Importer add-on by Nathan Dickson (free; good for exploring the model, has an

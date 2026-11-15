@@ -55,6 +55,19 @@ Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept r
   (head −22 deg, eyes −17 deg) and the riding camera cancelled it. Looked at in the browser pane at
   1280x800 and 375x812, no console messages, 14 node tests pass. A frame-rate pass was
   asked about and set aside: the owner wants no quality reduced.
+- **Follow: You (camera)**, on the owner's ask. *Follow* is now Mouse / You (camera) / Off.
+  `xr/js/facefollow.js`: MediaPipe BlazeFace short range (`xr/assets/face_detector.tflite`,
+  230 KB, Apache-2.0) on the webcam, CPU delegate, one detection per camera frame; the eye
+  keypoints give the direction and, against a 63 mm pupil distance and a 60 deg camera, the
+  distance; smoothed (0.12 s). The tasks-vision 1.1.1 runtime (13 MB of wasm) loads from
+  jsDelivr only when the mode is picked. The first sighting is the centre; lean x2.5 to the
+  orbit (10 cm at 55 cm = 26 deg), lean in brings it closer, no face for 1 s is walking away.
+  The close-ups steer the gaze with it as with the mouse. Checked: the detector finds the
+  rendered bust's face (score 0.96, eyes symmetric), the mapping with scripted positions (right
+  +26, left -26, up and down ±16, 40 cm -> 0.51 m, gone -> not present, back -> present), and a
+  blocked camera falls back to Mouse with the reason shown. **Not tried with a real webcam**
+  (the browser pane blocks cameras). MediaPipe logs one "INFO: Created TensorFlow Lite XNNPACK
+  delegate" line at error level when the mode starts; it is harmless.
 
 ### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
 Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,

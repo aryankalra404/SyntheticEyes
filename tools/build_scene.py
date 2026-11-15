@@ -309,7 +309,9 @@ def build_shape_keys(ob, deltas, base):
     ob.shape_key_add(name="Basis", from_mix=False)
     for k, delta in deltas.items():
         sk = ob.shape_key_add(name=k, from_mix=False)
-        sk.slider_min = -3.0 if k == "pupil" else 0.0
+        # pupil goes both ways; brow_up dips below 0 with a blink (wrapper/rig.py); carriers
+        # copy these limits from the head
+        sk.slider_min = -3.0 if k == "pupil" else -0.5 if k.startswith("brow_up") else 0.0
         sk.slider_max = 3.0 if k == "pupil" else 1.5
         co = base + to_blender(delta)
         sk.data.foreach_set("co", co.astype(np.float32).ravel())

@@ -126,6 +126,16 @@ revert its commit, re-run `python3 tools/solve_lids.py` and rebuild.
 Pairs: `outputs/tmp/m13/lids/{yaw_-30,yaw_+30}_before_after.png` and the zoom above; the
 baseline and the new check are `outputs/tmp/m13/lid_check_{before,after}.json`.
 
+**Stage D, blink detail** (`wrapper/rig.py`, `tools/build_scene.py`). Done.
+- `brow_up.S = brow_S − 0.08 · b` (`BLINK_BROW_DIP`). `brow_up.*` keys get `slider_min −0.5`
+  in `build_shape_keys`; every carrier copies its limits from the head (checked in the built
+  scene: head, lashes, vellus, brows_grown, six brow-hair carriers and both tear lines at −0.5).
+  At blink 1 the head key and the carriers' driven key both read −0.08.
+- Brow drop: the `brow_up.L` key moves the brow at most 3.14 mm at 1.0, so the dip peaks at
+  0.25 mm at a full blink (target < 1 mm): pass. Blink 0.66 strip without and with the dip
+  (`outputs/tmp/m13/blink_D/blink_0.66_noDip_vs_dip.png`), looked at: a hair lower, no step on
+  the forehead: pass. Strips at 0.33 / 0.66 / 1.00 in `outputs/tmp/m13/blink_D/`. Tests 51 OK.
+
 ### Sun 15 Nov 2026, afternoon — the owner rejected the motion in the previews; drafts and both reference videos watched as motion (Fable)
 The owner watched `left_split_preview`, `right_preview_v2` and `generate_preview_v2` and said the
 animation is not realistic. No code changed in this session; this is the diagnosis and the plan

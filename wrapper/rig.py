@@ -27,6 +27,7 @@ LID_DOWN_FULL = 25.0       # deg of eye pitch for lid_down = 1
 LID_SIDE_FULL = 25.0       # deg of eye yaw toward the nose / temple for lid_in / lid_out = 1
 LID_FOLLOW_MAX = 1.2
 WIDEN_GAIN = 0.25
+BLINK_BROW_DIP = 0.08      # brow_up drops by this much at a full blink
 SIDES = ("L", "R")
 
 
@@ -127,7 +128,8 @@ class Rig:
                 vals[f"blink.{s}"] = max(0.0, 1.0 - abs(b - 1.0) / (1 / 3))
             else:
                 vals[f"blink.{s}"] = b
-            vals[f"brow_up.{s}"] = ch.get(f"brow_{s}", 0.0)
+            # the brow dips a little with a blink (brow_up keys go to -0.5 in build_scene.py)
+            vals[f"brow_up.{s}"] = ch.get(f"brow_{s}", 0.0) - BLINK_BROW_DIP * b
             # squint lowers the upper margin too; left on through a blink it pushes the closed
             # upper lid 1.4 mm past the lower one at squint 0.3, so it fades with the blink
             vals[f"squint.{s}"] = ch.get("squint", 0.0) * (1.0 - b)

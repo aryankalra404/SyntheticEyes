@@ -1,6 +1,6 @@
 {
  "set": "tex_05",
- "label": "young man, East Asian, brown eyes",
+ "label": "young adult, light warm skin, black brows, brown eyes",
  "skin": {
   "source": "assets/third_party/makehuman/makehuman_system_assets/skins/young_asian_male",
   "licence": "CC0 (MakeHuman)"
@@ -9,14 +9,14 @@
   "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_08",
   "licence": "CC0 (MakeHuman)",
   "color_linear": [
-   0.014,
-   0.011,
+   0.016,
+   0.012,
    0.009
   ],
-  "opacity": 0.85,
-  "width_mm": 0.12,
-  "density": 1.5,
-  "shadow": 0.35,
+  "opacity": 0.72,
+  "width_mm": 0.11,
+  "density": 1.4,
+  "shadow": 0.2,
   "seed": 5
  },
  "micro_relief": {
@@ -60,7 +60,8 @@
   "flags": {
    "pore_strength": 1.1,
    "freckles": 0.5,
-   "pore_tint": 0.6
+   "pore_tint": 0.6,
+   "ear_skin": 1.0
   }
  },
  "gnm_identity": {

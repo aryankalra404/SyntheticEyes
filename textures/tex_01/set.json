@@ -1,12 +1,12 @@
 {
  "set": "tex_01",
- "label": "young woman, light skin, hazel eyes",
+ "label": "young adult, light skin, brown brows, hazel eyes",
  "skin": {
   "source": "assets/third_party/makehuman/skins01/skins/onlytheghosts_young_eurasian_female",
   "licence": "CC0 (MakeHuman)"
  },
  "eyebrows": {
-  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_01",
+  "source": "assets/third_party/makehuman/eyebrows01/eyebrows/mindfront_eyebrows_12",
   "licence": "CC0 (MakeHuman)",
   "color_linear": [
    0.06,
@@ -59,7 +59,8 @@
   "seed": 1,
   "flags": {
    "pore_tint": 0.6,
-   "stubble": 0.3
+   "stubble": 0.3,
+   "ear_skin": 1.0
   }
  },
  "gnm_identity": {

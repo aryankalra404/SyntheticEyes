@@ -1,6 +1,6 @@
 {
  "set": "tex_07",
- "label": "young man, light freckled skin, auburn brows, green eyes",
+ "label": "young adult, light freckled skin, auburn brows, green eyes",
  "skin": {
   "source": "assets/third_party/makehuman/skins02/skins/toigo_light_skin_male_freckles",
   "licence": "CC0 (MakeHuman)"
@@ -59,7 +59,8 @@
   "seed": 7,
   "flags": {
    "freckles": 1.6,
-   "pore_tint": 0.6
+   "pore_tint": 0.6,
+   "ear_skin": 1.0
   }
  },
  "gnm_identity": {

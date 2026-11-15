@@ -1,6 +1,6 @@
 {
  "set": "tex_09",
- "label": "man, light skin with stubble, photographed skin, hazel eyes",
+ "label": "adult, light skin with stubble, photographed skin, hazel eyes",
  "skin": {
   "source": "Infinite, 3D Head Scan by Lee Perry-Smith, based on a work at www.triplegangers.com (colour map)",
   "licence": "CC BY 3.0"
@@ -39,7 +39,9 @@
   }
  },
  "tone": null,
- "skin_fix": null,
+ "skin_fix": {
+  "ears": 1.0
+ },
  "detail_maps": {
   "seed": 9,
   "flags": {
@@ -49,8 +51,10 @@
    "moles": 0,
    "veins": 0,
    "pore_tint": 0,
+   "grain": 0,
    "variation": 0,
-   "scan_brows": true
+   "scan_brows": true,
+   "ear_skin": 1.0
   }
  },
  "gnm_identity": {

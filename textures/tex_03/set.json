@@ -1,6 +1,6 @@
 {
  "set": "tex_03",
- "label": "middle-aged man, Black, dark brown eyes",
+ "label": "middle-aged, dark brown skin, black brows, dark brown eyes",
  "skin": {
   "source": "assets/third_party/makehuman/skins02/skins/mindfront_skin_male_african_middleage",
   "licence": "CC0 (MakeHuman)"
@@ -62,7 +62,8 @@
    "pore_strength": 1.15,
    "lid_lines": 1.3,
    "micro_strength": 1.15,
-   "grain": 0
+   "grain": 0,
+   "ear_skin": 1.0
   }
  },
  "gnm_identity": {

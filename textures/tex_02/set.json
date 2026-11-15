@@ -1,6 +1,6 @@
 {
  "set": "tex_02",
- "label": "young woman, South Asian, medium brown skin, dark brown eyes",
+ "label": "young adult, medium brown skin, dark brown brows, dark brown eyes",
  "skin": {
   "source": "assets/third_party/makehuman/skins01/skins/cutoff3d_indian_female_skin",
   "licence": "CC0 (MakeHuman)"
@@ -64,7 +64,8 @@
   "flags": {
    "redness": 0.8,
    "pore_tint": 0.6,
-   "stubble": 0.3
+   "stubble": 0.3,
+   "ear_skin": 1.0
   }
  },
  "gnm_identity": {

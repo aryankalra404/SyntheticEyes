@@ -126,6 +126,14 @@ What the bake alone gets wrong on a bare head, and where it is put right (14 Nov
   of the albedo itself only darkens the specks; there is nothing finer in it to amplify.
 - **Stubble relief** (`stubble`): the scanned relief is a man's, coarse with follicles from
   under the nose down. Sets made as women's skin keep 0.3 of it there.
+- **Ears of `tex_09`** (15 Nov, M12; `skin_fix.py` key `ears`, `detail_maps.py --ear-skin`,
+  only set 09 turns them on): the scan does not register on the ears, so the baked colour was
+  a smooth yellow-orange smear and the scan relief is blocked there. The ear's tone at 3 mm and
+  coarser is filled harmonically from the skin around it. Deeper in, the hue moves to the median
+  of the parotid and temple, a little redder at the rim and lobe. The ear gets its own fine
+  furrows and small pores, and the cheek's roughness (0.54 instead of 0.49). The shared mask
+  (`detail_maps.ear_weight`) feathers to 0 by about 13 mm past GNM's `ears` group. Sets 01 to
+  08 still have flat, glossy ears.
 - Padding outside the islands of the albedo is a push-pull fill (`tex_core.fill_smooth`); the
   normal and roughness maps keep a nearest-texel fill. Neither is ever sampled.
 

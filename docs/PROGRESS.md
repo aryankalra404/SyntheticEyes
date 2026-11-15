@@ -75,15 +75,34 @@ scene's 128). Estimate only; no final was rendered.
 Not done: no final-quality render; `generate` not filmed in split; nothing pushed.
 `outputs/videos/left.mp4` is now the split preview and `right.mp4` the new preview.
 
-### Sun 15 Nov 2026 — M12: the ear of tex_09, trial built and reviewed, NOT adopted (Opus)
+### Sun 15 Nov 2026 — M12: the ear of tex_09, trial built, reviewed and adopted (Opus)
 **Review sheet: `outputs/tmp/m12/review.png`.** Row a: bare head, plain material, the
 subject's left ear before | after, plus a 2x zoom. Row b: lit scene, `--input left` frames 110
 and 150, 64 spp, CPU, ear cropped at 1:1, before | after. Row c: tex_01 and tex_03 as shipped.
 Trial set: `outputs/tmp/m12/sets/tex_09/`; its intermediates are in `outputs/tmp/m12/work/`.
 
-**Not adopted: a video render (`--input generate --quality preview`, another session) was running
-the whole time**, so per the brief nothing was copied into `textures/` and `scene.blend` was not
-rebuilt. `textures/` is byte-identical to `outputs/tmp/m12/md5_before.txt`.
+**Adopted later the same day, once no Blender render was running** (the trial waited out another
+session's `--input generate --quality preview` render):
+- `textures/` matched `md5_before.txt` before the copy. After it, `diffcheck.py` gives 0 changed
+  texels against the trial, and the md5 diff shows only the 4 tex_09 skin files (normal
+  `2eeab7cd…`, rough `611b3ee6…`, albedo and `legacy/skin.png` `59ca7a6e…`). `set.json` is
+  untouched.
+- `scene.blend` rebuilt (solve_lids + build_scene, `id_male_white_9`): `lids.npz` is unchanged
+  (`7d45359c…`) and `scene.blend` is now `e29eddb9…`. Every object's vertex and point positions
+  (head, brows grown and carried, lashes, vellus, tear lines, guards) hash the same as before
+  (`outputs/tmp/m12/geomhash.py`), so the brows did not move. **The three videos show the
+  old ear until they are rerendered from this scene.**
+- `preview.png` and `outputs/stills/texture_sheet.png` rerendered. Changes are in the ears
+  only: 5,902 px in the front view, 17,187 px in the three-quarter view, inside the ear's
+  bounding box.
+- `outputs/stills/tex_09.png`: both ears are in frame, so it was rerendered
+  (`render_stills.py --sets 09`, which also rebuilt `outputs/tmp/m3/scenes/male_white_9.blend`
+  because a dependency was newer). 34,622 px changed by more than 2, all in the ear columns
+  (x < 120 or x ≥ 900). The face between is max 1. Ear crops before | after:
+  `outputs/tmp/m12/cmp_still_ears.png`. The eye still changed by at most 1 (noise), so the
+  committed one was restored, and `eye/sheet.png` was rebuilt with `--sheet-only`.
+- Before | after previews: `outputs/tmp/m12/cmp_front.png`, `cmp_tq.png`. Old copies are in
+  `outputs/tmp/m12/prev_before/`.
 
 Code (committed, gated per set, off by default):
 - Colour: `tools/skin_fix.py`, new fix key `ears`. It goes there because that is where a baked
@@ -168,11 +187,11 @@ python3 tools/build_textures.py --sheet-only                                    
 
 **Checks**: `python -m unittest discover tests` gives 46 OK. `validate.py --blender` on the
 current tree: only the two known TODO-line checks fail (README 4 lines, AI_DISCLOSURE 1 line).
-Rerun both after adoption.
+After adoption: 46 OK, and `validate.py --blender` fails only the same two.
 
-**Not done**: adoption, scene rebuild, preview and sheet rerender, tex_09 still diff (all blocked
-by the running render). No change to tex_01 or tex_03 ears, the skin shader or the README. The
-`TECH_NOTES` entry for the ear fix waits for adoption. Nothing pushed.
+TECH_NOTES (Skin texture transfer) has an entry for the ear fix.
+**Not done**: rerendering the three videos with the new ear (left to the session that owns
+them). No change to the ears of tex_01 to tex_08, the skin shader or the README. Nothing pushed.
 `outputs/tmp/m12` holds about 0.3 GB.
 
 ### Sun 15 Nov 2026, early — the owner watched the drafts: fixed camera, head and blink changes (Fable)

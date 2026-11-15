@@ -21,6 +21,46 @@ what the next session needs to know.
 
 ## Log
 
+### Sun 15 Nov 2026, afternoon — the owner rejected the motion in the previews; drafts and both reference videos watched as motion (Fable)
+The owner watched `left_split_preview`, `right_preview_v2` and `generate_preview_v2` and said the
+animation is not realistic. No code changed in this session; this is the diagnosis and the plan
+put to the owner. Nothing below is started until the owner says go.
+
+`Evaluation_for_SyntheticEyes (4).pptx` read: same two slides and same text as `_1` and `(3)`.
+
+**Watched, every frame of the three previews** (decoded with Blender's sequencer, no ffmpeg here):
+- The eyeball motion is sound (saccade lengths, undershoot and correction, the eye counter-rotating
+  as the head catches up). The face around it is what reads as a doll:
+- Lids follow eye pitch only (`rig.py`: `lid_up`, `lid_down`). When the eye turns sideways the lid
+  margin does not move with the cornea, so the iris slides under a fixed opening.
+- Brows peak at 0.25 of `brow_up` in `left`/`right`, about 2 mm. Nothing moves below the lower lid.
+  No brow dip or lower-lid rise in a blink.
+- `left`/`right` are told by the head: 14 to 16 deg of head, eyes settle at about 13 deg in the
+  head. The head turn is pure yaw of a cut bust on a critically damped curve, then holds almost
+  still for 4 s. In `left` the turn carries both eyes into the shadow side of the key.
+- The eye pane rides on the head, so it shows a flick and then an eye looking back at its camera.
+- `generate` is five separate gestures, each about a second, with a return to the camera and a
+  blink between each: reads as a rig test.
+
+**Reference videos watched as motion for the first time** (timed contact sheets in the browser
+pane; nothing stored):
+- "Eye Piece": lid opens slowly over 1.0 to 4.5 s; three blinks inside 1.1 s (5.67, 6.00, 6.70 s),
+  one on each gaze shift; the upper lid bulge travels with the cornea; lids half-closed again at
+  9 to 10 s; eye wide and darting at 13 to 14.5 s. One eye, three-quarter, extreme close-up.
+- "Flexpressions": the whole face works: deep forehead lines with the brow raise, squint with the
+  cheeks, mouth, head tilt, asymmetric.
+
+**Plan proposed to the owner, in order of effect per hour:**
+1. Eyes carry `left`/`right`: head share 0.5 to about 0.2 (5 to 6 deg, with a little pitch and
+   roll and a slower settle), eyes 18 to 20 deg in the head.
+2. Horizontal lid follow: new shape keys from the lid solve so the lid apex moves with the cornea.
+3. More face: brow amplitude up, brow dip and lower-lid rise in blinks, cheek with squint, from
+   GNM expression classes already exported by the tools step.
+4. `generate` as one motivated beat (left, right, eye roll with brows, slow blink back).
+5. Right pane films both eyes and brows from the front instead of one eye on the head bone
+   (reopens the 15 Nov split choice; owner's call).
+Finals still need 16 to 20 h of render, so motion has to be accepted by Mon 16 Nov night.
+
 ### Sun 15 Nov 2026 — M11 stage 2 + ears of 01 to 08: adopted, 3D brow hair for 06/12/14, scene rebuilt (Opus)
 **scene.blend changed (rebuilt). The hero frame is unchanged**, so the final videos can start from it.
 

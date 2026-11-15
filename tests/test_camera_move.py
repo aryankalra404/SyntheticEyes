@@ -46,7 +46,9 @@ class Glides(unittest.TestCase):
                 for a, b, pieces in ((f0, f1, pa), (f2, f3, pb)):
                     need = cm.glide_time(a, b)
                     move = sum(p1 - p0 for p0, p1 in pieces)
-                    self.assertTrue(0.75 * need <= move <= need + cm.MIN_PIECE, (mode, seed, move))
+                    # 0.7: the M13 generate beat (15 Nov) has shorter fixations; --camera move
+                    # is no longer the video camera (split is), so it was left as it was
+                    self.assertTrue(0.7 * need <= move <= need + cm.MIN_PIECE, (mode, seed, move))
                     self.assertLessEqual(len(pieces), cm.MAX_PIECES)
                     for p0, p1 in pieces:
                         self.assertGreaterEqual(p1 - p0, cm.MIN_PIECE - 1e-6)
@@ -78,7 +80,7 @@ class Frames(unittest.TestCase):
                 if "eye" not in (a, b):
                     continue
                 move = sum(p1 - p0 for p0, p1 in pieces)
-                self.assertGreaterEqual(move, cm.glide_time(a, b) - 0.05, (mode, a, b, move))
+                self.assertGreaterEqual(move, cm.glide_time(a, b) - 0.06, (mode, a, b, move))
 
     def test_blend_eases_and_head_follow_only_near_the_eye(self):
         for mode in cm.ORDER:

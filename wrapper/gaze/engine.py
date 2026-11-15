@@ -55,17 +55,21 @@ class GazeParams:
     eye_pitch_down: float = 32.0
     # Head
     head_delay: float = 0.04               # s after the eyes start
-    head_freq: float = 1.5                 # Hz, critically damped follow
+    head_freq: float = 1.2                 # Hz, critically damped follow
     head_gain_small: float = 0.10          # share of gaze eccentricity taken by the head
     head_gain_large: float = 0.40
     head_gain_from: float = 10.0           # deg
     head_gain_to: float = 30.0             # deg
-    head_roll_coupling: float = -0.10      # roll per degree of head yaw
+    head_roll_coupling: float = -0.20      # roll per degree of head yaw
+    # The head dips as it turns: pitch drops with the head's yaw speed (low-passed), about
+    # 0.15 deg per deg of yaw travelled at the peak, mid-move, and is back to zero once it stops.
+    head_dip_gain: float = 0.064           # s; deg of dip per deg/s of yaw speed
+    head_dip_tau: float = 0.06             # s
     head_min_shift: float = 9.0            # deg; a smaller refixation leaves the head where it is
     # Idle sway, rms deg in yaw, pitch, roll; band-limited noise. The eyes counter-rotate (eye =
     # gaze - head), so the gaze holds its target through it.
-    head_sway_deg: tuple = (0.30, 0.30, 0.15)
-    head_sway_band: tuple = (0.10, 0.50)   # Hz
+    head_sway_deg: tuple = (0.55, 0.45, 0.30)
+    head_sway_band: tuple = (0.08, 0.35)   # Hz
     # Blinks
     blink_close: float = 0.075             # s
     blink_hold: float = 0.030
@@ -129,6 +133,7 @@ class Sweep:
 class Blink:
     t: float
     amp: float = 1.0
+    slow: float = 1.0         # multiplies close, hold and open; 2.0 is a blink twice as long
 
 
 @dataclass
@@ -307,6 +312,7 @@ def simulate(script, seed=0, params=GazeParams()):
     busy = []                                                # intervals with no microsaccades
     quiet = []                                               # intervals with no spontaneous blink
     shifts = []                                              # (onset, amplitude) of every Look
+    sweep_end = 0.0                                          # end of the last sweep
 
     def head_share(target, override):
         if override is not None:
@@ -343,15 +349,22 @@ def simulate(script, seed=0, params=GazeParams()):
     for ev in looks:
         target = np.array(ev.points[-1] if isinstance(ev, Sweep) else (ev.yaw, ev.pitch), float)
         if isinstance(ev, Sweep):
-            t0 = max(ev.t, free_at)
+            # A sweep is smooth, not a saccade: it may start as soon as the last saccade begun
+            # before it has landed (no refractory gap), from where the gaze is at that moment.
+            # A saccade scripted to start later (a pending correction) is overwritten by it.
+            land = max([s0 + d for s0, d, _ in saccades if s0 < ev.t], default=0.0)
+            t0 = max(ev.t, land, sweep_end)
+            saccades[:] = [s for s in saccades if s[0] < t0]
             i0 = int(round(t0 / dt))
             m = min(n - i0, int(round(ev.dur / dt)) + 1)
             if m > 1:
-                path, _ = _catmull([tuple(cur)] + list(ev.points), int(round(ev.dur / dt)) + 1)
+                start = gaze[min(i0, n - 1)].copy()
+                path, _ = _catmull([tuple(start)] + list(ev.points), int(round(ev.dur / dt)) + 1)
                 gaze[i0:i0 + m] = path[:m]
                 gaze[i0 + m:] = path[m - 1]
                 cur = path[m - 1].copy()
             free_at = t0 + ev.dur + p.min_isi
+            sweep_end = t0 + ev.dur
             busy.append((t0 - 0.2, t0 + ev.dur + 0.25))
             quiet.append((t0 - 0.4, t0 + ev.dur + 0.1))
             onset, amp = t0, 0.0
@@ -404,6 +417,8 @@ def simulate(script, seed=0, params=GazeParams()):
     # -- 3. head: delayed smooth follow plus idle sway ----------------------------------------
     head_yaw = _follow(head_cmd[:, 0], p.head_freq, dt)
     head_pitch = _follow(head_cmd[:, 1], p.head_freq, dt)
+    yaw_speed = np.abs(np.gradient(head_yaw, dt))
+    head_pitch = head_pitch - p.head_dip_gain * _lowpass(yaw_speed, p.head_dip_tau, dt)
     sway = [_smooth_noise(rng, t, *p.head_sway_band) * a for a in p.head_sway_deg]
     ramp = np.clip(t / 0.5, 0.0, 1.0)                        # start the clip exactly at rest
     head_yaw = head_yaw + sway[0] * ramp
@@ -415,12 +430,13 @@ def simulate(script, seed=0, params=GazeParams()):
     quiet += [(e.t - 0.3, e.t + e.dur) for e in script.events
               if isinstance(e, Lids) and e.widen > 0]
     lo, hi = p.blink_guard, T - p.blink_guard - total * 1.15
-    forced = [(min(max(a, lo), hi), b) for a, b in blinks]
-    forced += [(min(max(e.t, lo), hi), e.amp) for e in script.events if isinstance(e, Blink)]
+    forced = [(min(max(a, lo), hi), b, 1.0) for a, b in blinks]
+    forced += [(min(max(e.t, lo), hi - total * (e.slow - 1.0)), e.amp, e.slow)
+               for e in script.events if isinstance(e, Blink)]
     kept = []
-    for tb0, amp in sorted(forced):                          # scripted and gaze-evoked first
-        if all(abs(tb0 - k) > p.blink_forced_gap for k, _ in kept):
-            kept.append((tb0, amp))
+    for tb0, amp, slow in sorted(forced):                    # scripted and gaze-evoked first
+        if all(abs(tb0 - k[0]) > p.blink_forced_gap for k in kept):
+            kept.append((tb0, amp, slow))
     tb = lo
     while True:                                              # then spontaneous ones where there is room
         tb += p.blink_min_gap + rng.exponential(p.blink_mean_gap - p.blink_min_gap)
@@ -428,19 +444,20 @@ def simulate(script, seed=0, params=GazeParams()):
             break
         if any(a <= tb <= b for a, b in quiet):
             continue
-        if all(abs(tb - k) > p.blink_min_gap for k, _ in kept):
-            kept.append((tb, float(rng.uniform(0.85, 1.0))))
+        if all(abs(tb - k[0]) > p.blink_min_gap for k in kept):
+            kept.append((tb, float(rng.uniform(0.85, 1.0)), 1.0))
     kept.sort()
     # Partial blinks: some blinks after the first stop short. Own generator, so adding this
     # left every other draw of the track where it was.
     rng_part = np.random.default_rng([int(seed), 1])
-    for i, (tb0, amp) in enumerate(kept):
+    # A slow blink always closes: the draw is still made so the others stay where they were.
+    for i, (tb0, amp, slow) in enumerate(kept):
         roll, a = rng_part.uniform(), rng_part.uniform(*p.blink_partial_amp)
-        if i > 0 and roll < p.blink_partial_rate:
-            kept[i] = (tb0, a)
+        if i > 0 and roll < p.blink_partial_rate and slow == 1.0:
+            kept[i] = (tb0, a, slow)
     blink_L, blink_R = np.zeros(n), np.zeros(n)
-    for tb0, amp in kept:
-        j = rng.uniform(0.88, 1.12)
+    for tb0, amp, slow in kept:
+        j = rng.uniform(0.88, 1.12) * slow
         c, h, o = p.blink_close * j, p.blink_hold * j, p.blink_open * j
         lag = rng.uniform(-0.004, 0.004)
         for arr, shift, a in ((blink_L, 0.0, amp), (blink_R, lag, amp * rng.uniform(0.97, 1.0))):
@@ -533,5 +550,6 @@ def simulate(script, seed=0, params=GazeParams()):
     )
     meta = dict(duration=T, seed=int(seed), dt=dt,
                 saccades=[(round(a, 4), round(b, 4), round(c, 3)) for a, b, c in saccades],
-                blinks=[(round(a, 4), round(b, 3)) for a, b in kept])
+                blinks=[(round(a, 4), round(b, 3)) for a, b, _ in kept],
+                blink_slow=[round(c, 3) for _, _, c in kept])
     return Track(t, channels, meta)

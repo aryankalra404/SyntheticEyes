@@ -6,13 +6,13 @@ The engine turns each script into motion; the seed only changes the performance
 
 import numpy as np
 
-from .engine import Blink, Brow, Lids, Look, Script, Sweep
+from .engine import Blink, Brow, GazeParams, Look, Script, Sweep
 
 CAMERA = 0.40      # metres, where the render camera sits
 FAR = 1.60         # metres, something across the room
 
 
-GLANCE_HEAD = 0.5   # the head takes half of a held side glance; the eyes lead, then it catches up
+GLANCE_HEAD = 0.22  # the eyes carry a held side glance; the head follows with about a fifth
 
 
 def _glance(rng, side, duration=9.0):
@@ -23,7 +23,7 @@ def _glance(rng, side, duration=9.0):
     u = rng.uniform
     ev = []
     t = u(0.9, 1.2)
-    yaw = side * u(25.0, 29.0)
+    yaw = side * u(22.0, 26.0)
     pitch = u(-3.0, 2.0)
     ev.append(Look(t, yaw, pitch, dist=FAR, blink=False, head=GLANCE_HEAD))
     t += u(1.3, 1.6)                                    # a second fixation on the same thing
@@ -52,51 +52,61 @@ def right(seed=0):
 
 
 def generate(seed=0):
-    """A small performance: a glance, an eye roll, a look down, a thought, back to the viewer."""
+    """One beat: a look to one side, across to the other, back to the viewer, an eye roll up and
+    over that drops under a slow blink, and a settle on the viewer. Left, right, up and down in
+    one clip. The seed picks the first side and jitters every time and angle by about 10 %."""
     rng = np.random.default_rng(seed + 2000)
     u = rng.uniform
-    side = -1 if rng.uniform() < 0.5 else 1
+
+    def j(x):
+        return x * u(0.9, 1.1)
+
+    A = -1 if rng.uniform() < 0.5 else 1
     ev = []
-    t = u(0.8, 1.1)
 
-    # glance to one side
-    ev.append(Look(t, side * u(17.0, 22.0), u(2.0, 5.0), dist=FAR))
-    t += u(1.0, 1.3)
+    # 1. a look to side A, held, with one small refixation inside the hold
+    t = j(0.9)
+    yaw_a, pitch_a = A * u(18.0, 22.0), u(-2.0, 2.0)
+    ev.append(Look(t, yaw_a, pitch_a, dist=FAR, blink=False, head=0.2))
+    hold = u(1.0, 1.2)
+    r, ang = u(3.0, 5.0), u(0.35, 1.2) * (1 if rng.uniform() < 0.5 else -1)
+    ev.append(Look(t + hold * u(0.45, 0.6), yaw_a - A * r * np.cos(ang), pitch_a + r * np.sin(ang),
+                   blink=False))
+    t += hold
 
-    # eye roll: up and over to the other side, brows up, lids wide, blink on the way out
-    roll = u(0.80, 0.95)
-    arc = [(side * u(12.0, 15.0), u(19.0, 22.0)), (side * u(-2.0, 2.0), u(24.0, 26.0)),
-           (-side * u(11.0, 14.0), u(18.0, 21.0)), (-side * u(16.0, 19.0), u(5.0, 8.0))]
-    ev.append(Sweep(t, roll, arc, head=0.22))
-    ev.append(Brow(t - 0.05, roll * 0.7, u(0.6, 0.8)))
-    ev.append(Lids(t, roll * 0.6, widen=u(0.5, 0.7)))
-    t += roll + u(0.25, 0.4)
-    ev.append(Look(t, 0.0, 0.0, dist=CAMERA, blink=True))
-    t += u(1.0, 1.3)
+    # 2. across to side B: a 40 deg shift blinks
+    ev.append(Look(t, -A * u(18.0, 22.0), u(-2.0, 2.0), dist=FAR, blink=True, head=0.2))
+    t += u(0.9, 1.1)
 
-    blocks = ["down", "think"]
-    if rng.uniform() < 0.5:
-        blocks.reverse()
-    for block in blocks:
-        if block == "down":                              # look down at something close
-            ev.append(Look(t, u(-4.0, 4.0), -u(19.0, 23.0), dist=0.30, blink=False))
-            t += u(0.5, 0.7)
-            ev.append(Look(t, u(-6.0, 6.0), -u(15.0, 18.0), blink=False))
-            t += u(0.6, 0.8)
-            ev.append(Look(t, 0.0, 0.0, dist=CAMERA, blink=True))
-            t += u(0.9, 1.2)
-        else:                                            # look up and aside, thinking
-            ty, tp = -side * u(12.0, 16.0), u(13.0, 17.0)
-            ev.append(Look(t, ty, tp, dist=FAR, blink=False))
-            ev.append(Brow(t + 0.1, 0.9, u(0.25, 0.4), side="L" if side < 0 else "R"))
-            ev.append(Lids(t + 0.2, 0.7, squint=u(0.15, 0.3)))
-            t += u(1.1, 1.4)
-            ev.append(Look(t, 0.0, 0.0, dist=CAMERA, blink=None))
-            t += u(0.9, 1.2)
+    # 3. back to the viewer
+    ev.append(Look(t, 0.0, 0.0, dist=CAMERA, blink=None))
+    t += u(0.8, 1.0)
 
-    ev.append(Blink(t))                                  # a soft closing blink at the viewer
-    ev.append(Look(t + 0.5, u(-1.5, 1.5), u(-0.5, 0.5), blink=False))
-    return Script(duration=round(min(t + 1.6, 14.5), 1), events=ev)
+    # 4. the eye roll. Brows first; no widening (the lid follows pitch on its own).
+    ev.append(Brow(t - j(0.12), j(0.75), u(0.35, 0.45)))
+    ev.append(Look(t, A * u(10.0, 13.0), u(20.0, 23.0), blink=False, head=0.22))   # launch, fast
+    t_sweep, d_sweep = t + j(0.16), u(0.45, 0.60)                                   # over, slow
+    ev.append(Sweep(t_sweep, d_sweep, [(A * u(-2.0, 2.0), u(25.0, 27.0)),
+                                       (-A * u(12.0, 15.0), u(17.0, 20.0))], head=0.22))
+    # down and out under a slow blink: the lids close on the way down and open on the low gaze.
+    # The engine holds a saccade min_isi after a sweep, so the drop starts there.
+    t_down = t_sweep + d_sweep + GazeParams().min_isi
+    ev.append(Look(t_down, -A * u(4.0, 8.0), -u(12.0, 15.0), dist=0.40, blink=False, head=0.15))
+    t_slow = t_down - 0.03
+    ev.append(Blink(t_slow, slow=u(1.8, 2.2)))
+
+    # 5. hold low, then back to the viewer; a flick between the viewer's eyes and back; a soft
+    # closing blink at least 1.3 s after the slow one
+    duration = round(u(10.0, 11.5), 1)
+    t_view = t_down + u(0.45, 0.60)
+    ev.append(Look(t_view, 0.0, 0.0, dist=CAMERA, blink=False))
+    t_close = max(duration - u(1.2, 1.5), t_slow + 1.4)
+    t_flick = t_view + (t_close - t_view) * u(0.30, 0.45)
+    side = 1 if rng.uniform() < 0.5 else -1
+    ev.append(Look(t_flick, side * u(1.5, 2.5), u(-0.6, 0.6), blink=False))
+    ev.append(Look(t_flick + u(0.6, 0.9), 0.0, 0.0, blink=False))
+    ev.append(Blink(t_close, amp=u(0.9, 1.0)))
+    return Script(duration=duration, events=ev)
 
 
 MODES = {"left": left, "right": right, "generate": generate}

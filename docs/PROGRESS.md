@@ -11,7 +11,7 @@ what the next session needs to know.
 | M1 Rig and calibrated wrapper | done (13 Nov): lids solved (`tools/solve_lids.py`), globe guard, rig reviewed; `scene.blend` rebuilt with `lid_shapes = "solved"` |
 | M2 Texture pipeline | done (13 Nov), audited on the bare head and rebuilt (14 Nov): 9 sets in `textures/`, all with scanned skin micro-relief; brows painted as grown hairs, shaved-scalp cap removed, back-of-head seam fixed; `tex_09` (photographed skin) is the hero set; contact sheet in `outputs/stills/texture_sheet.png` |
 | M3 Look | done; the `eye` look (hard raking key on black, fine facial hair, pore sparkle) is on the videos, the nine stills and the eye close-ups (14 Nov); `scene.blend` is built on the tex_09 head |
-| M4 Motion | gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 6.3 h at 64 spp in the new look), and nobody has watched a draft at playback speed yet |
+| M4 Motion | **M13 motion rework under way (15 Nov evening): see the log.** Gaze engine, Timeline bake and video camera done: one moving camera (`cam_move`) glides between both eyes, face and one eye, only inside fixations; drafts render; **final videos not rendered** (about 6.3 h at 64 spp in the new look), and nobody has watched a draft at playback speed yet |
 | M5 Compliance and packaging | README, Dockerfile (built and run) and validator done (Opus, 13 Nov); clean-clone and zip test of the real bundle and the final renders wait for M1–M4; TODOs listed in the M5 entry |
 | M6 Ship | not started |
 
@@ -20,6 +20,53 @@ what the next session needs to know.
 - College and team name for the zip and deck (`CollegeName_TeamName`)
 
 ## Log
+
+### Sun 15 Nov 2026, evening — M13 motion rework, stages A to D and the review pack (Opus)
+Implements `docs/BRIEF_M13.md`. Review pack in `outputs/tmp/m13/` (git-ignored). Finals not rendered.
+
+**Stage A, engine and choreography** (`wrapper/gaze/`, tests). Done.
+- A1: `GLANCE_HEAD` 0.5 → 0.22, first glance target `u(22, 26)`; rest of `_glance` unchanged.
+- A2: `head_freq` 1.2 Hz, `head_roll_coupling` −0.20, sway (0.55, 0.45, 0.30) in (0.08, 0.35) Hz.
+  Head dip: `head_pitch −= head_dip_gain · lowpass(|d head_yaw / dt|, 60 ms)` on the follow
+  (sway excluded), `head_dip_gain` 0.064 s, which is 0.15 deg per deg of yaw at 1.2 Hz.
+- A3: `Blink.slow` multiplies close, hold and open. A slow blink is never made partial (its
+  partial-blink draw is still taken, so every other draw stays put). `meta["blink_slow"]` added
+  next to `meta["blinks"]`, whose shape is unchanged.
+- A4: `generate` rewritten as the brief's one beat; total `u(10.0, 11.5)` s.
+  **Engine change the beat needed, not in the brief:** a `Sweep` used to wait for `free_at`
+  (last saccade + 150 ms), and a 24 deg launch schedules an undershoot correction ~0.25 s
+  later, so the sweep at launch + 0.16 s was pushed to ~+0.45 s and started from the corrected
+  target, not from where the gaze was. Now a sweep starts once the last saccade begun before it
+  has landed, from the gaze sample at that moment, and drops any saccade scripted after its
+  start (the pending correction). Old scripts never hit this (their sweeps had time to spare).
+  The drop after the sweep still waits `min_isi` (0.15 s), so `generate` puts it there and the
+  slow blink 0.03 s before it.
+- A5 tests: `test_head_moves_less_and_later_than_the_eyes` (head < 0.35 of gaze), sway test
+  (40 s clips so 0.08 Hz resolves, band 0.06–0.40, new rms windows), brow-on-roll test 0.4 → 0.3
+  (the brief's roll brow is 0.35–0.45, was 0.6–0.8). New class `M13`: eyes carry the glance,
+  head dip, slow blink length, generate through all four directions, roll fast/slow/not wide.
+  `test_camera_move`: two tolerances loosened (0.75 → 0.70 of the glide, −0.05 → −0.06 s) for the
+  new `generate`, whose fixations are shorter; `--camera move` is not the video camera any more
+  and was left alone. 51 tests pass.
+
+| Check (seeds 0–7 unless noted) | Target | Measured | |
+|---|---|---|---|
+| head yaw peak, left/right | 4.5–6.5 deg | 4.9–6.3 without sway, 5.6–6.7 with it | pass (three seeds 6.55–6.69 with sway) |
+| eye-in-head ≥ 15 deg, left/right | ≥ 2 s | 2.9–4.3 s in total; longest single stretch 1.5–1.8 s (4.0–4.3 s in two seeds) | pass on total; see note |
+| head dip peak, left/right | 0.7–1.0 deg | 0.77–1.00 | pass |
+| head dip, generate (40 deg shifts) | — | 1.15–1.32 | as designed |
+| generate duration | 10–11.5 s | 10.1–11.4 | pass |
+| gaze yaw passes ±15 / pitch +20 and −10 | yes | yaw −21.6..+21.7, pitch +25.4..+26.7 and −13.1..−16.0 | pass |
+| widen during the roll | < 0.2 | 0.110–0.130 (only the brow-driven share) | pass |
+| speed over the top / launch | < 0.5 | 90–122 / 517–540 deg/s (≤ 0.23) | pass |
+| slow blink | 2× default | slow 1.82–2.13, test ratio 2.0 ± 0.25 | pass |
+| head tips back in the roll | ~5 deg | 2.6–4.5 deg (1.2 Hz follow does not reach 0.22 × 21 deg in 0.7 s) | short, Fable's call |
+
+Note on eye-in-head: the first fixation sits at 18.5–20 deg (1.3–1.6 s), the second refixation
+comes 4–7 deg back toward the nose (eye ~12–14 deg), the third goes 1.5–3.5 deg past the first
+(eye 19–22 deg). So "16–20 for 2 s" holds in total, not in one stretch, and the third fixation
+can exceed 20. Untouched because A1 says everything else in `_glance` stays.
+Curves: `outputs/tmp/m13/{left,right,generate}_curves.png`, looked at.
 
 ### Sun 15 Nov 2026, afternoon — the owner rejected the motion in the previews; drafts and both reference videos watched as motion (Fable)
 The owner watched `left_split_preview`, `right_preview_v2` and `generate_preview_v2` and said the

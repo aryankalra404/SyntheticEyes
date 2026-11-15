@@ -83,7 +83,7 @@ class Behaviour(unittest.TestCase):
     def test_head_moves_less_and_later_than_the_eyes(self):
         tr = generate("left", 0)
         c, t = tr.channels, tr.t
-        self.assertLess(np.abs(c["head_yaw"]).max(), 0.6 * np.abs(c["gaze_yaw"]).max())
+        self.assertLess(np.abs(c["head_yaw"]).max(), 0.35 * np.abs(c["gaze_yaw"]).max())
         self.assertGreater(np.abs(c["head_yaw"]).max(), 4.0)
         t_eye = t[np.argmax(np.abs(c["gaze_yaw"]) > 10)]
         t_head = t[np.argmax(np.abs(c["head_yaw"]) > 0.5 * np.abs(c["head_yaw"]).max())]
@@ -170,7 +170,7 @@ class Channels(unittest.TestCase):
         c = tr.channels
         i = int(np.argmax(c["eye_pitch"]))
         self.assertGreater(c["eye_pitch"][i], 18.0)
-        self.assertGreater(max(c["brow_L"][i], c["brow_R"][i]), 0.4)
+        self.assertGreater(max(c["brow_L"][i], c["brow_R"][i]), 0.3)
 
 
 STILL = GazeParams(drift_deg=0.0, micro_rate=1e-9, head_sway_deg=(0, 0, 0), blink_mean_gap=1e6)
@@ -195,16 +195,16 @@ class Natural(unittest.TestCase):
     def test_idle_sway_size_and_band(self):
         yaw, pitch, roll = [], [], []
         for seed in range(10):
-            tr = simulate(Script(20.0, []), seed)
+            tr = simulate(Script(40.0, []), seed)       # long enough to resolve 0.08 Hz
             c, m = tr.channels, tr.t > 0.5
             yaw.append(rms(c["head_yaw"][m]))
             pitch.append(rms(c["head_pitch"][m]))
             roll.append(rms((c["head_roll"] - P.head_roll_coupling * c["head_yaw"])[m]))
             for k in ("head_yaw", "head_pitch"):
-                self.assertGreater(band_share(c[k][m], P.dt, 0.08, 0.55), 0.85, (seed, k))
-        self.assertTrue(0.22 <= np.mean(yaw) <= 0.38, np.mean(yaw))
-        self.assertTrue(0.22 <= np.mean(pitch) <= 0.38, np.mean(pitch))
-        self.assertTrue(0.10 <= np.mean(roll) <= 0.20, np.mean(roll))
+                self.assertGreater(band_share(c[k][m], P.dt, 0.06, 0.40), 0.85, (seed, k))
+        self.assertTrue(0.42 <= np.mean(yaw) <= 0.68, np.mean(yaw))
+        self.assertTrue(0.34 <= np.mean(pitch) <= 0.56, np.mean(pitch))
+        self.assertTrue(0.22 <= np.mean(roll) <= 0.38, np.mean(roll))
 
     def test_eyes_hold_the_target_through_the_sway(self):
         no_sway = GazeParams(head_sway_deg=(0, 0, 0))
@@ -341,6 +341,63 @@ class Natural(unittest.TestCase):
                 self.assertGreater(peak, 0.2)
                 held = brow[np.argmin(np.abs(t - (t0 + 1.2)))]
                 self.assertLess(held, 0.5 * peak, (mode, seed))
+
+
+class M13(unittest.TestCase):
+    """The motion rework of 15 Nov (docs/BRIEF_M13.md): the eyes carry left and right, the head
+    dips as it turns, slow blinks, generate as one beat with an eye roll."""
+
+    def test_eyes_carry_the_side_glance(self):
+        for mode in ("left", "right"):
+            for seed in range(8):
+                tr = generate(mode, seed)
+                c = tr.channels
+                self.assertTrue(4.0 <= np.abs(c["head_yaw"]).max() <= 8.0, (mode, seed))
+                held = np.sum(np.abs(c["eye_yaw"]) >= 15.0) * P.dt
+                self.assertGreaterEqual(held, 2.0, (mode, seed, held))
+
+    def test_head_dips_as_it_turns(self):
+        flat = GazeParams(head_sway_deg=(0, 0, 0))
+        nodip = GazeParams(head_sway_deg=(0, 0, 0), head_dip_gain=0.0)
+        for seed in range(8):
+            a, b = generate("left", seed, params=flat), generate("left", seed, params=nodip)
+            dip = a.channels["head_pitch"] - b.channels["head_pitch"]
+            self.assertTrue(0.6 <= -dip.min() <= 1.1, (seed, dip.min()))
+            self.assertLess(np.abs(dip[-1]), 0.02)                 # gone once the head is still
+            self.assertLess(np.abs(a.channels["gaze_pitch"] - b.channels["gaze_pitch"]).max(),
+                            1e-9)                                  # the eyes hold the target
+
+    def test_slow_blink_lasts_twice_as_long(self):
+        def length(slow):
+            tr = simulate(Script(3.0, [Blink(1.0, slow=slow)]), 0, STILL)
+            return np.sum(tr.channels["blink_L"] > 0.02) * P.dt
+        self.assertAlmostEqual(length(2.0) / length(1.0), 2.0, delta=0.25)
+
+    def test_generate_is_one_beat_through_all_four_directions(self):
+        for seed in range(8):
+            tr = generate("generate", seed)
+            c, t = tr.channels, tr.t
+            self.assertLessEqual(tr.duration, 14.5)
+            self.assertTrue(10.0 <= tr.duration <= 11.5, tr.duration)
+            self.assertLess(c["gaze_yaw"].min(), -15.0, seed)
+            self.assertGreater(c["gaze_yaw"].max(), 15.0, seed)
+            self.assertGreater(c["gaze_pitch"].max(), 20.0, seed)
+            self.assertLess(c["gaze_pitch"].min(), -10.0, seed)
+            self.assertIn(True, [s > 1.5 for s in tr.meta["blink_slow"]])
+
+    def test_eye_roll_is_fast_up_slow_over_and_not_wide(self):
+        for seed in range(8):
+            tr = generate("generate", seed)
+            c, t = tr.channels, tr.t
+            v = speed(tr)
+            up = c["gaze_pitch"] > 15.0                            # the roll, launch to drop
+            i0 = int(np.argmax(up))
+            i1 = i0 + int(np.argmin(up[i0:]))
+            self.assertLess(c["widen"][i0:i1].max(), 0.2, seed)
+            launch = v[max(0, i0 - 150):i0 + 20].max()
+            top = c["gaze_pitch"] > 23.0                           # over the top
+            self.assertGreater(top.sum(), 0)
+            self.assertLess(v[top].max(), 0.5 * launch, (seed, v[top].max(), launch))
 
 
 if __name__ == "__main__":

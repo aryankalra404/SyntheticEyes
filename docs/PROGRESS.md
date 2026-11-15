@@ -43,6 +43,18 @@ Nothing here touched `scene.blend`, `wrapper/` or `textures/`; the finals kept r
   scripts and three.js all return 200. Not tried in the headset; being HTTPS, the Quest can
   open the link directly with no certificate step.
 - Link added to `xr/README.md` and the main README (next to the demo video TODO).
+- **Then, on the owner's ask, the page for the jury.** One-line heading ("SyntheticEyes, a
+  synthetic head that looks back at you", the tagline hidden under 400 px); the credit footer
+  removed from the page (the organisers said the README is enough; both READMEs keep it);
+  three.js's "XR NOT SUPPORTED" replaced by "Open this link in a VR headset to see it in your
+  room" when no immersive session is available. Controls: *View* (Face / Both eyes / Eye
+  close-up = `cam_test_eye`) and *Follow mouse* on/off. In the close-ups the camera rides with
+  the head bone (gaze target taken from the unmoved camera), the head's channels are scaled by
+  0.35 (`?closeuphead=`) so the eyes do the visible moving, and the mouse moves the gaze target
+  up to 35 deg sideways and 20 deg up or down. Without that, the head took most of the turn
+  (head −22 deg, eyes −17 deg) and the riding camera cancelled it. Looked at in the browser pane at
+  1280x800 and 375x812, no console messages, 14 node tests pass. A frame-rate pass was
+  asked about and set aside: the owner wants no quality reduced.
 
 ### Sun 15 Nov 2026, 15:40 — review of the M14 WebXR bust: accepted for the headset test (Fable)
 Reviewed from `outputs/tmp/m14/xr/` (face against the Cycles still, the five laptop positions,

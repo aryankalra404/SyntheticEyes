@@ -1,0 +1,72 @@
+{
+ "L": {
+  "skin_inside": {
+   "mm": 0.033,
+   "pitch_yaw_blink": [
+    25,
+    -30,
+    0.83
+   ]
+  },
+  "rim_under": {
+   "mm": 0.103,
+   "pitch_yaw_blink": [
+    25,
+    -15,
+    1.0
+   ]
+  },
+  "rim_over": {
+   "mm": 1.631,
+   "pitch_yaw_blink": [
+    25,
+    30,
+    0.0
+   ]
+  },
+  "lash_inside": {
+   "mm": 0.016,
+   "pitch_yaw_blink": [
+    -12.5,
+    30,
+    0.5
+   ]
+  }
+ },
+ "R": {
+  "skin_inside": {
+   "mm": 0.03,
+   "pitch_yaw_blink": [
+    25,
+    30,
+    0.67
+   ]
+  },
+  "rim_under": {
+   "mm": 0.099,
+   "pitch_yaw_blink": [
+    25,
+    30,
+    1.0
+   ]
+  },
+  "rim_over": {
+   "mm": 1.768,
+   "pitch_yaw_blink": [
+    25,
+    -30,
+    0.0
+   ]
+  },
+  "lash_inside": {
+   "mm": 0.037,
+   "pitch_yaw_blink": [
+    -30,
+    -30,
+    0.0
+   ]
+  }
+ },
+ "poses": 385,
+ "lid_shapes": "solved"
+}

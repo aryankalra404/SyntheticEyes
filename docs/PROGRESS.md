@@ -23,6 +23,43 @@ what the next session needs to know.
 
 ## Log
 
+### Fri 20 Nov 2026 — demo video cut (Opus)
+- `outputs/demo/demo.mp4`: 1920×1080, 30 fps, 78.7 s, H.264, no audio, no voice-over.
+  Short captions in a band under the picture, hard cuts, a fade only at the start and end.
+  Order: `generate`, terminal time-lapse of the real `right` render log
+  (`outputs/tmp/finals/right.log`, 7 h 36 min), `right`, `left`, texture grid, the nine sets
+  (render, eye, UV map), eye grid, Blender window (Cycles viewport on the Timeline, face
+  wireframe, eye wireframe with X-ray), clockwise renders with `metadata.json`.
+- XR segment added (98.2 s in all, 39 MB at CRF 18): the owner's headset recording full frame,
+  no caption, the phone recording of the owner in a small synced square (280 px) bottom-left. Offset 8.24 s (phone minus
+  headset), from the audio and checked on the arm raise. `--xr headset.mp4 --xr-pip phone.mp4
+  --xr-offset 8.24 --xr-start 0.5 --xr-dur 19.5`. Both files came through WhatsApp
+  (848×478 and 464×832), so the headset part is soft; swap in the originals with the same flags.
+- Owner's calls on the cut: no title card, no credits page (credits are in the README),
+  captions short and plain ("command / --input right", "9 skin textures", "irises"), no
+  per-set descriptions (2.2 s is too short to read them).
+- `tools/make_demo.py` cuts it (Pillow + numpy + an ffmpeg binary; imageio-ffmpeg's works).
+  `--xr clip.mp4` adds the Quest clip before the credits; the owner records it.
+- `tools/capture_blender_ui.py` opens Blender with its window, plays `generate` on the
+  Timeline and screenshots the window per frame (about 10 min). Changes are in memory only;
+  `scene.blend`'s md5 was checked unchanged after every run.
+- Not done: Quest clip, upload (YouTube/Drive) and the README link.
+- XR page: **hand follow** for the Quest clip (owner's ask: the head staring into the recording
+  lens reads as a still). `xr/js/handfollow.js` picks a raised hand's index fingertip (above
+  head − 35 cm and 18 cm out in front to start, released below head − 45 cm or nearer than 12 cm,
+  higher hand wins, a followed hand keeps it, 0.3 s hold through tracking dropouts);
+  `app.js` hands that point to the gaze as the wearer's position, so eyes go first and the head
+  follows. `?hands=0` turns it off. 7 node tests added (21/21 pass). A gaze simulation with the
+  hand raised from 2 to 4 s: eyes on it in ~0.15 s (30° right, 12° down), head at 25° by ~0.7 s,
+  both back to the wearer after. Page loads in the browser with no console errors. Published to the
+  live link (`tools/publish_xr.sh`, `syntheticeyes-xr` at `d50fddb`, Pages built, page loads
+  with no console errors). Owner's first headset clip: hand follow works, but the bust was
+  drawn over the real hand in passthrough. Fix: the session now asks for `depth-sensing`
+  (optional, `gpu-optimized`), and three.js 0.185's built-in depth occluder writes the room's
+  depth before the bust; its colour writes are switched off. `?depth=0` leaves it out.
+  Laptop page loads clean; published (`syntheticeyes-xr` at `c86e999`, Pages built).
+  **Occlusion not yet seen on the headset.**
+
 ### Sun 15 Nov 2026, night — M15 rollout reviewed and accepted, finals released (Fable)
 Checked: the shipped tiles of tex_09, 03 and 04 are byte-identical to the accepted trial tiles;
 since the ruling only `tools/make_iris.py`, the eye tiles, previews, stills and the two web eye

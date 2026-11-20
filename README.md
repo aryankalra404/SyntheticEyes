@@ -352,7 +352,7 @@ gaze engine and all code were made for this project, with AI coding tools; see
 [AI_DISCLOSURE.md](AI_DISCLOSURE.md). The scan's geometry and original files are not
 redistributed; each `set.json` names what it takes from the scan.
 
-Code licence: TODO (pick one before submission, e.g. MIT).
+Code licence: MIT, see [LICENSE](LICENSE). Third-party assets keep the licences in the table above.
 
 ## Docs
 

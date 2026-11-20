@@ -81,10 +81,23 @@ Each set's `set.json` records its sources, licences and iris parameters.
 
 ## Motion that reads as human
 
-| `--input left` (9.0 s) | `--input right` (9.0 s) | `--input generate` (8.3 s) |
-|:---:|:---:|:---:|
-| ![left](docs/img/left.webp) | ![right](docs/img/right.webp) | ![generate](docs/img/generate.webp) |
-| Glance to image-left, study it with small refixations, blink, come back to the viewer | The same to image-right | Look to one side, across to the other, back, an eye roll up and over that drops into a slow blink, settle |
+<table>
+<tr>
+<th width="33%"><code>--input left</code> (9.0 s)</th>
+<th width="33%"><code>--input right</code> (9.0 s)</th>
+<th width="33%"><code>--input generate</code> (8.3 s)</th>
+</tr>
+<tr>
+<td><img src="docs/img/left.webp" width="260" alt="left"></td>
+<td><img src="docs/img/right.webp" width="260" alt="right"></td>
+<td><img src="docs/img/generate.webp" width="260" alt="generate"></td>
+</tr>
+<tr>
+<td>Glance to image-left, study it with small refixations, blink, come back to the viewer</td>
+<td>Glance to image-right, study it with small refixations, blink, come back to the viewer</td>
+<td>Look to one side, across to the other, back, then an eye roll up and over that drops into a slow blink</td>
+</tr>
+</table>
 
 <sub>Face pane only. The full videos in [`outputs/videos/`](outputs/videos) are 2048×1024, 30 fps,
 with the eye close-up beside the face.</sub>

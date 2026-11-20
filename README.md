@@ -33,8 +33,6 @@ Dockerfile             renders one draft frame on CPU with the pinned Blender
 AI_DISCLOSURE.md       which parts were made with AI tools
 ```
 
-> TODO: `outputs/videos/` is not in the repo yet; the three final videos have not been rendered.
-
 ## Setup
 
 - **Blender 4.5.1 LTS** (the version everything was built and tested with). No add-ons.

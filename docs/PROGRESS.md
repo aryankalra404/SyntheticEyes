@@ -40,6 +40,10 @@ what the next session needs to know.
   still and a 3-frame draft `left` video render from the unzipped folder. Attached to GitHub
   Release `v1.0`; README links `releases/latest/download/VIT_Saccade.zip`.
 - Code licence: MIT (`LICENSE`, owner's choice).
+- README rewritten for the judges: hero clip, scoring table with where to look, the nine faces,
+  eye close-ups, UV maps, motion clips, Timeline screenshot, direction check, clockwise renders,
+  limitations. Pictures in `docs/img/` (4.4 MB, animated WebP for the clips) from
+  `tools/make_readme_images.py`; checked on GitHub, all ten load.
 - **Left:** deck, member names in `AI_DISCLOSURE.md`; then rebuild the zip and
   `gh release upload v1.0 VIT_Saccade.zip --clobber`.
 

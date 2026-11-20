@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Superseded: xr/ is now served from this repo by .github/workflows/pages.yml at
+# https://aryankalra404.github.io/SyntheticEyes/ . Kept for the old link only.
+#
 # Publish the WebXR bust in xr/ to the public repo aryankalra404/syntheticeyes-xr, served by
 # GitHub Pages from main at / : https://aryankalra404.github.io/syntheticeyes-xr/
 #
@@ -8,7 +11,7 @@
 # Copies the page and its assets only (no .certs, no tests, no local server), adds .nojekyll
 # and a README, commits as the repo owner with the GitHub noreply address and pushes. Creates
 # the repo and turns Pages on the first time. Uses the aryankalra404 gh account without
-# switching the active one. Samsung-Prism itself stays private.
+# switching the active one.
 set -euo pipefail
 
 ACCOUNT=aryankalra404

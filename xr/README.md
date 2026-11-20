@@ -8,7 +8,7 @@ room, looks round, and greets you (a look, a blink, a brow flash) when you come 
 One web page, no build step. In a Meta Quest browser it stands in your room through the
 passthrough cameras; on a laptop or phone the camera is you.
 
-**Live: https://aryankalra404.github.io/syntheticeyes-xr/** (HTTPS, so on a Quest it opens
+**Live: https://aryankalra404.github.io/SyntheticEyes/** (HTTPS, so on a Quest it opens
 straight in the browser with no certificate step: tap START XR).
 
 This is an unscored bonus; nothing in the scored bundle depends on it.
@@ -126,9 +126,10 @@ $BLENDER -b --factory-startup -P tools/export_xr.py -- --check
 cd xr && node --test
 ```
 
-The live link is a public copy of this folder in `aryankalra404/syntheticeyes-xr` (GitHub
-Pages from `main`). After a change here, update it from the repo root with
-`tools/publish_xr.sh` (optionally a one-line commit message as the argument).
+The live link is this folder served by GitHub Pages: `.github/workflows/pages.yml` publishes
+`xr/` (without the tests and the local server) on every push to `main` that touches it. The
+older copy at https://aryankalra404.github.io/syntheticeyes-xr/ (`tools/publish_xr.sh`) is no
+longer updated.
 
 Debug views for screenshots: `?view=face|eyes|eye|eyeL&size=800&shot=1` puts the camera where
 the Blender still cameras are; `?pose=1&gy=20&gp=0&hy=0&blink=0.66&brow=0.3` sets the

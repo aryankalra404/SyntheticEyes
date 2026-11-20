@@ -8,7 +8,7 @@ set of skin and eye texture sets in GNM's UV layout that can be put on any GNM h
 > TODO: team name, college name and the final zip name (`team_name.zip`).
 > TODO: demo video link (≤ 3 min) and deck `CollegeName_TeamName.pdf`.
 
-Live WebXR demo (unscored bonus, `xr/`): **https://aryankalra404.github.io/syntheticeyes-xr/**.
+Live WebXR demo (unscored bonus, `xr/`): **https://aryankalra404.github.io/SyntheticEyes/**.
 The head looks at you; on a laptop move the mouse, on a Meta Quest open it in the browser and
 tap START XR. See `xr/README.md`.
 

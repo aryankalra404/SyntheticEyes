@@ -18,7 +18,6 @@ what the next session needs to know.
 
 ## Open questions
 
-- Code licence (README says TODO; MIT suggested)
 - Team members' names for `AI_DISCLOSURE.md`
 
 ## Log
@@ -40,7 +39,8 @@ what the next session needs to know.
   unzip: `validate.py --zip --blender` passes all but the TODO checks; a `--texture 3` Cycles
   still and a 3-frame draft `left` video render from the unzipped folder. Attached to GitHub
   Release `v1.0`; README links `releases/latest/download/VIT_Saccade.zip`.
-- **Left:** deck, code licence, member names in `AI_DISCLOSURE.md`; then rebuild the zip and
+- Code licence: MIT (`LICENSE`, owner's choice).
+- **Left:** deck, member names in `AI_DISCLOSURE.md`; then rebuild the zip and
   `gh release upload v1.0 VIT_Saccade.zip --clobber`.
 
 ### Fri 20 Nov 2026 — demo video cut (Opus)

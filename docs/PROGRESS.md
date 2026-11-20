@@ -18,10 +18,30 @@ what the next session needs to know.
 
 ## Open questions
 
-- College and team name for the zip and deck (`CollegeName_TeamName`)
-- Time of day of the 22 Nov deadline
+- Code licence (README says TODO; MIT suggested)
+- Team members' names for `AI_DISCLOSURE.md`
 
 ## Log
+
+### Fri 20 Nov 2026 — packaging and submission setup (Opus)
+- The organisers' final form takes only a **GitHub link** (public) and a checklist (submission
+  package, source, presentation, video, AI disclosure, README, APK/SDK if any). Deadline
+  **22 Nov 2026, 11:59 PM** (V3 slides). The deck must follow their 9-slide template
+  `Submission_Final_forGithub.pptx`. New dates: top 15 on 29 Nov, final demo 9 Dec, results 12 Dec.
+- The repo was renamed `Samsung-Prism` → **`SyntheticEyes`** and made public by the owner.
+- Team **Saccade**, Vellore Institute of Technology → names `VIT_Saccade.zip` / `VIT_Saccade.pdf`.
+- Committed the three final videos, `demo.mp4`, the demo tools, the XR hand follow.
+- GitHub Pages on for this repo (Actions source): `.github/workflows/pages.yml` publishes `xr/`
+  to https://aryankalra404.github.io/SyntheticEyes/ ; checked live, no console errors, all
+  assets 200. `syntheticeyes-xr` and `tools/publish_xr.sh` are superseded.
+- Demo on YouTube: https://www.youtube.com/watch?v=Qzy6REgps80 (README).
+- `tools/make_bundle.sh VIT_Saccade` builds the zip (770 MB: bundle layout + textures, videos,
+  stills, direction check, Dockerfile, AI disclosure, tests, validator). Tested from a clean
+  unzip: `validate.py --zip --blender` passes all but the TODO checks; a `--texture 3` Cycles
+  still and a 3-frame draft `left` video render from the unzipped folder. Attached to GitHub
+  Release `v1.0`; README links `releases/latest/download/VIT_Saccade.zip`.
+- **Left:** deck, code licence, member names in `AI_DISCLOSURE.md`; then rebuild the zip and
+  `gh release upload v1.0 VIT_Saccade.zip --clobber`.
 
 ### Fri 20 Nov 2026 — demo video cut (Opus)
 - `outputs/demo/demo.mp4`: 1920×1080, 30 fps, 78.7 s, H.264, no audio, no voice-over.

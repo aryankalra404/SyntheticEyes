@@ -1,4 +1,4 @@
-"""Checks the gaze engine against the numbers in docs/TECH_NOTES.md.
+"""Checks the gaze engine against eye-movement timings and sizes.
 
     python -m unittest tests.test_gaze -v
 """
@@ -344,7 +344,7 @@ class Natural(unittest.TestCase):
 
 
 class M13(unittest.TestCase):
-    """The motion rework of 15 Nov (docs/BRIEF_M13.md): the eyes carry left and right, the head
+    """The motion rework of 15 Nov: the eyes carry left and right, the head
     dips as it turns, slow blinks, generate as one beat with an eye roll."""
 
     def test_eyes_carry_the_side_glance(self):

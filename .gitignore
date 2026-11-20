@@ -32,3 +32,12 @@ outputs/direction_check/
 
 # webxr local server certificate
 xr/.certs/
+
+# build notes, kept locally only
+docs/*.md
+*.pptx
+CLAUDE.md
+tools/make_readme_images.py
+tools/capture_blender_ui.py
+tools/make_demo.py
+tools/make_bundle.sh

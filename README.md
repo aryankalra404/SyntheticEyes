@@ -1,47 +1,51 @@
 # SyntheticEyes
 
-**A photoreal GNM head in Blender whose eyes move like a person's.** Nine skin and eye texture
-sets in GNM's own UV layout, a gaze engine built from published eye-movement data, and one
-command that renders it all.
+A textured GNM head in Blender with natural eye, eyelid and brow motion. It includes nine skin
+and eye texture sets in GNM's UV layout, a gaze engine for the motion, and a Python script that
+renders stills and videos from the command line.
 
 Samsung PRISM XR Hackathon 2026 · Track 1: Synthetic Eye Movement & Virtual Camera Rendering ·
-Team **Saccade**, Vellore Institute of Technology (VIT)
+Team **Saccade**, Vellore Institute of Technology (VIT): Harshit Aryan and Aryan Kalra
+
+> **[⬇ Download the submission bundle: `VIT_Saccade.zip` (770 MB)](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)**
+>
+> `scene.blend`, `wrapper/eyes.py`, the nine texture sets, the three videos, the 10 clockwise
+> renders with `metadata.json`, and this README. Unzip anywhere and follow [Quick start](#quick-start).
 
 **[Demo video (1:38)](https://www.youtube.com/watch?v=Qzy6REgps80)** ·
-**[Submission zip](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)** ·
 **[Presentation](VIT_Saccade.pdf)** ·
 **[Try it in your browser or a Quest](https://aryankalra404.github.io/SyntheticEyes/)**
 
 ![The generate input: the face on a fixed camera, and the subject's left eye close up](docs/img/hero_generate.webp)
 
 <sub>`--input generate`, rendered in Cycles. Left: the whole face on a fixed camera. Right: the
-subject's left eye from 15 cm, riding on the head. Every frame is straight out of Blender.</sub>
+subject's left eye from 15 cm, on a camera that moves with the head. No post-processing.</sub>
 
-## Why we built it this way
+## Why we built it
 
-Gaze estimators for XR headsets need huge amounts of labelled eye images, and real eyes are slow,
-costly and private to capture. Synthetic eyes only help if they look and move like real ones: a
-plastic face or a pupil that slides like a cursor teaches a model the wrong thing.
+Eye tracking in XR headsets is trained on large sets of labelled eye images, and capturing real
+eyes is slow, expensive and raises privacy issues. Synthetic data helps only if the eyes look and
+move like real ones, so we focused on realistic skin and eye textures and on natural motion.
 
-So we spent our time where the track's scoring puts it:
+We divided our time the way the track is scored:
 
 | What's scored | Points | What we did | Where to look |
 |---|---|---|---|
-| Texture photorealism | 60 | 9 skin + eye texture sets, made directly in GNM Head v3's UV space, UDIM and legacy layouts, seam-free, scanned pore-scale relief, procedural irises with a different seed per eye | [`textures/`](textures), [`outputs/stills/`](outputs/stills), [faces](#nine-faces-one-uv-map) |
-| Kinematic accuracy | 20 | A gaze engine with real saccade dynamics, blinks, lid follow, brows, head and vergence; `left`, `right`, `generate` inputs, each video under 15 s | [`outputs/videos/`](outputs/videos), [motion](#motion-that-reads-as-human) |
+| Texture photorealism | 60 | 9 skin + eye texture sets, made directly in GNM Head v3's UV space, UDIM and legacy layouts, seam-free, scanned pore-scale relief, procedural irises with a different seed per eye | [`textures/`](textures), [`outputs/stills/`](outputs/stills), [texture sets](#texture-sets) |
+| Kinematic accuracy | 20 | A gaze engine with real saccade dynamics, blinks, lid follow, brows, head and vergence; `left`, `right`, `generate` inputs, each video under 15 s | [`outputs/videos/`](outputs/videos), [motion](#eye-motion) |
 | Code & UV portability | 20 | `scene.blend` opens on the `generate` expression keyed on the Timeline; the wrapper runs headless from any folder; textures drop onto any GNM head | [`scene.blend`](scene.blend), [`wrapper/`](wrapper), [Timeline](#open-it-in-blender) |
 
-We also meet the track's original calibrated spec: `eyes.move(h, v)` / `reset()` / `render()`,
+We also follow the track's original spec: `eyes.move(h, v)` / `reset()` / `render()`,
 fixation 35 cm out with ±5 cm bounds, a locked camera 40 cm away, 1024×1024 PNGs, the 10
 clockwise renders and per-frame `metadata.json`.
 
-## Nine faces, one UV map
+## Texture sets
 
 ![The nine texture sets, each on its own GNM identity](docs/img/faces.jpg)
 
 Every set is a full texture for a bare GNM head: skin colour with eyebrows baked in, a normal map,
-a roughness map, and a separate left and right eye. The judges' test is to wrap our maps on their
-own GNM head, so the realism has to live in the files, not in our lighting.
+a roughness map, and a separate left and right eye. The maps are meant to be applied to any GNM
+head, so all the detail is in the texture files and doesn't depend on our scene's lighting.
 
 ![Eye close-ups of all nine sets](docs/img/eyes.jpg)
 
@@ -53,17 +57,17 @@ tiles. The irises use different seeds, so left and right are not copies.</sub>
 How the sets were made:
 
 - **Skin colour.** Eight sets bake MakeHuman CC0 skins onto GNM's UVs through a one-off
-  registration of the two heads. `tex_09`, our hero set, takes its colour from a photographed head
+  registration of the two heads. `tex_09`, the set used in the videos, takes its colour from a photographed head
   scan.
-- **Pores and micro-relief.** MakeHuman skins have about 2 px per mm on the face; GNM's tile has
-  8.5. Baked alone they look smooth and waxy, so every set gets the scan's displacement, filtered
+- **Pores and fine detail.** MakeHuman skins have about 2 px per mm on the face; GNM's tile has
+  8.5. On their own they look smooth, so every set gets the scan's displacement, filtered
   down to pore scale, in its normal map, plus colour mottling, lips, lids and ear detail.
-- **Eyebrows** are painted as individual grown hairs, not a smudge, so they hold up close.
-- **Irises** are generated: fibres, crypts, furrows, a collarette and a limbal ring. The sclera
-  has branching, tapering vessels that fade towards the iris, gather in the corners and end at
-  uneven distances, after we compared against close-up eye footage.
-- **Seams.** No seam at the back of the head, behind the ears or round the lips; the sets were
-  audited on the bare GNM template, not just in our lit renders.
+- **Eyebrows** are made of individual hairs, so they still look right in close-ups.
+- **Irises** are generated by a script: fibres, crypts, furrows, a collarette and a dark ring at
+  the edge. The whites of the eyes have thin branching blood vessels, mostly in the corners, which
+  we tuned by comparing with close-up photos of real eyes.
+- **Seams.** We checked every set on the plain GNM head for seams at the back of the head,
+  behind the ears and around the lips.
 
 | Set | Look | Skin source | Iris |
 |---|---|---|---|
@@ -79,7 +83,7 @@ How the sets were made:
 
 Each set's `set.json` records its sources, licences and iris parameters.
 
-## Motion that reads as human
+## Eye motion
 
 <table>
 <tr>
@@ -102,16 +106,16 @@ Each set's `set.json` records its sources, licences and iris parameters.
 <sub>Face pane only. The full videos in [`outputs/videos/`](outputs/videos) are 2048×1024, 30 fps,
 with the eye close-up beside the face.</sub>
 
-Eyes don't glide. They jump, land a little short, correct, drift, and pull the lids, the brows
-and eventually the head along. That is what the gaze engine
-([`wrapper/gaze/`](wrapper/gaze), pure numpy) models:
+Real eyes move in quick jumps called saccades. Big jumps often land a little short and get
+corrected, and the eyelids, brows and head move along with the eyes. The gaze engine
+([`wrapper/gaze/`](wrapper/gaze), numpy only) handles the following:
 
-- **Saccades on the main sequence.** Peak speed saturates near 550°/s; duration grows with size.
+- **Saccades.** Bigger jumps take longer, and the top speed levels off near 550°/s.
   Shifts over 12° land 6–12 % short, and a corrective saccade follows 150–220 ms later, with a
   small glissade at the end.
-- **Fixations are never still.** Slow drift, about one microsaccade a second, and the eyes
-  counter-rotate against an idle head sway so the gaze holds its target.
-- **Head and eyes share the work.** The head starts 40 ms after the eyes and takes 10–40 % of
+- **Small movements while looking at one point.** Slow drift and about one tiny jump a second.
+  The head sways slightly and the eyes make up for it, so the gaze stays on target.
+- **Head movement.** The head starts 40 ms after the eyes and takes 10–40 % of
   large shifts, with a slight dip and roll as it turns. Small refixations leave it where it is.
 - **Blinks** close in 75 ms and open in 165 ms. They come spontaneously, with large gaze shifts,
   and never mid eye-roll. Some stop short, as real ones do. Behind the closed lid the eyes roll
@@ -123,10 +127,10 @@ and eventually the head along. That is what the gaze engine
   other. On big shifts the brows lift and the lower lids tense, then relax while the eyes hold.
 - **Vergence and pupil.** The eyes converge on the fixation distance, and the pupil narrows for
   near targets with a slow natural wander (hippus).
-- **Deterministic.** Every input takes a `--seed`. The seed changes the performance (timing,
-  amplitudes, which side first), never what the input means. Same command, same pixels.
+- **Repeatable.** Every input takes a `--seed`. The seed changes timing, sizes and which side
+  comes first, but not what the input means. The same command gives the same frames.
 
-51 unit tests check the engine against the published numbers, with no Blender needed:
+51 unit tests check these timings and sizes, and they run without Blender:
 `python -m unittest discover tests`.
 
 ## Open it in Blender
@@ -139,7 +143,7 @@ eyes, lids, brows, pupils and head, 249 frames. The GNM head has a real armature
 are built from GNM's expression basis. The file uses relative paths only, so it opens from
 wherever you unzip it.
 
-## Calibrated control
+## Direction control
 
 `move(h, v)` puts a fixation target 35 cm in front of the eye midpoint at `(h·5 cm, v·5 cm)` and
 aims both eyes at it, so they converge as real eyes do.
@@ -359,7 +363,7 @@ sits at Blender `(x, −z, y)`, so the face looks along Blender −Y. UVs are un
 | `K`, `camera_world_matrix` | intrinsics (3×3) and camera-to-world (4×4) |
 | `image` | path of the render |
 
-## What's in the box
+## Files
 
 ```
 scene.blend            GNM head, armature (neck, head, eye.L, eye.R), lid/brow/blink shape keys,
@@ -384,7 +388,7 @@ Dockerfile             renders a draft frame on CPU with the pinned Blender
 ```bash
 python tools/validate.py                          # layout, metadata, directions, videos, textures, README, Dockerfile
 python tools/validate.py --zip VIT_Saccade.zip    # the same, on a clean unzip of the bundle
-python -m unittest discover tests                 # gaze engine against published numbers
+python -m unittest discover tests                 # gaze engine timings and sizes
 python -m wrapper.gaze --mode left --seed 0 --plot /tmp/left.png   # the motion as curves
 ```
 
@@ -409,7 +413,7 @@ can follow the image name, for example
 `blender -b scene.blend -P wrapper/eyes.py -- --input left --quality draft`. Final quality in the
 container means Cycles on the CPU (`--cpu`), which is slow.
 
-## Bonus: it looks back at you
+## Bonus: WebXR demo
 
 **[aryankalra404.github.io/SyntheticEyes](https://aryankalra404.github.io/SyntheticEyes/)** runs
 the same head and the same gaze engine live in the browser (three.js, WebXR). On a laptop it
@@ -422,7 +426,7 @@ of the scored bundle; see [`xr/README.md`](xr/README.md).
 
 - **Final renders are slow.** A 9 s split-screen Cycles video takes hours on a laptop GPU. Draft
   and preview modes exist for iteration, but the shipped videos are full quality.
-- **Bald heads.** GNM has no hair. Brows, lashes and fine facial hair are in, but scalp hair isn't.
+- **No scalp hair.** GNM has no hair. Brows, lashes and fine facial hair are included.
 - **The mouth is untextured.** Teeth and tongue get a flat material; the track is about the eyes
   and skin.
 - **Source resolution.** MakeHuman skins are soft at GNM's texel density. Pore detail comes from
@@ -432,9 +436,8 @@ of the scored bundle; see [`xr/README.md`](xr/README.md).
 
 ## How it was built
 
-`scene.blend` is generated, never edited by hand: `tools/build_scene.py` builds it from GNM's data
-on the identity paired with `tex_09`, so the videos show the same head as the hero still. GNM's own
-Python package never runs inside Blender. A tools step exports plain `.npz` files, and everything
+`tools/build_scene.py` builds `scene.blend` from GNM's data, using the head shape paired with
+`tex_09`, so the videos show the same face as the `tex_09` still. GNM's own Python package never runs inside Blender. A tools step exports plain `.npz` files, and everything
 on the Blender side uses only `bpy` and `numpy`. The texture pipeline (`tools/`) does the head
 registration, skin bake, relief transfer and iris generation. It needs its own Python environment
 and the downloaded assets, and isn't needed to run the wrapper.
@@ -444,25 +447,18 @@ python3 tools/solve_lids.py
 blender -b --factory-startup -P tools/build_scene.py -- --npz assets/gnm/id_male_white_9.npz
 ```
 
-The design notes, measurements and our full work log are in [`docs/`](docs):
-[TECH_NOTES](docs/TECH_NOTES.md), [PLAN](docs/PLAN.md), [REQUIREMENTS](docs/REQUIREMENTS.md),
-[PROGRESS](docs/PROGRESS.md). The README pictures are made by `tools/make_readme_images.py`.
-
 ## Credits and licences
 
 | Asset | Use | Licence |
 |---|---|---|
 | [Google GNM Head v3](https://github.com/google/GNM) | head mesh, joints, UVs, expression basis | Apache-2.0 |
-| [MakeHuman](https://static.makehumancommunity.org/assets/assetpacks.html) Skins 01 and 02, Eyebrows 01, Eyelashes 01, system assets and base mesh | skin colour source, eyebrows, registration target | CC0 |
+| [MakeHuman](https://static.makehumancommunity.org/assets/assetpacks.html) skins and base mesh | skin colour of `tex_01` to `tex_08`, eyebrows | CC0 |
 | [Poly Haven `brown_photostudio_02`](https://polyhaven.com/a/brown_photostudio_02) | lighting (HDRI packed in `scene.blend`) | CC0 |
-| "Infinite, 3D Head Scan by Lee Perry-Smith", based on a work at www.triplegangers.com ([download](https://casual-effects.com/g3d/data10/research/model/lpshead/lpshead.zip), McGuire Computer Graphics Archive) | displacement map, filtered to pore scale: skin micro-relief in every set's normal map and colour detail; colour map: the skin of `tex_09` only | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| "Infinite, 3D Head Scan by Lee Perry-Smith", based on a work at www.triplegangers.com | pore detail in every set, skin colour of `tex_09` | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Blender 4.5.1 | renderer (tool only, not redistributed) | GPL |
 
-Gaze-behaviour numbers follow Ruhland et al., *A Review of Eye Gaze in Virtual Agents, Social
-Robotics and HCI*, Computer Graphics Forum 2015.
-
 The irises, sclera, the rest of the detail maps, the gaze engine and all code were made for this
-project. We used AI coding tools; [AI_DISCLOSURE.md](AI_DISCLOSURE.md) says exactly how. The
+project. We used AI coding tools; [AI_DISCLOSURE.md](AI_DISCLOSURE.md) explains how. The
 scan's geometry and original files are not redistributed; each `set.json` names what it takes
 from the scan.
 

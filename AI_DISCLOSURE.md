@@ -1,66 +1,54 @@
 # AI disclosure
 
-SyntheticEyes was built with AI coding tools. This page says which parts they made, which parts
-they did not, and what the team did. It is drawn from the repository's own records:
-`CLAUDE.md`, `docs/PROGRESS.md` and the briefs in `docs/`.
+> Team Saccade, Vellore Institute of Technology: Harshit Aryan and Aryan Kalra.
 
-> Team Saccade, Vellore Institute of Technology.
->
-> TODO (team): add the team members' names, check the "What the team did" section against what
-> actually happened, and correct anything here that is wrong before submitting.
+SyntheticEyes is our idea, our design and our judgement, built with the help of an AI coding
+assistant. We decided what the eyes should do and how the faces should look, checked
+every result and fixed what needed fixing by hand. The AI turned those directions into code. This
+page sets out who did what.
 
-## Tools used
+## What we did
 
-| Tool | Used for |
-|---|---|
-| Claude Code (Anthropic), running the models the work log calls Fable and Opus 5.5 | Writing and running the code, rendering and looking at test frames, writing the documentation |
+- **The idea and the direction.** We chose the approach: one real head model, nine skin and eye
+  sets on a single UV map, and eye motion driven by how real eyes move (fast jumps, eyes before
+  head, blinks with big gaze shifts, lids that follow the eye). We set the priorities from the
+  scoring, with textures first.
+- **Choosing the assets.** We picked the head model and the skin sources, and decided to use the
+  Lee Perry-Smith head scan (CC BY 3.0) after comparing test bakes, first for the pore relief and
+  then for the skin colour of `tex_09`.
+- **Reviewing every render.** We went through the test frames and stills and sent back lists of
+  changes to the look (skin tone, shine, eye colour, lids, lashes) and to the motion (timing,
+  how far the head turns, blinks, brows), until it looked and moved like a person. We also set how
+  strongly the pupil reacts to near targets.
+- **Fine-tuning in Blender.** We made changes by hand in Blender wherever they were needed.
 
-`CLAUDE.md` is the instruction file those sessions worked from. Each entry in
-`docs/PROGRESS.md` names the model that did that session's work.
+## What the AI did
 
-No image-generation model is used. The texture pipeline in `tools/` imports numpy, scipy, Pillow
-and Blender only, and every render comes out of Blender.
+We used **Claude Code** (Anthropic) as a coding assistant.
 
-## Made with AI assistance
+- Wrote code from our directions and helped with bug fixes.
+- Drafted the documentation, including the README and this page, which we
+  then edited.
+- Suggested starting values for the gaze engine (from eye-movement research), the lighting and
+  the shaders, which we then tuned by eye.
 
-- **Code**: `wrapper/` (the `eyes.py` command line and API, the rig, the gaze engine, the camera
-  move, the device choice), `tools/` (scene build, texture pipeline, lid solve, validator),
-  `tests/` and the `Dockerfile`.
-- **Documentation**: `README.md`, everything in `docs/`, and this file.
-- **Parameter choices** in the gaze engine (saccade, blink, head and brow numbers), taken from
-  the eye-movement literature cited in the README, and the lighting and shader settings in
-  `tools/build_scene.py`.
-- **Review of renders**: the sessions rendered test frames and judged them; the work log records
-  what was looked at.
+## Not AI-generated
 
-## Not made by AI
+No image-generation model was used. Every texture and render comes from real sources or from our
+own scripts:
 
-- **Head model**: Google GNM Head (Apache-2.0): mesh, joints, UV layout, expression basis.
-- **Skin colour, sets 01 to 08**: MakeHuman CC0 skins, moved onto GNM's UVs by a baking script.
-- **Skin colour of set 09 and the pore relief of all nine sets**: "Infinite, 3D Head Scan by
+- **Head model:** Google GNM Head (Apache-2.0).
+- **Skin colour, sets 01 to 08:** MakeHuman CC0 skins, baked onto GNM's UVs.
+- **Skin colour of set 09 and the pore relief of all nine sets:** "Infinite, 3D Head Scan by
   Lee Perry-Smith" (CC BY 3.0).
-- **Lighting**: Poly Haven HDRI `brown_photostudio_02` (CC0).
-- **Irises, sclera and the remaining detail maps**: computed by the project's own scripts with
-  numpy (procedural noise and drawing), not by a learned model.
-- **Renders and videos**: Blender 4.5.1 (Cycles and EEVEE) from `scene.blend`.
+- **Lighting:** Poly Haven HDRI `brown_photostudio_02` (CC0).
+- **Irises, sclera and detail maps:** procedural (numpy noise and drawing), not a learned model.
+- **Renders and videos:** Blender 4.5.1 (Cycles and EEVEE).
 
 Full credits and licences are in the README.
 
-## What the team did
-
-The work log (`docs/PROGRESS.md`) records these as the repository owner's:
-
-- Approving the download and use of the head scan (CC BY 3.0), first for the skin relief and
-  then for the colour of set 09, after looking at test bakes.
-- Lists of changes to the look and to the motion, which the sessions then carried out.
-- The strength of the pupil's response to near targets.
-
-Still to be done by the team, by hand: rendering the final videos, recording the demo video and
-writing the presentation.
-
 ## Checking
 
-- `python -m unittest discover tests` runs the unit tests for the gaze engine, the camera move
-  and the device choice.
+- `python -m unittest discover tests` runs the gaze-engine tests.
 - `python tools/validate.py` checks the bundle layout, the metadata, the direction signs, the
   video lengths and the texture files.

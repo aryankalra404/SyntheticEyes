@@ -1,7 +1,7 @@
 """Carries MakeHuman strand eyebrows to GNM as a triangle binding (M3 section 3).
 
 Eyelashes are no longer carried: tools/lashes.py grows them on GNM's own lid margin (the five
-Mindfront lash sets were tried on 13 Nov; see docs/PROGRESS.md). The per-root binding used for
+Mindfront lash sets were tried on 13 Nov). The per-root binding used for
 them is kept below (PER_ROOT) in case a lash set is wanted again: add it to SETS.
 
     python3 tools/carry_hair.py            # -> assets/gnm/hair_binding.npz (git-ignored, rebuilt here)

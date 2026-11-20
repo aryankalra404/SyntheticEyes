@@ -127,9 +127,7 @@ cd xr && node --test
 ```
 
 The live link is this folder served by GitHub Pages: `.github/workflows/pages.yml` publishes
-`xr/` (without the tests and the local server) on every push to `main` that touches it. The
-older copy at https://aryankalra404.github.io/syntheticeyes-xr/ (`tools/publish_xr.sh`) is no
-longer updated.
+`xr/` (without the tests and the local server) on every push to `main` that touches it.
 
 Debug views for screenshots: `?view=face|eyes|eye|eyeL&size=800&shot=1` puts the camera where
 the Blender still cameras are; `?pose=1&gy=20&gp=0&hy=0&blink=0.66&brow=0.3` sets the

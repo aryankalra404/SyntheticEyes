@@ -9,7 +9,7 @@ What it writes to xr/assets/:
   TEXCOORD_0) and legacy (TEXCOORD_1), one primitive per material slot named after the slot.
   No animation, no modifier applied (the globe guard shrinkwraps cannot be exported), plain
   placeholder materials: xr/js/app.js builds the real ones.
-  Also (stage F of docs/BRIEF_M14.md): `lashes`, a ribbon per lash built from lashes_carrier
+  Also: `lashes`, a ribbon per lash built from lashes_carrier
   (430 polylines of 7 points: the same points the scene's curves are made from, with their
   skin weights and the 21 shape keys, so they follow the lids), widened LASH_WIDTH times
   because a lash at its real 0.1 mm is a fraction of a headset pixel at 0.7 m; and the two

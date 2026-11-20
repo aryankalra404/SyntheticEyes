@@ -4,6 +4,8 @@ SyntheticEyes was built with AI coding tools. This page says which parts they ma
 they did not, and what the team did. It is drawn from the repository's own records:
 `CLAUDE.md`, `docs/PROGRESS.md` and the briefs in `docs/`.
 
+> Team Saccade, Vellore Institute of Technology.
+>
 > TODO (team): add the team members' names, check the "What the team did" section against what
 > actually happened, and correct anything here that is wrong before submitting.
 

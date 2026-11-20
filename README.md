@@ -5,8 +5,18 @@ Samsung PRISM XR Hackathon 2026, Track 1: Synthetic Eye Movement & Virtual Camer
 A Google GNM Head v3 in Blender with calibrated, human-like eye, eyelid and brow motion, and a
 set of skin and eye texture sets in GNM's UV layout that can be put on any GNM head.
 
-> TODO: team name, college name and the final zip name (`team_name.zip`).
-> TODO: demo video link (≤ 3 min) and deck `CollegeName_TeamName.pdf`.
+Team **Saccade**, Vellore Institute of Technology (VIT).
+
+> TODO: deck `VIT_Saccade.pdf`.
+
+**Submission bundle: [`VIT_Saccade.zip`](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)**
+(about 770 MB, on the [Releases](https://github.com/aryankalra404/SyntheticEyes/releases) page,
+too large to commit). It holds the track's bundle layout (`scene.blend`, `wrapper/`, `renders/`,
+`metadata.json`, `README.md`) plus the texture sets, videos, stills and checks; this repository
+has the same layout, so a clone works the same way. Built with `tools/make_bundle.sh VIT_Saccade`.
+
+**Demo video (1 min 38 s): https://www.youtube.com/watch?v=Qzy6REgps80** (also in the repo as
+`outputs/demo/demo.mp4`).
 
 Live WebXR demo (unscored bonus, `xr/`): **https://aryankalra404.github.io/SyntheticEyes/**.
 The head looks at you; on a laptop move the mouse, on a Meta Quest open it in the browser and

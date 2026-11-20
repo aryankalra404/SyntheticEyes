@@ -1,108 +1,175 @@
 # SyntheticEyes
 
-Samsung PRISM XR Hackathon 2026, Track 1: Synthetic Eye Movement & Virtual Camera Rendering.
+**A photoreal GNM head in Blender whose eyes move like a person's.** Nine skin and eye texture
+sets in GNM's own UV layout, a gaze engine built from published eye-movement data, and one
+command that renders it all.
 
-A Google GNM Head v3 in Blender with calibrated, human-like eye, eyelid and brow motion, and a
-set of skin and eye texture sets in GNM's UV layout that can be put on any GNM head.
+Samsung PRISM XR Hackathon 2026 · Track 1: Synthetic Eye Movement & Virtual Camera Rendering ·
+Team **Saccade**, Vellore Institute of Technology (VIT)
 
-Team **Saccade**, Vellore Institute of Technology (VIT).
+**[Demo video (1:38)](https://www.youtube.com/watch?v=Qzy6REgps80)** ·
+**[Submission zip](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)** ·
+**[Presentation](VIT_Saccade.pdf)** ·
+**[Try it in your browser or a Quest](https://aryankalra404.github.io/SyntheticEyes/)**
 
-> TODO: deck `VIT_Saccade.pdf`.
+![The generate input: the face on a fixed camera, and the subject's left eye close up](docs/img/hero_generate.webp)
 
-**Submission bundle: [`VIT_Saccade.zip`](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)**
-(about 770 MB, on the [Releases](https://github.com/aryankalra404/SyntheticEyes/releases) page,
-too large to commit). It holds the track's bundle layout (`scene.blend`, `wrapper/`, `renders/`,
-`metadata.json`, `README.md`) plus the texture sets, videos, stills and checks; this repository
-has the same layout, so a clone works the same way. Built with `tools/make_bundle.sh VIT_Saccade`.
+<sub>`--input generate`, rendered in Cycles. Left: the whole face on a fixed camera. Right: the
+subject's left eye from 15 cm, riding on the head. Every frame is straight out of Blender.</sub>
 
-**Demo video (1 min 38 s): https://www.youtube.com/watch?v=Qzy6REgps80** (also in the repo as
-`outputs/demo/demo.mp4`).
+## Why we built it this way
 
-Live WebXR demo (unscored bonus, `xr/`): **https://aryankalra404.github.io/SyntheticEyes/**.
-The head looks at you; on a laptop move the mouse, on a Meta Quest open it in the browser and
-tap START XR. See `xr/README.md`.
+Gaze estimators for XR headsets need huge amounts of labelled eye images, and real eyes are slow,
+costly and private to capture. Synthetic eyes only help if they look and move like real ones: a
+plastic face or a pupil that slides like a cursor teaches a model the wrong thing.
 
-## Contents
+So we spent our time where the track's scoring puts it:
 
-```
-scene.blend            GNM head, armature (neck, head, eye.L, eye.R), lid and brow shape keys,
-                       materials, lights, two cameras; the `generate` motion on the Timeline
-wrapper/eyes.py        public API and command line: move(h, v), reset(), render(), videos
-wrapper/rig.py         poses bones and shape keys from the gaze channels
-wrapper/gaze/          gaze engine: saccades, fixations, blinks, lids, brows, head (numpy only)
-wrapper/camera_move.py when the video camera glides between framings (numpy only)
-wrapper/device.py      picks the Cycles GPU backend, or the CPU
-renders/               10 clockwise 1024×1024 PNGs (PDF spec)
-metadata.json          one record per clockwise render
-textures/tex_01 … 09/  nine texture sets in GNM UV space (UDIM tiles and per-region names)
-outputs/videos/        left.mp4, right.mp4, generate.mp4 (each ≤ 15 s)
-outputs/stills/        one render per texture set; eye/ has one eye close-up per set
-tests/                 unit tests: gaze engine, camera move, device choice (no Blender needed)
-tools/                 build pipeline and validator (not needed to run the wrapper)
-Dockerfile             renders one draft frame on CPU with the pinned Blender
-AI_DISCLOSURE.md       which parts were made with AI tools
-```
+| What's scored | Points | What we did | Where to look |
+|---|---|---|---|
+| Texture photorealism | 60 | 9 skin + eye texture sets, made directly in GNM Head v3's UV space, UDIM and legacy layouts, seam-free, scanned pore-scale relief, procedural irises with a different seed per eye | [`textures/`](textures), [`outputs/stills/`](outputs/stills), [faces](#nine-faces-one-uv-map) |
+| Kinematic accuracy | 20 | A gaze engine with real saccade dynamics, blinks, lid follow, brows, head and vergence; `left`, `right`, `generate` inputs, each video under 15 s | [`outputs/videos/`](outputs/videos), [motion](#motion-that-reads-as-human) |
+| Code & UV portability | 20 | `scene.blend` opens on the `generate` expression keyed on the Timeline; the wrapper runs headless from any folder; textures drop onto any GNM head | [`scene.blend`](scene.blend), [`wrapper/`](wrapper), [Timeline](#open-it-in-blender) |
 
-## Setup
+We also meet the track's original calibrated spec: `eyes.move(h, v)` / `reset()` / `render()`,
+fixation 35 cm out with ±5 cm bounds, a locked camera 40 cm away, 1024×1024 PNGs, the 10
+clockwise renders and per-frame `metadata.json`.
 
-- **Blender 4.5.1 LTS** (the version everything was built and tested with). No add-ons.
-  Download: https://download.blender.org/release/Blender4.5/
-- Everything inside Blender uses only `bpy` and `numpy` (bundled with Blender).
-  No `pip install` is needed to render.
-- Optional, outside Blender: Python 3.10+ with `numpy` for the tests, and `matplotlib` for the
-  motion plots. `tools/validate.py` needs only the standard library.
+## Nine faces, one UV map
 
-Paths are relative to the repo root, so the bundle runs from wherever it is unzipped.
-In the commands below `blender` is the Blender executable, for example
-`/Applications/Blender.app/Contents/MacOS/Blender` on macOS or
-`"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"` on Windows.
+![The nine texture sets, each on its own GNM identity](docs/img/faces.jpg)
 
-## Run
+Every set is a full texture for a bare GNM head: skin colour with eyebrows baked in, a normal map,
+a roughness map, and a separate left and right eye. The judges' test is to wrap our maps on their
+own GNM head, so the realism has to live in the files, not in our lighting.
 
-All commands are run from the repo root.
+![Eye close-ups of all nine sets](docs/img/eyes.jpg)
+
+![The texture files of tex_09 in GNM's UV space](docs/img/uv_maps.jpg)
+
+<sub>`tex_09` as files: skin albedo, normal and roughness on UDIM tile 1001, and the two eye
+tiles. The irises use different seeds, so left and right are not copies.</sub>
+
+How the sets were made:
+
+- **Skin colour.** Eight sets bake MakeHuman CC0 skins onto GNM's UVs through a one-off
+  registration of the two heads. `tex_09`, our hero set, takes its colour from a photographed head
+  scan.
+- **Pores and micro-relief.** MakeHuman skins have about 2 px per mm on the face; GNM's tile has
+  8.5. Baked alone they look smooth and waxy, so every set gets the scan's displacement, filtered
+  down to pore scale, in its normal map, plus colour mottling, lips, lids and ear detail.
+- **Eyebrows** are painted as individual grown hairs, not a smudge, so they hold up close.
+- **Irises** are generated: fibres, crypts, furrows, a collarette and a limbal ring. The sclera
+  has branching, tapering vessels that fade towards the iris, gather in the corners and end at
+  uneven distances, after we compared against close-up eye footage.
+- **Seams.** No seam at the back of the head, behind the ears or round the lips; the sets were
+  audited on the bare GNM template, not just in our lit renders.
+
+| Set | Look | Skin source | Iris |
+|---|---|---|---|
+| `tex_01` | young adult, light skin, brown brows | MakeHuman `onlytheghosts_young_eurasian_female` | hazel |
+| `tex_02` | young adult, medium brown skin, dark brown brows | MakeHuman `cutoff3d_indian_female_skin` | dark brown |
+| `tex_03` | middle-aged, dark brown skin, black brows | MakeHuman `mindfront_skin_male_african_middleage` | dark brown |
+| `tex_04` | older adult, light skin, ash brows | MakeHuman `onlytheghosts_old_eurasian_male` | blue |
+| `tex_05` | young adult, light warm skin, black brows | MakeHuman `young_asian_male` | brown |
+| `tex_06` | older adult, deep brown skin, black brows | MakeHuman `old_african_female` | brown |
+| `tex_07` | young adult, light freckled skin, auburn brows | MakeHuman `toigo_light_skin_male_freckles` | green |
+| `tex_08` | middle-aged, light skin, brown brows | MakeHuman `onlytheghosts_middle_aged_eurasian_female` | grey |
+| `tex_09` | adult, light skin with stubble, photographed | Infinite head scan, colour map (CC BY 3.0) | hazel |
+
+Each set's `set.json` records its sources, licences and iris parameters.
+
+## Motion that reads as human
+
+| `--input left` (9.0 s) | `--input right` (9.0 s) | `--input generate` (8.3 s) |
+|:---:|:---:|:---:|
+| ![left](docs/img/left.webp) | ![right](docs/img/right.webp) | ![generate](docs/img/generate.webp) |
+| Glance to image-left, study it with small refixations, blink, come back to the viewer | The same to image-right | Look to one side, across to the other, back, an eye roll up and over that drops into a slow blink, settle |
+
+<sub>Face pane only. The full videos in [`outputs/videos/`](outputs/videos) are 2048×1024, 30 fps,
+with the eye close-up beside the face.</sub>
+
+Eyes don't glide. They jump, land a little short, correct, drift, and pull the lids, the brows
+and eventually the head along. That is what the gaze engine
+([`wrapper/gaze/`](wrapper/gaze), pure numpy) models:
+
+- **Saccades on the main sequence.** Peak speed saturates near 550°/s; duration grows with size.
+  Shifts over 12° land 6–12 % short, and a corrective saccade follows 150–220 ms later, with a
+  small glissade at the end.
+- **Fixations are never still.** Slow drift, about one microsaccade a second, and the eyes
+  counter-rotate against an idle head sway so the gaze holds its target.
+- **Head and eyes share the work.** The head starts 40 ms after the eyes and takes 10–40 % of
+  large shifts, with a slight dip and roll as it turns. Small refixations leave it where it is.
+- **Blinks** close in 75 ms and open in 165 ms. They come spontaneously, with large gaze shifts,
+  and never mid eye-roll. Some stop short, as real ones do. Behind the closed lid the eyes roll
+  down and in.
+- **Lids follow the eye.** The upper lid tracks pitch, so looking up doesn't tuck the iris under
+  the lid. The lid shapes are solved per identity and checked over a grid of gaze and blink:
+  lid skin and lashes stay outside the eyeball (worst case 0.03 mm).
+- **Brows and effort.** Brows rise with up-gaze, one side a little later and weaker than the
+  other. On big shifts the brows lift and the lower lids tense, then relax while the eyes hold.
+- **Vergence and pupil.** The eyes converge on the fixation distance, and the pupil narrows for
+  near targets with a slow natural wander (hippus).
+- **Deterministic.** Every input takes a `--seed`. The seed changes the performance (timing,
+  amplitudes, which side first), never what the input means. Same command, same pixels.
+
+51 unit tests check the engine against the published numbers, with no Blender needed:
+`python -m unittest discover tests`.
+
+## Open it in Blender
+
+![scene.blend in Blender 4.5 with the generate motion on the Timeline](docs/img/blender_timeline.jpg)
+
+Open `scene.blend` and press play. The `generate` expression is keyframed on the Timeline:
+eyes, lids, brows, pupils and head, 249 frames. The GNM head has a real armature (neck, head,
+`eye.L`, `eye.R`), so each eye turns about its own centre. Lid, blink, brow and squint shape keys
+are built from GNM's expression basis. The file uses relative paths only, so it opens from
+wherever you unzip it.
+
+## Calibrated control
+
+`move(h, v)` puts a fixation target 35 cm in front of the eye midpoint at `(h·5 cm, v·5 cm)` and
+aims both eyes at it, so they converge as real eyes do.
+
+![Direction check: up, left, reset, right, down](docs/img/directions.jpg)
+
+<sub>The five-direction check (`--check-directions --render`): pupils move the right way for
+left, right, up, down and reset. Pixel positions are in `outputs/direction_check.json`.</sub>
+
+![The 10 clockwise renders, cropped to the eyes](docs/img/clockwise.jpg)
+
+<sub>The 10 clockwise renders in [`renders/`](renders) (θ = 2πk/10, h = sin θ, v = cos θ,
+starting at the top), cropped to the eyes. At the spec's 40 cm camera the full ±5 cm range moves
+a pupil only about 6 px, which is why the videos use closer cameras.</sub>
+
+## Quick start
+
+You need **Blender 4.5.1 LTS** ([download](https://download.blender.org/release/Blender4.5/)) and
+nothing else. Everything inside Blender uses only `bpy` and `numpy`, both bundled, so there's no
+`pip install`. Unzip [`VIT_Saccade.zip`](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)
+or clone this repo (same layout), and run from its root. Below, `blender` is the Blender
+executable, for example `/Applications/Blender.app/Contents/MacOS/Blender` on macOS.
 
 ```bash
-# the three videos (kinematic accuracy): frames → outputs/frames/<input>/, video → outputs/videos/<input>.mp4
+# the three inputs: frames → outputs/frames/<input>/, video → outputs/videos/<input>.mp4
 blender -b scene.blend -P wrapper/eyes.py -- --input left
 blender -b scene.blend -P wrapper/eyes.py -- --input right
 blender -b scene.blend -P wrapper/eyes.py -- --input generate --seed 7
 
-# 10 clockwise renders → renders/frame_00.png … frame_09.png, and metadata.json
-blender -b scene.blend -P wrapper/eyes.py -- --clockwise
+# a quick look at the motion first (EEVEE, minutes instead of hours)
+blender -b scene.blend -P wrapper/eyes.py -- --input generate --quality draft
 
-# one still with a texture set
+# one still with any texture set
 blender -b scene.blend -P wrapper/eyes.py -- --move 0 0 --texture 3 --out outputs/still_03.png
 
-# direction check: pupil pixels for reset, left, right, up, down, reset → outputs/direction_check.json
+# the 10 clockwise renders → renders/, and metadata.json (about 60 s)
+blender -b scene.blend -P wrapper/eyes.py -- --clockwise
+
+# the five-direction check → outputs/direction_check.json (+ PNGs)
 blender -b scene.blend -P wrapper/eyes.py -- --check-directions --render
 ```
 
-| Option | Meaning |
-|---|---|
-| `--input left\|right\|generate` | render that motion and encode an MP4 |
-| `--clockwise` | the 10 PDF-spec renders and `metadata.json` |
-| `--move H V` | pose with `move(h, v)` and render one still to `--out` |
-| `--check-directions` | write pupil positions for the 5-direction check; `--render` also saves PNGs |
-| `--seed N` | seed for the motion (default 0); same seed, same frames |
-| `--quality final\|preview\|draft` | `final`: Cycles, 1024² (default). `preview`: the same Cycles look at 768² and 32 samples, about a quarter of the time. `draft`: EEVEE, 512², much faster, for checking motion only: the cornea, the tear line and the hair are simplified, so brows and lashes shimmer and the lid margin sparkles |
-| `--texture NN` | use `textures/tex_NN` instead of the built-in materials |
-| `--camera face\|eyes\|move\|split` | Stills: `cam_face` (50 mm, whole face, the default) or `cam_eyes` (105 mm, eye region). Videos default to `split`: the same motion filmed twice with fixed cameras and put side by side in one 2048×1024 frame, with no divider or text. Left pane: `cam_video` (112 mm from 56 cm, forehead to chin, dark `eye` look), where the head, brows and both eyes are seen against a frame that holds still. Right pane, chosen with `--pane`: `eye` (the default) is `cam_move_eye`, the subject's left eye from 15 cm riding on the head, where the iris, lids and lashes are seen close; `eyes` is `cam_move_eyes`, both eyes and brows straight on, 13 cm across, fixed in the world. `face` films `cam_video` alone at 1024×1024 in half the time; `eyes` films `cam_eyes`. `move` films with `cam_move`, which holds a framing, glides to the next inside a fixation and holds again (`left` and `right`: both eyes, the face, the subject's left eye close up; `generate`: the eye, both eyes, the face) |
-| `--samples N` | Cycles samples per pixel (default: as saved in `scene.blend`, 128), or EEVEE samples with `--quality draft` |
-| `--fps N` | video frame rate (default 30) |
-| `--limit N` | render only the first N video frames (for quick looks) |
-| `--frames F [F ...]` | videos: render only these Timeline frames, as stills, into `outputs/frames/<input>/<camera>_stills/`; no video is encoded. With `--camera split`: `face_####.png`, `eye_####.png` and the joined `####.png` |
-| `--resume` | videos: carry on an interrupted run. The frames already in `outputs/frames/<input>/` are kept, the newest one in each camera's folder is re-rendered (it may be half written), the rest are skipped, and the video is encoded from all of them. Use the same options as the interrupted run. Without it, a run deletes that folder and starts from frame 1 |
-| `--cpu` | force Cycles onto the CPU. Without it the first GPU backend that has a device is used, tried in the order OptiX, CUDA, HIP, oneAPI, Metal; with no GPU, the CPU. The log line `[eyes] Blender …` names the one in use. Only Metal on an Apple M4 has been rendered with; use `--cpu` if a GPU backend fails on your machine |
-
-Rough timings on an Apple M4 (Metal): `--clockwise` about 60 s; a draft video about 12 min (6 min with `--camera face`); a preview video about 1 h 50 min; a final video several hours, so use `--resume` if it is interrupted.
-Final Cycles videos take much longer; use `--quality draft` to try things out.
-
-Opening `scene.blend` in the Blender UI and pressing play shows the `generate` motion on the
-Timeline (eyes, lids, brows and head, keyframed).
-
-### Python API
-
-From Blender's Python with `scene.blend` open and the repo root on `sys.path`:
+From Blender's Python, with `scene.blend` open and the repo root on `sys.path`:
 
 ```python
 from wrapper import eyes
@@ -111,74 +178,38 @@ eyes.render("out.png")        # 1024×1024 PNG from cam_face; camera="eyes" for 
 eyes.reset()                  # back to centre
 ```
 
-`move` drops the Timeline animation from memory (not from the file) so the static pose is
-what renders.
+`move` drops the Timeline animation from memory (not from the file), so the static pose is what
+renders.
 
-### Checks
+**How long it takes** on an Apple M4 (Metal GPU): `--clockwise` about 60 s; a draft video
+about 12 min; a preview video about 1 h 50 min. A final Cycles video is the real cost: our
+`right.mp4` took 7 h 36 min. Use `--resume` if a run is interrupted.
 
-```bash
-python tools/validate.py                      # bundle layout, metadata, directions, videos, textures, README, Dockerfile
-python tools/validate.py --root /path/to/unzipped/bundle
-python -m unittest discover tests             # gaze engine against published eye-movement numbers
-python -m wrapper.gaze --mode left --seed 0 --plot /tmp/left.png   # the motion as curves
-```
+<details>
+<summary><b>All command-line options</b></summary>
 
-`validate.py --blender` also opens `scene.blend` headless and checks the eye bones,
-materials, Timeline keyframes and that no file path in it is absolute.
-
-### Docker
-
-The image renders one draft frame on the CPU with Blender 4.5.1 (x86_64 Linux; on Apple
-Silicon it runs under emulation). EEVEE gets its OpenGL context from Xvfb and Mesa llvmpipe.
-
-```bash
-docker build --platform linux/amd64 -t syntheticeyes .
-```
-
-```bash
-docker run --rm --platform linux/amd64 -v "$PWD/outputs/docker:/work/outputs/docker" syntheticeyes
-```
-
-Output: `outputs/docker/draft.png` (about 40 s under emulation on an Apple M4). Any wrapper
-command can be passed after the image name, for example
-`blender -b scene.blend -P wrapper/eyes.py -- --input left --quality draft`; the entrypoint
-starts the virtual display first. Final quality uses Cycles on the CPU in the container
-(`--cpu`) and is slow there.
-
-## Conventions
-
-**Directions are in image space**, as the camera sees the face:
-
-- `h > 0` moves the pupils to **image-right**, `v > 0` moves them **up**. The `left` input
-  means image-left.
-- `move(h, v)` puts a fixation target on a plane **35 cm** in front of the eye midpoint at
-  `(h · 5 cm, v · 5 cm)` and aims both eyes at it, so they converge slightly. At |h| = 1 the
-  gaze is atan(5/35) ≈ 8.1° off centre. The head stays still.
-- `L` is the subject's left eye, which appears on the **right** of the image.
-
-**Cameras.** Both cameras sit 40 cm in front of the eye midpoint, looking at the face,
-1024 × 1024, constant lighting. `cam_face` has a 50 mm lens on a 36 mm sensor.
-
-**Clockwise renders.** Frame k (0…9) has θ = 2πk/10, h = sin θ, v = cos θ, so frame 0 looks
-up and the sequence goes clockwise in the image.
-
-**metadata.json**, one record per render:
-
-| Key | Meaning |
+| Option | Meaning |
 |---|---|
-| `frame`, `theta`, `input.h`, `input.v` | as above |
-| `eye_rotation_L`, `eye_rotation_R` | world-frame rotation of each eye bone from rest, Euler XYZ, radians. Blender world axes: +X image-right, +Y away from the camera, +Z up |
-| `pupil_center_2D_L`, `pupil_center_2D_R` | pupil centre in pixels of the 1024² render, **origin top-left, x right, y down** |
-| `camera_matrix` | 3×4 `P = K [R | t]`, OpenCV convention (x right, y down, z forward); `P · [X, Y, Z, 1]` divided by its third row gives the pixel |
-| `K`, `camera_world_matrix` | intrinsics (3×3) and the camera-to-world matrix (4×4) |
-| `image` | path of the render |
+| `--input left\|right\|generate` | render that motion and encode an MP4 |
+| `--clockwise` | the 10 PDF-spec renders and `metadata.json` |
+| `--move H V` | pose with `move(h, v)` and render one still to `--out` |
+| `--check-directions` | write pupil positions for the 5-direction check; `--render` also saves PNGs |
+| `--seed N` | seed for the motion (default 0); same seed, same frames |
+| `--quality final\|preview\|draft` | `final`: Cycles, 1024² (default). `preview`: the same Cycles look at 768² and 32 samples, about a quarter of the time. `draft`: EEVEE, 512², much faster, for checking motion only (the cornea, tear line and hair are simplified, so brows and lashes shimmer) |
+| `--texture NN` | use `textures/tex_NN` instead of the built-in materials |
+| `--camera face\|eyes\|move\|split` | Stills: `cam_face` (50 mm, whole face, the default) or `cam_eyes` (105 mm, eye region). Videos default to `split`: the same motion filmed by two fixed cameras side by side in one 2048×1024 frame. Left pane: `cam_video` (112 mm from 56 cm, forehead to chin). Right pane, chosen with `--pane`: `eye` (default), the subject's left eye from 15 cm riding on the head; `eyes`, both eyes and brows straight on. `face` films `cam_video` alone at 1024² in half the time; `move` uses a camera that holds a framing, glides to the next inside a fixation and holds again |
+| `--samples N` | Cycles samples per pixel (default 128, as saved), or EEVEE samples with `--quality draft` |
+| `--fps N` | video frame rate (default 30) |
+| `--limit N` | render only the first N video frames, for quick looks |
+| `--frames F [F ...]` | render only these Timeline frames as stills into `outputs/frames/<input>/<camera>_stills/`; no video |
+| `--resume` | carry on an interrupted video run: frames already rendered are kept, the newest is re-rendered in case it was half written. Use the same options as the interrupted run. Without it a run starts from frame 1 |
+| `--cpu` | force Cycles onto the CPU. Otherwise the first GPU backend with a device is used (OptiX, CUDA, HIP, oneAPI, Metal), or the CPU if there's none. The log line `[eyes] Blender …` names the one in use |
 
-**Units and axes.** Metres. GNM is +Y up, +Z forward; in `scene.blend` a GNM point
-`(x, y, z)` sits at Blender `(x, −z, y)`, so the face looks along Blender −Y. UVs are unchanged.
+</details>
 
-## UV layout and texture sets
+## Using a texture set on your own GNM head
 
-All textures use **GNM Head v3's own UVs**. GNM has two layouts of the same unwrap:
+All textures use **GNM Head v3's own UVs**, in both of GNM's layouts:
 
 | UDIM tile | Region | Our file |
 |---|---|---|
@@ -187,67 +218,43 @@ All textures use **GNM Head v3's own UVs**. GNM has two layouts of the same unwr
 | 1003 | left cornea | none (clear) |
 | 1004 | right eye interior | `eye.1004.png` |
 | 1005 | right cornea | none (clear) |
-| 1006 | teeth and gums | none |
-| 1007 | tongue | none |
+| 1006, 1007 | teeth and gums, tongue | none |
 
 - **UDIM** (GNM's `quad_uvs_udim`, the `UDIM` UV map in `scene.blend`): one tile per region.
-- **Legacy** (GNM's `quad_uvs`, the `legacy` map): every region in the unit square,
-  overlapping. The same pixels ship under per-region names in `legacy/`:
-  `skin.png`, `eye_L.png`, `eye_R.png`. Left and right eyes overlap in this layout, so they
-  need separate materials.
-
-Each set, `textures/tex_NN/`:
+- **Legacy** (GNM's `quad_uvs`, the `legacy` map): every region in the unit square, overlapping.
+  The same pixels ship as `legacy/skin.png`, `legacy/eye_L.png` and `legacy/eye_R.png`. The eyes
+  overlap in this layout, so they need separate materials.
 
 ```
-skin.1001.png          4096²  albedo, sRGB, eyebrows and fine colour detail baked in
-skin_normal.1001.png   4096²  tangent-space normal, OpenGL convention (+G = up in UV), Non-Color
-skin_rough.1001.png    2048²  roughness 0…1, Non-Color
-eye.1002.png           2048²  left eye interior, sRGB
-eye.1004.png           2048²  right eye interior, sRGB (same colour, different iris seed)
-legacy/skin.png, legacy/eye_L.png, legacy/eye_R.png    same pixels, per-region names
-preview.png            the set on the bare GNM template
+textures/tex_NN/
+├── skin.1001.png          4096²  albedo, sRGB, eyebrows and fine colour detail baked in
+├── skin_normal.1001.png   4096²  tangent-space normal, OpenGL (+G up in UV), Non-Color
+├── skin_rough.1001.png    2048²  roughness 0…1, Non-Color
+├── eye.1002.png           2048²  left eye interior, sRGB
+├── eye.1004.png           2048²  right eye interior, sRGB (same colour, different iris seed)
+├── legacy/                same pixels under per-region names
+├── preview.png            the set on the bare GNM template
+└── set.json               sources, licences, iris parameters
 ```
 
 The pupil is geometry (GNM's pupil coefficient), so the texture keeps the pupil region dark and
 the mesh sets its size.
 
-The nine sets. The label, the skin source and the iris colour are in each set's `set.json`:
+1. Give the head one material per region: skin (1001), left and right eye interiors (1002, 1004),
+   both corneas (1003, 1005), and anything for teeth and tongue.
+2. **Skin**: Principled BSDF. Albedo → Base Color (sRGB), roughness → Roughness (Non-Color),
+   normal (Non-Color) → Normal Map node (tangent space, same UV map) → Normal. For our look add
+   Subsurface Weight 0.25, Radius (1.0, 0.35, 0.2), Scale 0.003 (the scene is in metres).
+3. **Eye interiors**: Principled BSDF with the eye tile → Base Color, **Roughness 0.6, Specular
+   IOR Level 0.1**. With Blender's default specular and no cornea the irises read grey and washed
+   out at face size; we measured this in our wrap test.
+4. **Corneas**: fully transparent, or glass that is transparent to shadow rays, or the iris
+   renders dark.
+5. Image Texture nodes keep the default **Repeat** extension, so with the UDIM map each tile reads
+   its own file and no tiled image is needed. With the legacy map, use the `legacy/` files.
 
-| Set | Label | Skin source | Iris |
-|---|---|---|---|
-| `tex_01` | young adult, light skin, brown brows, hazel eyes | MakeHuman `onlytheghosts_young_eurasian_female` | hazel |
-| `tex_02` | young adult, medium brown skin, dark brown brows, dark brown eyes | MakeHuman `cutoff3d_indian_female_skin` | dark brown |
-| `tex_03` | middle-aged, dark brown skin, black brows, dark brown eyes | MakeHuman `mindfront_skin_male_african_middleage` | dark brown |
-| `tex_04` | older adult, light skin, ash brows, blue eyes | MakeHuman `onlytheghosts_old_eurasian_male` | blue |
-| `tex_05` | young adult, light warm skin, black brows, brown eyes | MakeHuman `young_asian_male` | brown |
-| `tex_06` | older adult, deep brown skin, black brows, brown eyes | MakeHuman `old_african_female` | brown |
-| `tex_07` | young adult, light freckled skin, auburn brows, green eyes | MakeHuman `toigo_light_skin_male_freckles` | green |
-| `tex_08` | middle-aged, light skin, brown brows, grey eyes | MakeHuman `onlytheghosts_middle_aged_eurasian_female` | grey |
-| `tex_09` | adult, light skin with stubble, photographed skin, hazel eyes | Infinite head scan, colour map (CC BY 3.0) | hazel |
-
-Sets 01 to 08 take their skin colour from MakeHuman CC0 skins and have drawn eyebrows; `tex_09`
-takes its colour from the head scan, eyebrows included. All nine share the scan's pore-scale
-relief in the normal map. Labels give age, skin tone, brows and iris only, no gender or ethnicity
-(the identity a set is paired with for its still is in `set.json`). The stills in `outputs/stills/` show each set on its own GNM identity.
-
-### Putting a set on a bare GNM head
-
-1. Give the head one material per region: skin (tile 1001), left eye interior (1002), right
-   eye interior (1004), both corneas (1003, 1005), and anything for teeth and tongue.
-2. **Skin**: Principled BSDF. `skin.1001.png` → Base Color (sRGB). `skin_rough.1001.png` →
-   Roughness (Non-Color). `skin_normal.1001.png` (Non-Color) → Normal Map node (tangent space,
-   same UV map) → Normal. Optional for our look: Subsurface Weight 0.25, Radius
-   (1.0, 0.35, 0.2), Scale 0.003 (the scene is in metres).
-3. **Eye interiors**: Principled BSDF, `eye.1002.png` / `eye.1004.png` → Base Color,
-   **Roughness 0.6, Specular IOR Level 0.1**. With Blender's default specular (0.5) and no
-   cornea, the irises read grey and washed out at face size; this was measured in our wrap test.
-4. **Corneas**: fully transparent (Principled Alpha 0), or glass that is transparent to shadow
-   rays (Light Path → Is Shadow Ray mixing in a Transparent BSDF), or the iris renders dark.
-5. Image Texture nodes keep their default **Repeat** extension, so with the UDIM map each tile
-   reads its own file and no tiled image is needed. With the legacy map use the `legacy/` files.
-
-The same steps as a script, tested on the mesh in `scene.blend` (needs GNM's UDIM UVs on the
-mesh; `uv` is the name of that UV map):
+<details>
+<summary><b>The same steps as a script</b> (tested on the mesh in <code>scene.blend</code>)</summary>
 
 ```python
 import bpy
@@ -313,51 +320,137 @@ def apply_set(obj, folder, uv="UDIM"):
 # apply_set(bpy.context.active_object, "textures/tex_01")
 ```
 
-## How it works
+</details>
 
-- **Gaze engine** (`wrapper/gaze/`, numpy only): saccades with amplitude-dependent duration
-  and peak velocity, overshoot and corrective saccades, fixation drift and jitter, Poisson
-  blinks (closing faster than opening, coupled to large gaze shifts), upper lid following eye
-  pitch, brows and a slight squint travelling with the gaze, head joining large shifts with a
-  vestibulo-ocular counter-rotation. Numbers from Ruhland et al., *A Review of Eye Gaze in
-  Virtual Agents, Social Robotics and HCI*, Computer Graphics Forum 2015.
-- **Rig** (`wrapper/rig.py`): GNM's four joints as Blender bones, lid, blink, brow and squint
-  shape keys built from GNM expression components, the pupil coefficient as a shape key.
-  Motion is baked as keyframes, so it plays on the Timeline.
-- **Textures** (`tools/`): MakeHuman CC0 skins baked onto GNM's UVs through a one-off
-  registration of the two heads, procedural pore, furrow and roughness maps, and procedural
-  irises with a different seed per eye.
+## Conventions
 
-`scene.blend` is generated by `tools/build_scene.py`; the tools need their own Python
-environment and the downloaded assets, and are not needed to run the wrapper. It is built on
-the GNM identity paired with the hero set `tex_09`, so the videos show the same head as the
-hero still:
+**Directions are in image space**, as the camera sees the face. `h > 0` moves the pupils to
+**image-right**, `v > 0` moves them **up**, and the `left` input means image-left. `L` is the
+subject's left eye, which appears on the **right** of the image. At |h| = 1 the gaze is
+atan(5/35) ≈ 8.1° off centre; the head stays still under `move`.
+
+**Cameras.** `cam_face` and `cam_eyes` sit 40 cm in front of the eye midpoint, looking at the
+face, 1024×1024, under constant lighting. `cam_face` has a 50 mm lens on a 36 mm sensor.
+
+**Units and axes.** Metres. GNM is +Y up, +Z forward; in `scene.blend` a GNM point `(x, y, z)`
+sits at Blender `(x, −z, y)`, so the face looks along Blender −Y. UVs are unchanged.
+
+**`metadata.json`**, one record per clockwise render:
+
+| Key | Meaning |
+|---|---|
+| `frame`, `theta`, `input.h`, `input.v` | k, θ = 2πk/10, h = sin θ, v = cos θ |
+| `eye_rotation_L`, `eye_rotation_R` | world-frame rotation of each eye bone from rest, Euler XYZ, radians. Blender world axes: +X image-right, +Y away from the camera, +Z up |
+| `pupil_center_2D_L`, `pupil_center_2D_R` | pupil centre in pixels of the 1024² render, origin top-left, x right, y down |
+| `camera_matrix` | 3×4 `P = K [R \| t]`, OpenCV convention (x right, y down, z forward); `P · [X, Y, Z, 1]` divided by its third row gives the pixel |
+| `K`, `camera_world_matrix` | intrinsics (3×3) and camera-to-world (4×4) |
+| `image` | path of the render |
+
+## What's in the box
 
 ```
-$BLENDER -b --factory-startup -P tools/build_scene.py -- --npz assets/gnm/id_male_white_9.npz
+scene.blend            GNM head, armature (neck, head, eye.L, eye.R), lid/brow/blink shape keys,
+                       materials, lights, cameras; the generate motion on the Timeline
+wrapper/eyes.py        public API and command line: move(h, v), reset(), render(), videos
+wrapper/rig.py         turns gaze channels into bone rotations and shape-key weights
+wrapper/gaze/          the gaze engine (numpy only)
+renders/               10 clockwise 1024×1024 PNGs
+metadata.json          one record per clockwise render
+textures/tex_01 … 09/  nine texture sets in GNM UV space
+outputs/videos/        left.mp4, right.mp4, generate.mp4 (each ≤ 15 s)
+outputs/stills/        one render per texture set; eye/ has an eye close-up per set
+outputs/demo/          the demo video
+tests/                 unit tests, no Blender needed
+tools/                 how everything above was built, and the validator
+xr/                    the WebXR bonus: the same head looking at you in a Quest
+Dockerfile             renders a draft frame on CPU with the pinned Blender
 ```
 
-## Licences and credits
+## Checks
+
+```bash
+python tools/validate.py                          # layout, metadata, directions, videos, textures, README, Dockerfile
+python tools/validate.py --zip VIT_Saccade.zip    # the same, on a clean unzip of the bundle
+python -m unittest discover tests                 # gaze engine against published numbers
+python -m wrapper.gaze --mode left --seed 0 --plot /tmp/left.png   # the motion as curves
+```
+
+With `--blender path/to/blender` the validator also opens `scene.blend` headless and checks the
+eye bones, UV maps, materials, Timeline keyframes, and that no file path in it is absolute.
+
+### Docker
+
+The image renders one draft frame on the CPU with Blender 4.5.1 (x86_64 Linux; on Apple Silicon
+it runs under emulation). EEVEE gets its OpenGL context from Xvfb and Mesa llvmpipe.
+
+```bash
+docker build --platform linux/amd64 -t syntheticeyes .
+```
+
+```bash
+docker run --rm --platform linux/amd64 -v "$PWD/outputs/docker:/work/outputs/docker" syntheticeyes
+```
+
+This writes `outputs/docker/draft.png` (about 40 s under emulation on an M4). Any wrapper command
+can follow the image name, for example
+`blender -b scene.blend -P wrapper/eyes.py -- --input left --quality draft`. Final quality in the
+container means Cycles on the CPU (`--cpu`), which is slow.
+
+## Bonus: it looks back at you
+
+**[aryankalra404.github.io/SyntheticEyes](https://aryankalra404.github.io/SyntheticEyes/)** runs
+the same head and the same gaze engine live in the browser (three.js, WebXR). On a laptop it
+follows your mouse, or your face through the webcam. On a Meta Quest 3 / 3S, tap START XR and the
+bust stands in your room, keeps eye contact as you walk round it, and follows your raised hand,
+eyes first and head a beat later. Your real hand hides it when it passes in front. It isn't part
+of the scored bundle; see [`xr/README.md`](xr/README.md).
+
+## Limitations
+
+- **Final renders are slow.** A 9 s split-screen Cycles video takes hours on a laptop GPU. Draft
+  and preview modes exist for iteration, but the shipped videos are full quality.
+- **Bald heads.** GNM has no hair. Brows, lashes and fine facial hair are in, but scalp hair isn't.
+- **The mouth is untextured.** Teeth and tongue get a flat material; the track is about the eyes
+  and skin.
+- **Source resolution.** MakeHuman skins are soft at GNM's texel density. Pore detail comes from
+  the scan's relief, so eight of the nine sets share the same micro-relief under different colour.
+- **Tested on one machine.** Renders were made on an Apple M4 with Metal. Other GPU backends are
+  wired up but untested; `--cpu` always works. Docker was run under emulation only.
+
+## How it was built
+
+`scene.blend` is generated, never edited by hand: `tools/build_scene.py` builds it from GNM's data
+on the identity paired with `tex_09`, so the videos show the same head as the hero still. GNM's own
+Python package never runs inside Blender. A tools step exports plain `.npz` files, and everything
+on the Blender side uses only `bpy` and `numpy`. The texture pipeline (`tools/`) does the head
+registration, skin bake, relief transfer and iris generation. It needs its own Python environment
+and the downloaded assets, and isn't needed to run the wrapper.
+
+```bash
+python3 tools/solve_lids.py
+blender -b --factory-startup -P tools/build_scene.py -- --npz assets/gnm/id_male_white_9.npz
+```
+
+The design notes, measurements and our full work log are in [`docs/`](docs):
+[TECH_NOTES](docs/TECH_NOTES.md), [PLAN](docs/PLAN.md), [REQUIREMENTS](docs/REQUIREMENTS.md),
+[PROGRESS](docs/PROGRESS.md). The README pictures are made by `tools/make_readme_images.py`.
+
+## Credits and licences
 
 | Asset | Use | Licence |
 |---|---|---|
 | [Google GNM Head v3](https://github.com/google/GNM) | head mesh, joints, UVs, expression basis | Apache-2.0 |
 | [MakeHuman](https://static.makehumancommunity.org/assets/assetpacks.html) Skins 01 and 02, Eyebrows 01, Eyelashes 01, system assets and base mesh | skin colour source, eyebrows, registration target | CC0 |
 | [Poly Haven `brown_photostudio_02`](https://polyhaven.com/a/brown_photostudio_02) | lighting (HDRI packed in `scene.blend`) | CC0 |
-| "Infinite, 3D Head Scan by Lee Perry-Smith", based on a work at www.triplegangers.com ([download](https://casual-effects.com/g3d/data10/research/model/lpshead/lpshead.zip), McGuire Computer Graphics Archive) | displacement map, filtered to pore scale: skin micro-relief in the normal maps and colour detail of every set; colour map: the skin of `tex_09` only | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
+| "Infinite, 3D Head Scan by Lee Perry-Smith", based on a work at www.triplegangers.com ([download](https://casual-effects.com/g3d/data10/research/model/lpshead/lpshead.zip), McGuire Computer Graphics Archive) | displacement map, filtered to pore scale: skin micro-relief in every set's normal map and colour detail; colour map: the skin of `tex_09` only | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) |
 | Blender 4.5.1 | renderer (tool only, not redistributed) | GPL |
 
-Irises, sclera, the rest of the detail maps (lips, lids, ears, roughness, colour variation), the
-gaze engine and all code were made for this project, with AI coding tools; see
-[AI_DISCLOSURE.md](AI_DISCLOSURE.md). The scan's geometry and original files are not
-redistributed; each `set.json` names what it takes from the scan.
+Gaze-behaviour numbers follow Ruhland et al., *A Review of Eye Gaze in Virtual Agents, Social
+Robotics and HCI*, Computer Graphics Forum 2015.
 
-Code licence: MIT, see [LICENSE](LICENSE). Third-party assets keep the licences in the table above.
+The irises, sclera, the rest of the detail maps, the gaze engine and all code were made for this
+project. We used AI coding tools; [AI_DISCLOSURE.md](AI_DISCLOSURE.md) says exactly how. The
+scan's geometry and original files are not redistributed; each `set.json` names what it takes
+from the scan.
 
-## Docs
-
-- [AI_DISCLOSURE.md](AI_DISCLOSURE.md): which parts were made with AI tools
-- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md): what the organisers ask for
-- [docs/PLAN.md](docs/PLAN.md): plan and architecture
-- [docs/TECH_NOTES.md](docs/TECH_NOTES.md): technical notes, reference bar, asset sources
-- [docs/PROGRESS.md](docs/PROGRESS.md): work log
+Code: MIT, see [LICENSE](LICENSE). Third-party assets keep the licences above.

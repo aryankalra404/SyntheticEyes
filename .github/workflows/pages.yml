@@ -1,0 +1,42 @@
+# Publishes the WebXR page in xr/ to GitHub Pages:
+# https://aryankalra404.github.io/SyntheticEyes/
+# Only the page and its assets go up (no tests, no local server).
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ["xr/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: xr
+      - name: copy the page
+        run: |
+          mkdir _site
+          rsync -a --exclude tests --exclude serve.py --exclude package.json \
+            --exclude .certs --exclude node_modules xr/ _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

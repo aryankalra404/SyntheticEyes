@@ -7,14 +7,13 @@ renders stills and videos from the command line.
 Samsung PRISM XR Hackathon 2026 · Track 1: Synthetic Eye Movement & Virtual Camera Rendering ·
 Team **Saccade**, Vellore Institute of Technology (VIT): Harshit Aryan and Aryan Kalra
 
-> **[⬇ Download the submission bundle: `VIT_Saccade.zip` (770 MB)](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)**
->
-> `scene.blend`, `wrapper/eyes.py`, the nine texture sets, the three videos, the 10 clockwise
-> renders with `metadata.json`, and this README. Unzip anywhere and follow [Quick start](#quick-start).
-
-**[Demo video (1:38)](https://www.youtube.com/watch?v=Qzy6REgps80)** ·
-**[Presentation](VIT_Saccade.pdf)** ·
-**[Try it in your browser or a Quest](https://aryankalra404.github.io/SyntheticEyes/)**
+| Submission | Where |
+|---|---|
+| **Submission package** | **[⬇ `VIT_Saccade.zip` (772 MB)](https://github.com/aryankalra404/SyntheticEyes/releases/latest/download/VIT_Saccade.zip)**: unzip anywhere and follow [Quick start](#quick-start) |
+| **Presentation** | **[Google Drive](https://drive.google.com/file/d/1av6zHh1PzzXBkeh5aXdYt0agFUmi22cs/view?usp=sharing)** · [PDF in repo](VIT_Saccade.pdf) |
+| **Video** | **[Demo on YouTube (1:38)](https://www.youtube.com/watch?v=uHZdS5nFLyQ)** |
+| **AI disclosure** | [`AI_DISCLOSURE.md`](AI_DISCLOSURE.md) |
+| **Bonus** | **[Live WebXR demo](https://aryankalra404.github.io/SyntheticEyes/)** (browser or Meta Quest) |
 
 ![The generate input: the face on a fixed camera, and the subject's left eye close up](docs/img/hero_generate.webp)
 
@@ -153,11 +152,12 @@ aims both eyes at it, so they converge as real eyes do.
 <sub>The five-direction check (`--check-directions --render`): pupils move the right way for
 left, right, up, down and reset. Pixel positions are in `outputs/direction_check.json`.</sub>
 
-![The 10 clockwise renders, cropped to the eyes](docs/img/clockwise.jpg)
+![The 10 clockwise poses on the eye camera, cropped to the eyes](docs/img/clockwise_eyes.jpg)
 
-<sub>The 10 clockwise renders in [`renders/`](renders) (θ = 2πk/10, h = sin θ, v = cos θ,
-starting at the top), cropped to the eyes. At the spec's 40 cm camera the full ±5 cm range moves
-a pupil only about 6 px, which is why the videos use closer cameras.</sub>
+<sub>The 10 clockwise poses (θ = 2πk/10, h = sin θ, v = cos θ, starting at the top) rendered on
+`cam_eyes`, which is also locked 40 cm out, with `--clockwise --camera eyes`, and cropped to the
+eyes. The shipped files in [`renders/`](renders) use the default `cam_face`, where the full ±5 cm
+range moves a pupil only about 6 px, which is why the videos use closer cameras.</sub>
 
 ## Quick start
 
